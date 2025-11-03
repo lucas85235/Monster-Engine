@@ -3,6 +3,7 @@
 #include "alc.h"
 #include "engine/Log.h"
 #include "engine/audio/AudioSystem.h"
+#include "engine/audio/AudioEmitter.h"
 
 map<string, Audio*> AudioManager::audios;
 
@@ -120,4 +121,19 @@ void AudioManager::DeleteAudio()
         }
     }
     audios.clear();
+}
+
+void AudioManager::PrepareAndPlay(AudioSource a) {
+    AddAudio(a.file);
+    Audio* audio = GetAudio(a.file);
+
+    AudioEmitter* emitter = new AudioEmitter(audio);
+    // emitter->SetTarget(entity);
+    emitter->SetVolume(a.volume);
+    emitter->SetRadius(a.radius);
+    emitter->SetLooping(a.isLooping);
+    emitter->SetPriority(AUDIOPRIORITY_MEDIUM);
+    emitter->SetPosition(glm::vec3{0.0f, 0.0f, 0.0f});
+
+    AudioSystem::GetAudioSystem()->AddAudioEmitter(emitter);
 }

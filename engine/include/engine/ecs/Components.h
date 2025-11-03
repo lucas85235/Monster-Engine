@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+#include "engine/audio/AudioManager.h"
+
 namespace se {
     // Forward declarations
     class Material;
@@ -125,4 +127,29 @@ namespace se {
 
         DirectionalLightComponent(const DirectionalLightComponent &) = default;
     };
+
+    struct AudioComponent {
+        std::string FilePath;
+        float Volume = 1.0f;
+        float Radius = 20.0f;
+        bool IsLooping = false;
+
+        AudioComponent() = default;
+
+        AudioComponent(const AudioComponent &) = default;
+
+        AudioComponent(const std::string &filePath) : FilePath(filePath) {
+        }
+
+        void PrepareAndPlay() {
+            AudioSource a;
+            a.file = FilePath;
+            a.volume = Volume;
+            a.radius = Radius;
+            a.isLooping = IsLooping;
+
+            AudioManager::PrepareAndPlay(a);
+        }
+    };
+
 } // namespace se

@@ -3,10 +3,6 @@
 #include <engine/Application.h>
 #include <engine/Input.h>
 #include <engine/Log.h>
-#include <engine/audio/Audio.h>
-#include <engine/audio/AudioEmitter.h>
-#include <engine/audio/AudioManager.h>
-#include <engine/audio/AudioSystem.h>
 #include <engine/ecs/Components.h>
 #include <gtc/type_ptr.hpp>
 #include <imgui.h>
@@ -178,6 +174,17 @@ void AppLayer::OnImGuiRender() {
                     ImGui::ColorEdit3("Color", glm::value_ptr(light.Color));
                     light.Intensity = glm::max(light.Intensity, 0.0f);
                 }
+                if (ent.HasComponent<se::AudioComponent>()) {
+                    auto& audio = ent.GetComponent<se::AudioComponent>();
+
+                    ImGui::Separator();
+                    ImGui::Text("Audio source");
+                    
+                    ImGui::Text("File path: %s", audio.FilePath.c_str());
+                    ImGui::Checkbox("Play in a loop", &audio.IsLooping);
+                    ImGui::DragFloat("Volume", &audio.Volume, 0.01f, 0.0f, 1.0f);
+                    ImGui::InputFloat("Radius", &audio.Radius);
+                }
 
                 ImGui::TreePop();
             }
@@ -323,6 +330,7 @@ void AppLayer::CreateAudioEntity(const std::string& name, const glm::vec3& posit
 
     SE_LOG_INFO("OpenAL: Creating audio entity: {}", name);
     auto entity = scene_->CreateEntity(name);
+    
 
     // Set position and scale
     auto& transform = entity.GetComponent<se::TransformComponent>();
@@ -330,16 +338,9 @@ void AppLayer::CreateAudioEntity(const std::string& name, const glm::vec3& posit
 
     SE_LOG_INFO("OpenAL: Audio entity created successfully");
 
-    AudioManager::AddAudio("music.wav");
-    Audio* audio = AudioManager::GetAudio("music.wav");
+    auto assets_folder = findAssetsFolder();
+    fs::path music_path = assets_folder.value() / "audio" / "music.wav";
 
-    AudioEmitter* emitter = new AudioEmitter(audio);
-    emitter->SetTarget(entity);
-    emitter->SetVolume(0.5f);
-    emitter->SetRadius(500.0f);
-    emitter->SetLooping(true);
-    emitter->SetPriority(AUDIOPRIORITY_MEDIUM);
-    emitter->SetPosition(glm::vec3{0.0f, 0.0f, 0.0f});
-
-    AudioSystem::GetAudioSystem()->AddAudioEmitter(emitter);
+    auto& audioComponent = entity.AddComponent<se::AudioComponent>(music_path);
+    audioComponent.PrepareAndPlay();
 }

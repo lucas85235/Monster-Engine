@@ -15,6 +15,7 @@ enum AudioPriority {
 
 struct OALSource;
 
+
 class AudioEmitter {
 
 public:
