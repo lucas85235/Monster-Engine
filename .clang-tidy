@@ -1,0 +1,29 @@
+Checks: >
+  -readability-identifier-naming
+
+CheckOptions:
+  # Tipos em PascalCase (Google: class/struct names em CamelCase)
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+
+  # Funções em CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: CamelCase
+
+  # Variáveis em snake_case (Google style)
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+
+  # Membros com snake_case + underscore final (Google: member_)
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberSuffix
+    value: "_"
+
+  # Parâmetros também em snake_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case

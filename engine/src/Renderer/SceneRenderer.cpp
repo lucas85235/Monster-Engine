@@ -42,29 +42,29 @@ void SceneRenderer::Shutdown() {
 void SceneRenderer::BeginScene(const Camera& camera, const glm::mat4& projection) {
     sceneData_->ViewMatrix = camera.getViewMatrix();
     sceneData_->ProjectionMatrix = projection;
-    sceneData_->ViewProjectionMatrix = projection * sceneData_->ViewMatrix;
+    sceneData_->view_projection_matrix = projection * sceneData_->ViewMatrix;
     sceneData_->Submissions.clear();
 
     // Prepare directional light data and shadow matrix
-    if (!sceneData_->DirectionalLight.Active) {
-        sceneData_->DirectionalLight.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
-        sceneData_->DirectionalLight.Intensity = 0.0f;
-        sceneData_->DirectionalLight.Color = glm::vec3(1.0f);
+    if (!sceneData_->directional_light.Active) {
+        sceneData_->directional_light.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        sceneData_->directional_light.Intensity = 0.0f;
+        sceneData_->directional_light.Color = glm::vec3(1.0f);
         sceneData_->ShadowsEnabled = false;
         sceneData_->LightSpaceMatrix = glm::mat4(1.0f);
     } else {
-        glm::vec3 lightDir = sceneData_->DirectionalLight.Direction;
+        glm::vec3 lightDir = sceneData_->directional_light.Direction;
         if (glm::length(lightDir) <= 0.0f) {
             lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
         }
         lightDir = glm::normalize(lightDir);
-        sceneData_->DirectionalLight.Direction = lightDir;
+        sceneData_->directional_light.Direction = lightDir;
 
-        sceneData_->ShadowsEnabled = sceneData_->DirectionalLight.CastShadows &&
-                                     sceneData_->DirectionalLight.Intensity > 0.0f;
+        sceneData_->ShadowsEnabled = sceneData_->directional_light.CastShadows &&
+                                     sceneData_->directional_light.Intensity > 0.0f;
 
         if (sceneData_->ShadowsEnabled) {
-            const glm::vec3 focusPoint = sceneData_->DirectionalLight.Position;
+            const glm::vec3 focusPoint = sceneData_->directional_light.Position;
             const glm::vec3 lightPos = focusPoint - lightDir * sceneData_->ShadowDistance;
             glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
             if (glm::abs(glm::dot(up, lightDir)) > 0.95f) {
@@ -102,8 +102,8 @@ void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
         return;
 
     Submission submission;
-    submission.VertexArray = vertexArray;
-    submission.Material = material;
+    submission.vertex_array = vertexArray;
+    submission.material = material;
     submission.Transform = transform;
     submission.CastsShadows = castsShadows;
     submission.ReceiveShadows = receiveShadows;
@@ -114,24 +114,24 @@ void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
     if (!sceneData_)
         return;
 
-    sceneData_->DirectionalLight = light;
-    sceneData_->DirectionalLight.Active = true;
+    sceneData_->directional_light = light;
+    sceneData_->directional_light.Active = true;
 
-    if (glm::length(sceneData_->DirectionalLight.Direction) <= 0.0f) {
-        sceneData_->DirectionalLight.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
+    if (glm::length(sceneData_->directional_light.Direction) <= 0.0f) {
+        sceneData_->directional_light.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
     } else {
-        sceneData_->DirectionalLight.Direction =
-            glm::normalize(sceneData_->DirectionalLight.Direction);
+        sceneData_->directional_light.Direction =
+            glm::normalize(sceneData_->directional_light.Direction);
     }
 
-    sceneData_->DirectionalLight.Intensity = glm::max(light.Intensity, 0.0f);
+    sceneData_->directional_light.Intensity = glm::max(light.Intensity, 0.0f);
 }
 
 void SceneRenderer::ClearDirectionalLight() {
     if (!sceneData_)
         return;
 
-    sceneData_->DirectionalLight = DirectionalLightData{};
+    sceneData_->directional_light = DirectionalLightData{};
     sceneData_->ShadowsEnabled = false;
     sceneData_->LightSpaceMatrix = glm::mat4(1.0f);
 }
@@ -140,7 +140,7 @@ SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() {
     if (!sceneData_)
         return DirectionalLightData{};
 
-    return sceneData_->DirectionalLight;
+    return sceneData_->directional_light;
 }
 
 void SceneRenderer::InitializeShadowResources() {
@@ -214,11 +214,11 @@ void SceneRenderer::RenderShadowPass() {
         if (!submission.CastsShadows)
             continue;
 
-        if (!submission.VertexArray)
+        if (!submission.vertex_array)
             continue;
 
         sceneData_->ShadowShader->setMat4("uModel", submission.Transform);
-        RenderCommand::DrawIndexed(submission.VertexArray.get());
+        RenderCommand::DrawIndexed(submission.vertex_array.get());
     }
 
     glCullFace(previousCullFaceMode);
@@ -240,34 +240,34 @@ void SceneRenderer::RenderScenePass() {
         glBindTexture(GL_TEXTURE_2D, 0);
 
     for (const auto& submission : sceneData_->Submissions) {
-        if (!submission.VertexArray || !submission.Material)
+        if (!submission.vertex_array || !submission.material)
             continue;
 
-        submission.Material->Bind();
-        auto shader = submission.Material->GetShader();
+        submission.material->Bind();
+        auto shader = submission.material->GetShader();
         if (!shader)
             continue;
 
         shader->setMat4("uView", sceneData_->ViewMatrix);
         shader->setMat4("uProj", sceneData_->ProjectionMatrix);
         shader->setMat4("uModel", submission.Transform);
-        shader->setVec3("uLightDirection", -sceneData_->DirectionalLight.Direction);
-        shader->setVec3("uLightColor", sceneData_->DirectionalLight.Color);
-        shader->setFloat("uLightIntensity", sceneData_->DirectionalLight.Active
-                                                ? sceneData_->DirectionalLight.Intensity
+        shader->setVec3("uLightDirection", -sceneData_->directional_light.Direction);
+        shader->setVec3("uLightColor", sceneData_->directional_light.Color);
+        shader->setFloat("uLightIntensity", sceneData_->directional_light.Active
+                                                ? sceneData_->directional_light.Intensity
                                                 : 0.0f);
         shader->setFloat("uAmbientStrength", sceneData_->AmbientStrength);
         shader->setMat4("uLightSpaceMatrix", sceneData_->LightSpaceMatrix);
         shader->setInt("uShadowMap", 0);
         shader->setFloat("uReceiveShadows", submission.ReceiveShadows ? 1.0f : 0.0f);
         shader->setFloat("uShadowsEnabled",
-                         sceneData_->ShadowsEnabled && sceneData_->DirectionalLight.Active ? 1.0f
+                         sceneData_->ShadowsEnabled && sceneData_->directional_light.Active ? 1.0f
                                                                                            : 0.0f);
 
-        RenderCommand::DrawIndexed(submission.VertexArray.get());
+        RenderCommand::DrawIndexed(submission.vertex_array.get());
 
         stats_.DrawCalls++;
-        stats_.TriangleCount += submission.VertexArray->GetIndexBuffer()->GetCount() / 3;
+        stats_.TriangleCount += submission.vertex_array->GetIndexBuffer()->GetCount() / 3;
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
