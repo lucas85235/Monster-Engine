@@ -10,9 +10,6 @@ int main() {
     appSpec.WindowWidth = 1920;
     appSpec.WindowHeight = 1080;
 
-    se::LogInit(true);
-
     se::Application application(appSpec);
-    application.PushLayer<AppLayer>();
     application.Run();
 }
