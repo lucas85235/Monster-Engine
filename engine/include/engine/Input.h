@@ -6,7 +6,7 @@ struct GLFWwindow;
 
 namespace se {
 class Input {
-  public:
+   public:
     static bool IsKeyPressed(int keycode);
 
     static bool IsKeyDown(int keycode);
@@ -24,7 +24,7 @@ class Input {
     // Internal: Used by Window to set the context
     static void SetWindow(GLFWwindow* window);
 
-  private:
+   private:
     Input() = delete;
 
     static GLFWwindow* window_;
@@ -32,4 +32,4 @@ class Input {
     static std::unordered_map<int, bool> current_key_states_;
     static std::unordered_map<int, bool> last_key_states_;
 };
-} // namespace se
+}  // namespace se

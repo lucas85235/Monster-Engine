@@ -6,12 +6,13 @@
 #include <engine/ecs/Scene.h>
 #include <engine/resources/MaterialManager.h>
 #include <engine/resources/MeshManager.h>
+
 #include <glm.hpp>
 #include <memory>
 #include <string>
 
 class AppLayer : public se::Layer {
-  public:
+   public:
     AppLayer();
 
     ~AppLayer() override;
@@ -28,7 +29,7 @@ class AppLayer : public se::Layer {
 
     void OnImGuiRender() override;
 
-  private:
+   private:
     void HandleInput(float deltaTime);
 
     void LoadMaterial();
@@ -36,14 +37,13 @@ class AppLayer : public se::Layer {
     // Helper methods for creating entities
     void AddDirectionalLight();
 
-    void CreateCubeEntity(const std::string& name, const glm::vec3& position,
-                          const glm::vec3& scale = glm::vec3(1.0f));
+    void CreateCubeEntity(const std::string& name, const glm::vec3& position, const glm::vec3& scale = glm::vec3(1.0f));
 
     void CreateSphereEntity(const std::string& name, const glm::vec3& position);
 
     void CreateCapsuleEntity(const std::string& name, const glm::vec3& position);
 
-  private:
+   private:
     // Scene
     std::unique_ptr<se::Scene> scene_;
 
@@ -51,7 +51,7 @@ class AppLayer : public se::Layer {
     std::shared_ptr<se::Material> material_;
 
     // Camera and input
-    Camera camera_;
+    Camera       camera_;
     InputHandler inputHandler_;
 
     // Animation time

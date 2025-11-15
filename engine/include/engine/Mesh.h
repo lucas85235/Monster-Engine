@@ -1,13 +1,14 @@
 #pragma once
 
 #include <glad/glad.h>
+
 #include <vector>
 
 class Mesh {
-  public:
+   public:
     Mesh() = default;
     Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices);
-    Mesh(const Mesh&) = delete;
+    Mesh(const Mesh&)            = delete;
     Mesh& operator=(const Mesh&) = delete;
     Mesh(Mesh&& other) noexcept;
     Mesh& operator=(Mesh&& other) noexcept;
@@ -44,10 +45,10 @@ class Mesh {
         return indices_.size();
     }
 
-  private:
+   private:
     void setupMesh();
 
-    std::vector<float> vertices_;
+    std::vector<float>        vertices_;
     std::vector<unsigned int> indices_;
 
     GLuint vao_ = 0;

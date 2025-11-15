@@ -9,7 +9,7 @@ namespace se {
 class Scene;
 
 class Entity {
-  public:
+   public:
     Entity() = default;
     Entity(entt::entity handle, Scene* scene);
     Entity(const Entity& other) = default;
@@ -64,11 +64,11 @@ class Entity {
         return entityHandle_;
     }
 
-  private:
+   private:
     entt::entity entityHandle_{entt::null};
-    Scene* scene_ = nullptr;
+    Scene*       scene_ = nullptr;
 
     friend class Scene;
 };
 
-} // namespace se
+}  // namespace se

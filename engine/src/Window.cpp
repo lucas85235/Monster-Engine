@@ -1,9 +1,12 @@
 #include "engine/Window.h"
+
+#include <GLFW/glfw3.h>
+
+#include <stdexcept>
+
 #include "engine/Input.h"
 #include "engine/Log.h"
 #include "engine/renderer/GraphicsContext.h"
-#include <GLFW/glfw3.h>
-#include <stdexcept>
 
 namespace se {
 
@@ -13,13 +16,11 @@ static void GLFWErrorCallback(int error, const char* description) {
     SE_LOG_ERROR("GLFW Error ({}): {}", error, description);
 }
 
-Window::Window(const ApplicationSpec& spec)
-    : Window(spec.WindowWidth, spec.WindowHeight, spec.Name) {
+Window::Window(const ApplicationSpec& spec) : Window(spec.WindowWidth, spec.WindowHeight, spec.Name) {
     SetVSync(spec.VSync);
 }
 
-Window::Window(uint32_t width, uint32_t height, const std::string& title)
-    : width_(width), height_(height), title_(title) {
+Window::Window(uint32_t width, uint32_t height, const std::string& title) : width_(width), height_(height), title_(title) {
     Init(width, height, title);
 }
 
@@ -53,15 +54,13 @@ void Window::SwapBuffers() {
 }
 
 void Window::Init(uint32_t width, uint32_t height, const std::string& title) {
-    width_ = width;
+    width_  = width;
     height_ = height;
-    title_ = title;
+    title_  = title;
 
     if (!s_GLFWInitialized) {
         int success = glfwInit();
-        if (!success) {
-            throw std::runtime_error("Could not initialize GLFW!");
-        }
+        if (!success) { throw std::runtime_error("Could not initialize GLFW!"); }
         glfwSetErrorCallback(GLFWErrorCallback);
         s_GLFWInitialized = true;
     }
@@ -116,4 +115,4 @@ void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height) 
 
     glViewport(0, 0, w, h);
 }
-} // namespace se
+}  // namespace se

@@ -1,16 +1,17 @@
 
 #pragma once
 
+#include <entt.hpp>
+#include <string>
+
 #include "engine/Camera.h"
 #include "engine/Log.h"
 #include "engine/ecs/Entity.h"
-#include <entt.hpp>
-#include <string>
 
 namespace se {
 
 class Scene {
-  public:
+   public:
     Scene(const std::string& name = "Untitled Scene");
     ~Scene();
 
@@ -48,8 +49,8 @@ class Scene {
         return registry_.storage<entt::entity>()->size();
     }
 
-  private:
-    std::string name_;
+   private:
+    std::string    name_;
     entt::registry registry_;
 
     friend class Entity;
@@ -69,9 +70,7 @@ T& Entity::AddComponent(Args&&... args) {
 
 template <typename T>
 T& Entity::GetComponent() {
-    if (!HasComponent<T>()) {
-        SE_LOG_ERROR("Entity does not have component!");
-    }
+    if (!HasComponent<T>()) { SE_LOG_ERROR("Entity does not have component!"); }
     return scene_->registry_.get<T>(entityHandle_);
 }
 
@@ -89,4 +88,4 @@ void Entity::RemoveComponent() {
     scene_->registry_.remove<T>(entityHandle_);
 }
 
-} // namespace se
+}  // namespace se

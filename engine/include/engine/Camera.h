@@ -3,10 +3,9 @@
 #include <glm.hpp>
 
 class Camera {
-  public:
+   public:
     // Camera constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 10.0f),
-           glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 
     // Returns the view matrix calculated using Euler angles and the LookAt matrix
     glm::mat4 getViewMatrix() const;
@@ -15,8 +14,7 @@ class Camera {
     glm::mat4 getProjectionMatrix(float aspectRatio) const;
 
     // Processes input received from a keyboard-like input system
-    void processKeyboard(float deltaTime, bool forward, bool back, bool left, bool right,
-                         bool upKey, bool downKey);
+    void processKeyboard(float deltaTime, bool forward, bool back, bool left, bool right, bool upKey, bool downKey);
 
     // Processes input received from a mouse input system
     void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
@@ -70,11 +68,11 @@ class Camera {
         active_ = active;
     }
 
-  private:
+   private:
     // Calculates the front vector from the Camera's (updated) Euler Angles
     void updateCameraVectors();
 
-  private:
+   private:
     // Camera Attributes
     glm::vec3 position_;
     glm::vec3 front_;
@@ -89,7 +87,7 @@ class Camera {
     bool active_ = true;
 
     // Camera options
-    float movement_speed_ = 5.0f;
+    float movement_speed_    = 5.0f;
     float mouse_sensitivity_ = 0.1f;
-    float fov_ = 60.0f;
+    float fov_               = 60.0f;
 };

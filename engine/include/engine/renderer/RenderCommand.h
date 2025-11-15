@@ -7,7 +7,7 @@ namespace se {
 class VertexArray;
 
 class RenderCommand {
-  public:
+   public:
     static void Init();
     static void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     static void SetClearColor(const glm::vec4& color);
@@ -21,8 +21,8 @@ class RenderCommand {
     static void SetCullFace(bool enabled);
     static void SetWireframe(bool enabled);
 
-  private:
+   private:
     RenderCommand() = delete;
 };
 
-} // namespace se
+}  // namespace se

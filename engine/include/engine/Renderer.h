@@ -1,10 +1,11 @@
 
 #pragma once
 
+#include <memory>
+
 #include "engine/Camera.h"
 #include "engine/renderer/RenderCommand.h"
 #include "engine/renderer/SceneRenderer.h"
-#include <memory>
 
 namespace se {
 
@@ -12,7 +13,7 @@ namespace se {
 class Window;
 
 class Renderer {
-  public:
+   public:
     Renderer();
     ~Renderer();
 
@@ -41,11 +42,11 @@ class Renderer {
     }
 
     // Disable copy/move
-    Renderer(const Renderer&) = delete;
+    Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;
 
-  private:
+   private:
     bool initialized_ = false;
 };
 
-} // namespace se
+}  // namespace se

@@ -1,11 +1,12 @@
 #include "engine/resources/MeshManager.h"
+
 #include "engine/Log.h"
 #include "engine/MeshFactory.h"
 #include "engine/renderer/Buffer.h"
 
 namespace se {
 std::unordered_map<PrimitiveMeshType, std::shared_ptr<VertexArray>> MeshManager::primitiveCache_;
-bool MeshManager::initialized_ = false;
+bool                                                                MeshManager::initialized_ = false;
 
 void MeshManager::Init() {
     if (initialized_) {
@@ -19,8 +20,7 @@ void MeshManager::Init() {
 }
 
 void MeshManager::Shutdown() {
-    if (!initialized_)
-        return;
+    if (!initialized_) return;
 
     SE_LOG_INFO("Shutting down MeshManager");
     ClearCache();
@@ -29,24 +29,20 @@ void MeshManager::Shutdown() {
 
 std::shared_ptr<VertexArray> MeshManager::CreateVertexArrayFromMesh(const Mesh& mesh) {
     // COPIE os dados para garantir que eles persistem
-    std::vector<float> vertices = mesh.getVertices();
-    std::vector<unsigned int> indices = mesh.getIndices();
+    std::vector<float>        vertices = mesh.getVertices();
+    std::vector<unsigned int> indices  = mesh.getIndices();
 
-    SE_LOG_INFO("Creating VertexArray from mesh: {} vertices, {} indices", vertices.size() / 9,
-                indices.size());
+    SE_LOG_INFO("Creating VertexArray from mesh: {} vertices, {} indices", vertices.size() / 9, indices.size());
 
     // Create vertex buffer - os dados agora estão em variáveis locais
-    auto vertexBuffer = std::make_shared<VertexBuffer>(
-        vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(float)));
+    auto vertexBuffer = std::make_shared<VertexBuffer>(vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(float)));
 
     // Layout: position (3) + color (3) + normal (3)
-    vertexBuffer->SetLayout(BufferLayout({{ShaderDataType::Float3, "a_Position"},
-                                          {ShaderDataType::Float3, "a_Color"},
-                                          {ShaderDataType::Float3, "a_Normal"}}));
+    vertexBuffer->SetLayout(
+        BufferLayout({{ShaderDataType::Float3, "a_Position"}, {ShaderDataType::Float3, "a_Color"}, {ShaderDataType::Float3, "a_Normal"}}));
 
     // Create index buffer
-    auto indexBuffer =
-        std::make_shared<IndexBuffer>(indices.data(), static_cast<uint32_t>(indices.size()));
+    auto indexBuffer = std::make_shared<IndexBuffer>(indices.data(), static_cast<uint32_t>(indices.size()));
 
     // Create and setup vertex array
     auto vertexArray = std::make_shared<VertexArray>();
@@ -126,4 +122,4 @@ void MeshManager::ClearCache() {
     primitiveCache_.clear();
     SE_LOG_INFO("MeshManager cache cleared");
 }
-} // namespace se
+}  // namespace se

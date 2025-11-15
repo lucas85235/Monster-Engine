@@ -4,4 +4,4 @@ namespace se {
 
 class Event {};
 
-} // namespace se
+}  // namespace se

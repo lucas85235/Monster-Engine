@@ -1,14 +1,15 @@
 #include "AppLayer.h"
+
 #include <GLFW/glfw3.h>
 #include <engine/Application.h>
 #include <engine/Input.h>
 #include <engine/Log.h>
 #include <engine/ecs/Components.h>
-#include <gtc/type_ptr.hpp>
 #include <imgui.h>
 
-AppLayer::AppLayer()
-    : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), inputHandler_(camera_) {}
+#include <gtc/type_ptr.hpp>
+
+AppLayer::AppLayer() : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), inputHandler_(camera_) {}
 
 AppLayer::~AppLayer() {}
 
@@ -31,12 +32,10 @@ void AppLayer::OnAttach() {
 
     SE_LOG_INFO("Scene setup complete with {} entities", scene_->GetEntityCount());
 
-    auto& app = se::Application::Get();
+    auto& app    = se::Application::Get();
     auto* window = app.GetWindow().GetNativeWindow();
 
-    if (window) {
-        inputHandler_.initialize(window);
-    }
+    if (window) { inputHandler_.initialize(window); }
 
     InputHandler::setCursorModeFromString(window, "normal");
 
@@ -44,12 +43,11 @@ void AppLayer::OnAttach() {
 }
 
 void AppLayer::LoadMaterial() {
-    auto assets_folder = findAssetsFolder();
+    auto     assets_folder            = findAssetsFolder();
     fs::path fragment_shader_location = assets_folder.value() / "shaders" / "basic.frag";
-    fs::path vertex_shader_location = assets_folder.value() / "shaders" / "basic.vert";
+    fs::path vertex_shader_location   = assets_folder.value() / "shaders" / "basic.vert";
 
-    std::shared_ptr<se::Shader> shader = se::MaterialManager::GetShader(
-        "DefaultShader", vertex_shader_location, fragment_shader_location);
+    std::shared_ptr<se::Shader> shader = se::MaterialManager::GetShader("DefaultShader", vertex_shader_location, fragment_shader_location);
 
     material_ = se::MaterialManager::CreateMaterial(shader);
     material_->SetFloat("uSpecularStrength", 0.5f);
@@ -74,24 +72,21 @@ void AppLayer::OnUpdate(float ts) {
     auto view = scene_->GetAllEntitiesWith<se::TransformComponent, se::NameComponent>();
     for (auto entity : view) {
         auto& transform = view.get<se::TransformComponent>(entity);
-        auto& name = view.get<se::NameComponent>(entity);
+        auto& name      = view.get<se::NameComponent>(entity);
 
         // Rotate specific entities
-        if (name.Name == "Rotating Cube") {
-            transform.Rotate({0.0f, 50.0f * ts, 0.0f});
-        }
+        if (name.Name == "Rotating Cube") { transform.Rotate({0.0f, 50.0f * ts, 0.0f}); }
 
         // Make sphere bounce
         if (name.Name == "Sphere") {
-            float bounce = glm::sin(animationTime_ * 2.0f) * 0.5f;
+            float bounce         = glm::sin(animationTime_ * 2.0f) * 0.5f;
             transform.Position.y = bounce;
         }
 
         // Make capsule rotate on X axis
         if (name.Name == "Capsule") {
             transform.Rotate({0.0f, 30.0f * ts, 0.0f});
-            transform.SetScale(glm::vec3(1.0, 1.0, 1.0) * glm::sin(animationTime_ * 2) * 0.5f +
-                               1.0f);
+            transform.SetScale(glm::vec3(1.0, 1.0, 1.0) * glm::sin(animationTime_ * 2) * 0.5f + 1.0f);
         }
     }
 
@@ -101,9 +96,8 @@ void AppLayer::OnUpdate(float ts) {
 
 void AppLayer::OnRender() {
     // Calculate aspect ratio
-    glm::vec2 windowSize = {se::Application::Get().GetWindow().GetWidth(),
-                            se::Application::Get().GetWindow().GetHeight()};
-    float aspectRatio = windowSize.x / windowSize.y;
+    glm::vec2 windowSize  = {se::Application::Get().GetWindow().GetWidth(), se::Application::Get().GetWindow().GetHeight()};
+    float     aspectRatio = windowSize.x / windowSize.y;
 
     // Scene automatically renders all entities with MeshRenderComponent!
     scene_->OnRender(camera_, aspectRatio);
@@ -133,7 +127,7 @@ void AppLayer::OnImGuiRender() {
         auto view = scene_->GetAllEntitiesWith<se::NameComponent, se::TransformComponent>();
 
         for (auto entity : view) {
-            auto& name = view.get<se::NameComponent>(entity);
+            auto& name      = view.get<se::NameComponent>(entity);
             auto& transform = view.get<se::TransformComponent>(entity);
 
             ImGui::PushID(static_cast<int>(entity));
@@ -190,8 +184,8 @@ void AppLayer::OnImGuiRender() {
     if (ImGui::CollapsingHeader("Quick Actions")) {
         if (ImGui::Button("Add Cube")) {
             static int cubeCount = 0;
-            float x = (rand() % 10 - 5) * 0.5f;
-            float y = (rand() % 10 - 5) * 0.5f;
+            float      x         = (rand() % 10 - 5) * 0.5f;
+            float      y         = (rand() % 10 - 5) * 0.5f;
             CreateCubeEntity("Cube_" + std::to_string(cubeCount++), {x, y, -5.0f});
         }
 
@@ -199,14 +193,12 @@ void AppLayer::OnImGuiRender() {
 
         if (ImGui::Button("Add Sphere")) {
             static int sphereCount = 0;
-            float x = (rand() % 10 - 5) * 0.5f;
-            float y = (rand() % 10 - 5) * 0.5f;
+            float      x           = (rand() % 10 - 5) * 0.5f;
+            float      y           = (rand() % 10 - 5) * 0.5f;
             CreateSphereEntity("Sphere_" + std::to_string(sphereCount++), {x, y, -5.0f});
         }
 
-        if (ImGui::Button("Add DirectionalLight")) {
-            AddDirectionalLight();
-        }
+        if (ImGui::Button("Add DirectionalLight")) { AddDirectionalLight(); }
 
         if (ImGui::Button("Clear Scene")) {
             scene_->Clear();
@@ -218,12 +210,10 @@ void AppLayer::OnImGuiRender() {
 }
 
 void AppLayer::HandleInput(float deltaTime) {
-    auto& app = se::Application::Get();
+    auto&       app    = se::Application::Get();
     GLFWwindow* window = app.GetWindow().GetNativeWindow();
 
-    if (window) {
-        inputHandler_.processKeyboard(window, deltaTime);
-    }
+    if (window) { inputHandler_.processKeyboard(window, deltaTime); }
 
     if (se::Input::IsKeyPressed(GLFW_KEY_TAB)) {
         camera_active_ = !camera_active_;
@@ -233,8 +223,7 @@ void AppLayer::HandleInput(float deltaTime) {
 
 // ==================== Entity Creation Helpers ====================
 
-void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& position,
-                                const glm::vec3& scale) {
+void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& position, const glm::vec3& scale) {
     SE_LOG_INFO("Creating cube entity: {}", name);
 
     auto entity = scene_->CreateEntity(name);
@@ -254,12 +243,11 @@ void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& positi
     transform.SetPosition(position);
     transform.SetScale(scale);
 
-    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y,
-                position.z);
+    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y, position.z);
 }
 
 void AppLayer::AddDirectionalLight() {
-    auto sunEntity = scene_->CreateEntity("Sun Light");
+    auto  sunEntity    = scene_->CreateEntity("Sun Light");
     auto& sunTransform = sunEntity.GetComponent<se::TransformComponent>();
     sunTransform.SetPosition({0.0f, 5.0f, 5.0f});
     sunTransform.SetRotation({100.0f, 0.0f, 0.0f});
@@ -268,8 +256,8 @@ void AppLayer::AddDirectionalLight() {
 
     auto& sunMesh = sunEntity.AddComponent<se::MeshRenderComponent>(mesh, material_);
 
-    auto& sunLight = sunEntity.AddComponent<se::DirectionalLightComponent>();
-    sunLight.Color = {1.0f, 0.98f, 0.9f};
+    auto& sunLight     = sunEntity.AddComponent<se::DirectionalLightComponent>();
+    sunLight.Color     = {1.0f, 0.98f, 0.9f};
     sunLight.Intensity = 1.5f;
 }
 
@@ -279,8 +267,7 @@ void AppLayer::CreateSphereEntity(const std::string& name, const glm::vec3& posi
     auto entity = scene_->CreateEntity(name);
 
     // Add mesh render component
-    entity.AddComponent<se::MeshRenderComponent>(
-        se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Sphere), material_);
+    entity.AddComponent<se::MeshRenderComponent>(se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Sphere), material_);
 
     // Set position
     auto& transform = entity.GetComponent<se::TransformComponent>();
@@ -295,8 +282,7 @@ void AppLayer::CreateCapsuleEntity(const std::string& name, const glm::vec3& pos
     auto entity = scene_->CreateEntity(name);
 
     // Add mesh render component
-    entity.AddComponent<se::MeshRenderComponent>(
-        se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Sphere), material_);
+    entity.AddComponent<se::MeshRenderComponent>(se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Sphere), material_);
 
     // Set position and scale
     auto& transform = entity.GetComponent<se::TransformComponent>();

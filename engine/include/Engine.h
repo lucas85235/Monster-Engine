@@ -4,6 +4,4 @@
 namespace se {
 #define DEBUG
 
-
-
-} // namespace se
+}  // namespace se

@@ -11,19 +11,19 @@ namespace se {
 class GraphicsContext;
 
 struct ApplicationSpec {
-    std::string Name = "Simple Engine";
-    uint32_t WindowWidth = 1280;
-    uint32_t WindowHeight = 720;
-    bool VSync = true;
+    std::string Name         = "Simple Engine";
+    uint32_t    WindowWidth  = 1280;
+    uint32_t    WindowHeight = 720;
+    bool        VSync        = true;
 };
 
 class Window {
-  public:
+   public:
     Window(const ApplicationSpec& spec);
     Window(uint32_t width, uint32_t height, const std::string& title);
     ~Window();
 
-    void OnUpdate(); // Poll events
+    void OnUpdate();  // Poll events
 
     uint32_t GetWidth() const {
         return width_;
@@ -55,20 +55,20 @@ class Window {
 
     void SwapBuffers();
 
-  private:
+   private:
     void Init(uint32_t width, uint32_t height, const std::string& title);
     void Shutdown();
 
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
-  private:
-    GLFWwindow* handle_ = nullptr;
+   private:
+    GLFWwindow*                      handle_ = nullptr;
     std::unique_ptr<GraphicsContext> context_;
 
-    uint32_t width_;
-    uint32_t height_;
+    uint32_t    width_;
+    uint32_t    height_;
     std::string title_;
-    bool vsync_ = true;
+    bool        vsync_ = true;
 };
 
-} // namespace se
+}  // namespace se

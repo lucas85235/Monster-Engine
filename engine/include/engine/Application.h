@@ -1,20 +1,21 @@
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include "engine/ImGuiLayer.h"
 #include "engine/Layer.h"
 #include "engine/Renderer.h"
 #include "engine/Window.h"
-#include <memory>
-#include <vector>
 
 namespace se {
 
 class Application {
-  public:
+   public:
     Application(const ApplicationSpec& specification);
     ~Application();
 
-    int Run();
+    int  Run();
     void Stop();
 
     template <typename T>
@@ -38,15 +39,15 @@ class Application {
 
     float GetTime();
 
-  private:
-    std::unique_ptr<Window> window_;
-    std::unique_ptr<Renderer> renderer_;
+   private:
+    std::unique_ptr<Window>     window_;
+    std::unique_ptr<Renderer>   renderer_;
     std::shared_ptr<ImGuiLayer> imguiLayer_;
 
     std::vector<std::unique_ptr<Layer>> layer_stack_;
-    bool running_ = false;
+    bool                                running_ = false;
 
     static Application* s_Instance;
 };
 
-} // namespace se
+}  // namespace se

@@ -18,11 +18,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="8" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="36" type="long" />
     <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
     <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
     <option name="/Default/Housekeeping/LiveTemplatesHousekeeping/HotspotSessionHintIsShown/@EntryValue" value="true" type="bool" />
-    <option name="/Default/Housekeeping/OptionsDialog/SelectedPageId/@EntryValue" value="CppIncludesOrderOptions" type="string" />
+    <option name="/Default/Housekeeping/OptionsDialog/SelectedPageId/@EntryValue" value="CppFormatterOtherPage" type="string" />
     <option name="/Default/Housekeeping/RefactoringsMru/CppRenameRefactoring/DoRenameRelatedFiles/@EntryValue" value="false" type="bool" />
     <option name="/Default/Housekeeping/RefactoringsMru/RenameRefactoring/DoRenameType/@EntryValue" value="false" type="bool" />
     <option name="/Default/RiderDebugger/RiderRestoreDecompile/RestoreDecompileSetting/@EntryValue" value="false" type="bool" />
@@ -56,20 +56,20 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="dc4d4ec5-2bea-462c-bf33-046722bdea3f" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.clang-format" beforeDir="false" afterPath="$PROJECT_DIR$/.clang-format" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/editor.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/editor.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/sandbox/src/AppLayer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/apps/sandbox/src/AppLayer.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/shaders/basic.frag" beforeDir="false" afterPath="$PROJECT_DIR$/assets/shaders/basic.frag" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/shaders/basic.vert" beforeDir="false" afterPath="$PROJECT_DIR$/assets/shaders/basic.vert" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/engine/include/Engine.h" beforeDir="false" afterPath="$PROJECT_DIR$/engine/include/Engine.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/engine/include/engine/Log.h" beforeDir="false" afterPath="$PROJECT_DIR$/engine/include/engine/Log.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/engine/include/engine/renderer/SceneRenderer.h" beforeDir="false" afterPath="$PROJECT_DIR$/engine/include/engine/renderer/SceneRenderer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/engine/src/Application.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/engine/src/Application.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/engine/src/Renderer/GraphicsContext.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/engine/src/Renderer/GraphicsContext.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/engine/src/Renderer/SceneRenderer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/engine/src/Renderer/SceneRenderer.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
-  </component>
-  <component name="ClangdSettings">
-    <option name="formatViaClangd" value="false" />
   </component>
   <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
   <component name="Git.Settings">
@@ -190,6 +190,9 @@
   <component name="ProjectLevelVcsManager">
     <ConfirmationsSetting value="1" id="Add" />
   </component>
+  <component name="ProjectStatusUIService">{
+  &quot;uiKindId&quot;: &quot;Widget&quot;
+}</component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -208,7 +211,7 @@
     &quot;cf.advertisement.text.overridden&quot;: &quot;true&quot;,
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feature/new-input&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/Users/rapha/_PROJECTS/SimpleEngine&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -217,7 +220,7 @@
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.LLMConfigurable&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.sourceCode.C++&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -235,11 +238,6 @@
     </key>
   </component>
   <component name="RunManager" selected="CMake Application.sandbox">
-    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
-      <method v="2">
-        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="ImGui" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="SimpleEngineProject" TARGET_NAME="ImGui" CONFIG_NAME="Debug">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
@@ -327,6 +325,7 @@
       <workItem from="1759954913187" duration="7182000" />
       <workItem from="1759969134575" duration="4347000" />
       <workItem from="1760050753861" duration="1311000" />
+      <workItem from="1763224370943" duration="837000" />
     </task>
     <servers />
   </component>
