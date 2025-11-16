@@ -57,8 +57,8 @@ Window* Window::Create(const WindowSpec& specification) {
 }
 
 void Window::Init() {
-    window_data_.Title = spec_.Title;
-    window_data_.Width = spec_.Width;
+    window_data_.Title  = spec_.Title;
+    window_data_.Width  = spec_.Width;
     window_data_.Height = spec_.Height;
 
     if (!s_GLFWInitialized) {

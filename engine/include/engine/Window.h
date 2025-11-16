@@ -3,8 +3,9 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include "event/Event.h"
+
 #include "Engine.h"
+#include "event/Event.h"
 
 struct GLFWwindow;
 

@@ -20,6 +20,6 @@ class InputSampleLayer : public se::Layer {
 
     void UpdateCameraInput();
 
-    private:
+   private:
     Scope<Scene> scene_ = nullptr;
 };

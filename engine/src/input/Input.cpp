@@ -1,6 +1,7 @@
 #include "engine/input/Input.h"
 
 #include <GLFW/glfw3.h>
+
 #include "engine/Application.h"
 
 namespace se {
@@ -15,10 +16,9 @@ bool Input::IsKeyPressed(KeyCode key) {
     return key_states_.contains(key) && key_states_[key].State == KeyState::Pressed;
 }
 
-bool Input::IsKeyDown(KeyCode keycode)
-{
+bool Input::IsKeyDown(KeyCode keycode) {
     auto& window = static_cast<Window&>(Application::Get().GetWindow());
-    auto state = glfwGetKey(window.GetNativeWindow(), keycode);
+    auto  state  = glfwGetKey(window.GetNativeWindow(), keycode);
     return state == GLFW_PRESS || state == GLFW_REPEAT;
 }
 
@@ -26,17 +26,15 @@ bool Input::IsKeyHeld(KeyCode key) {
     return key_states_.contains(key) && key_states_[key].State == KeyState::Held;
 }
 
-bool Input::IsKeyReleased(KeyCode key)
-{
+bool Input::IsKeyReleased(KeyCode key) {
     return key_states_.contains(key) && key_states_[key].State == KeyState::Released;
 }
 
-void Input::UpdateKeyState(KeyCode key, KeyState newState)
-{
-    auto& keyData = key_states_[key];
-    keyData.Key = key;
+void Input::UpdateKeyState(KeyCode key, KeyState newState) {
+    auto& keyData    = key_states_[key];
+    keyData.Key      = key;
     keyData.OldState = keyData.State;
-    keyData.State = newState;
+    keyData.State    = newState;
 }
 
 glm::vec2 Input::GetMousePosition() {
