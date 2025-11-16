@@ -1,6 +1,9 @@
 add_executable(sandbox
         src/AppLayer.cpp
         src/AppLayer.h
+        src/InputSample/InputSampleLayer.h
+        src/InputSample/InputSampleLayer.cpp
+        src/SampleUtilities.h
         src/main.cpp)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

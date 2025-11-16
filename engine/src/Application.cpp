@@ -5,13 +5,13 @@
 #include <glm.hpp>
 
 #include "Engine.h"
-#include "engine/Input.h"
 #include "engine/Log.h"
+#include "engine/input/Input.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
 
-Application::Application(const ApplicationSpec& specification) {
+Application::Application(const ApplicationSpecification& specification) {
     if (s_Instance) {
         SE_LOG_ERROR("Application already exists!");
         return;
@@ -24,8 +24,20 @@ Application::Application(const ApplicationSpec& specification) {
 
     SE_LOG_INFO("Starting Simple Engine");
 
+    WindowSpec windowSpec;
+    windowSpec.Title      = specification.Name;
+    windowSpec.Width      = specification.WindowWidth;
+    windowSpec.Height     = specification.WindowHeight;
+    windowSpec.Decorated  = specification.WindowDecorated;
+    windowSpec.Fullscreen = specification.Fullscreen;
+    windowSpec.VSync      = specification.VSync;
+    windowSpec.IconPath   = specification.IconPath;
+
     // Create window
-    window_ = std::make_unique<Window>(specification);
+    window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
+
+    window_->Init();
+    window_->SetEventCallback([this](Event& e) { OnEvent(e); });
 
     // Create and initialize renderer
     renderer_ = std::make_unique<Renderer>();
@@ -52,10 +64,29 @@ Application::~Application() {
 
     // Cleanup systems
     renderer_.reset();
-    window_.reset();
     glfwTerminate();
 
     s_Instance = nullptr;
+}
+
+void Application::OnEvent(Event& event) {
+    EventDispatcher dispatcher(event);
+    dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e) { return OnWindowResize(e); });
+    dispatcher.Dispatch<WindowMinimizeEvent>([this](WindowMinimizeEvent& e) { return OnWindowMinimize(e); });
+    dispatcher.Dispatch<WindowCloseEvent>([this](WindowCloseEvent& e) { return OnWindowClose(e); });
+
+    for (auto it = layer_stack_.end(); it != layer_stack_.begin();) {
+        (*--it)->OnEvent(event);
+        if (event.Handled) break;
+    }
+
+    if (event.Handled) return;
+
+    for (auto& eventCallback : event_callbacks_) {
+        eventCallback(event);
+
+        if (event.Handled) break;
+    }
 }
 
 int Application::Run() {
@@ -66,10 +97,10 @@ int Application::Run() {
 
     while (running_) {
         // Check for window close
-        if (Input::IsKeyPressed(GLFW_KEY_ESCAPE)) { window_->RequestClose(); }
+        if (Input::IsKeyPressed(Key::Escape)) { window_->RequestClose(); }
 
         if (window_->ShouldClose()) {
-            Stop();
+            Close();
             break;
         }
 
@@ -118,7 +149,7 @@ int Application::Run() {
     return 0;
 }
 
-void Application::Stop() {
+void Application::Close() {
     running_ = false;
 }
 
@@ -132,5 +163,28 @@ Application& Application::Get() {
 
 float Application::GetTime() {
     return static_cast<float>(glfwGetTime());
+}
+bool Application::OnWindowResize(WindowResizeEvent& e) {
+    const uint32_t width = e.GetWidth(), height = e.GetHeight();
+    if (width == 0 || height == 0) { return false; }
+
+    auto& window = window_;
+
+    // Renderer::Submit([&window, width, height]() mutable
+    // {
+    //     window->GetSwapChain().OnResize(width, height);
+    // });
+
+    return false;
+}
+
+bool Application::OnWindowMinimize(WindowMinimizeEvent& e) {
+    minimized_ = e.IsMinimized();
+    return false;
+}
+
+bool Application::OnWindowClose(WindowCloseEvent& e) {
+    Close();
+    return false;
 }
 }  // namespace se

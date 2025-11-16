@@ -62,7 +62,7 @@ void InputHandler::setCursorModeFromString(GLFWwindow* window, const std::string
 }
 
 void InputHandler::setupMouseCapture(GLFWwindow* window) {
-    glfwSetWindowUserPointer(window, this);
+    // glfwSetWindowUserPointer(window, this);
 
     // mouse position
     glfwSetCursorPosCallback(window, mousePositionCallback);

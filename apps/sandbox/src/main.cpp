@@ -2,15 +2,17 @@
 #include <engine/Log.h>
 
 #include "AppLayer.h"
+#include "InputSample/InputSampleLayer.h"
 
 using namespace std;
 
 int main() {
-    se::ApplicationSpec appSpec;
+    ApplicationSpecification appSpec;
     appSpec.Name         = "Simple engine";
-    appSpec.WindowWidth  = 1920;
-    appSpec.WindowHeight = 1080;
+    appSpec.WindowWidth  = 800;
+    appSpec.WindowHeight = 600;
 
-    se::Application application(appSpec);
+    Application application(appSpec);
+    application.PushLayer<AppLayer>();
     application.Run();
 }
