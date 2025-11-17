@@ -7,6 +7,7 @@
 #include "Engine.h"
 #include "engine/Log.h"
 #include "engine/input/Input.h"
+#include "engine/new_event_system/NewApplicationEvents.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -32,12 +33,13 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.Fullscreen = specification.Fullscreen;
     windowSpec.VSync      = specification.VSync;
     windowSpec.IconPath   = specification.IconPath;
+    windowSpec.EventBus   = event_bus_;
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
 
     window_->Init();
-    window_->SetEventCallback([this](Event& e) { OnEvent(e); });
+    window_->SetEventCallback(SE_BIND_EVENT_FN(OnEvent));
 
     // Create and initialize renderer
     renderer_ = std::make_unique<Renderer>();
@@ -50,6 +52,10 @@ Application::Application(const ApplicationSpecification& specification) {
     imguiLayer_ = std::make_shared<ImGuiLayer>();
     imguiLayer_->SetWindow(window_->GetNativeWindow());
     imguiLayer_->OnAttach();
+
+    event_bus_->AddListener<NewWindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResizeNew));
+    event_bus_->AddListener<NewWindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimizeNew));
+    event_bus_->AddListener<NewWindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowCloseNew));
 }
 
 Application::~Application() {
@@ -70,10 +76,20 @@ Application::~Application() {
 }
 
 void Application::OnEvent(Event& event) {
-    EventDispatcher dispatcher(event);
-    dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e) { return OnWindowResize(e); });
-    dispatcher.Dispatch<WindowMinimizeEvent>([this](WindowMinimizeEvent& e) { return OnWindowMinimize(e); });
-    dispatcher.Dispatch<WindowCloseEvent>([this](WindowCloseEvent& e) { return OnWindowClose(e); });
+    switch (event.GetEventType()) {
+        case EventType::WindowResize:
+            event_bus_->Invoke<NewWindowResizeEvent>();
+            break;
+
+        case EventType::WindowMinimize:
+            event_bus_->Invoke<NewWindowMinimizeEvent>();
+            break;
+
+        case EventType::WindowClose:
+            event_bus_->Invoke<NewWindowCloseEvent>();
+            break;
+        default:;
+    }
 
     for (auto it = layer_stack_.end(); it != layer_stack_.begin();) {
         (*--it)->OnEvent(event);
@@ -97,11 +113,8 @@ int Application::Run() {
 
     while (running_) {
         // Check for window close
-        if (Input::IsKeyPressed(Key::Escape)) { window_->RequestClose(); }
-
-        if (window_->ShouldClose()) {
-            Close();
-            break;
+        if (Input::IsKeyPressed(Key::Escape)) {
+            window_->RequestClose();
         }
 
         // Calculate timestep
@@ -143,6 +156,13 @@ int Application::Run() {
         // Swap buffers and poll events
         window_->SwapBuffers();
         window_->OnUpdate();
+
+        event_bus_->dispatch();
+
+        if (window_->ShouldClose()) {
+            Close();
+            break;
+        }
     }
 
     SE_LOG_INFO("Application main loop ended");
@@ -164,26 +184,37 @@ Application& Application::Get() {
 float Application::GetTime() {
     return static_cast<float>(glfwGetTime());
 }
-bool Application::OnWindowResize(WindowResizeEvent& e) {
+
+// new event system //////////////////////////////////////////
+bool Application::OnWindowResizeNew(const NewWindowResizeEvent& e) {
+    const uint32_t width = e.width, height = e.height;
+    if (width == 0 || height == 0) { return false; }
+    return false;
+}
+
+bool Application::OnWindowMinimizeNew(const NewWindowMinimizeEvent& e) {
+    minimized_ = e.minimized;
+    return false;
+}
+
+bool Application::OnWindowCloseNew(const NewWindowCloseEvent& e) {
+    Close();
+    return false;
+}
+
+bool Application::OnWindowResize(const WindowResizeEvent& e) {
     const uint32_t width = e.GetWidth(), height = e.GetHeight();
     if (width == 0 || height == 0) { return false; }
-
-    auto& window = window_;
-
-    // Renderer::Submit([&window, width, height]() mutable
-    // {
-    //     window->GetSwapChain().OnResize(width, height);
-    // });
 
     return false;
 }
 
-bool Application::OnWindowMinimize(WindowMinimizeEvent& e) {
+bool Application::OnWindowMinimize(const WindowMinimizeEvent& e) {
     minimized_ = e.IsMinimized();
     return false;
 }
 
-bool Application::OnWindowClose(WindowCloseEvent& e) {
+bool Application::OnWindowClose(const WindowCloseEvent& e) {
     Close();
     return false;
 }

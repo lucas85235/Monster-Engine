@@ -13,6 +13,21 @@ using Matrix2         = glm::mat2;
 using MouseButton     = uint16_t;
 using KeyCode         = glm::uint16_t;
 using EventCallbackFn = std::function<void(Event&)>;
+using EventTypeId     = std::size_t;
+
+// corresponds to the new event system
+namespace detail {
+inline EventTypeId GenerateTypeId() {
+    static EventTypeId counter = 0;
+    return counter++;
+}
+
+template <typename T>
+EventTypeId GetTypeId() {
+    static EventTypeId id = GenerateTypeId();
+    return id;
+}
+}  // namespace detail
 
 template <typename T>
 using Scope = std::unique_ptr<T>;

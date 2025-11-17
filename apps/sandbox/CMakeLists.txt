@@ -5,6 +5,7 @@ add_executable(sandbox
         src/input_sample/InputSampleLayer.cpp
         src/event_sample/EventSampleLayer.cpp
         src/event_sample/EventSampleLayer.h
+        src/event_sample/events/Events.h
         src/SampleUtilities.h
         src/main.cpp)
 
