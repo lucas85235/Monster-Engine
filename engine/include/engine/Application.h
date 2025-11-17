@@ -9,6 +9,8 @@
 #include "engine/Renderer.h"
 #include "engine/Window.h"
 #include "event/ApplicationEvent.h"
+#include "new_event_system/EventBus.h"
+#include "new_event_system/NewApplicationEvents.h"
 
 namespace se {
 
@@ -51,18 +53,25 @@ class Application {
         return *renderer_;
     }
 
+    EventBus& GetEventBus() const {
+        return *event_bus_;
+    }
+
     static Application& Get();
 
     float GetTime();
+    static bool  OnWindowResizeNew(const NewWindowResizeEvent& e);
+    bool  OnWindowMinimizeNew(const NewWindowMinimizeEvent& e);
+    bool  OnWindowCloseNew(const NewWindowCloseEvent& e);
 
    private:
     std::unique_ptr<Window>     window_;
     std::unique_ptr<Renderer>   renderer_;
     std::shared_ptr<ImGuiLayer> imguiLayer_;
 
-    bool OnWindowResize(WindowResizeEvent& e);
-    bool OnWindowMinimize(WindowMinimizeEvent& e);
-    bool OnWindowClose(WindowCloseEvent& e);
+    bool OnWindowResize(const WindowResizeEvent& e);
+    bool OnWindowMinimize(const WindowMinimizeEvent& e);
+    bool OnWindowClose(const WindowCloseEvent& e);
 
     ApplicationSpecification specification_;
 
@@ -72,6 +81,8 @@ class Application {
     bool minimized_ = false;
 
     static Application* s_Instance;
+
+    EventBus* event_bus_ = new EventBus();
 
     std::vector<EventCallbackFn> event_callbacks_;
 };

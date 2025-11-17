@@ -4,6 +4,7 @@
 
 #include <stdexcept>
 
+#include "engine/Application.h"
 #include "engine/Log.h"
 #include "engine/event/KeyEvent.h"
 #include "engine/input/Input.h"
@@ -45,6 +46,7 @@ bool Window::ShouldClose() const {
 }
 
 void Window::RequestClose() const {
+    event_bus_->Invoke<NewWindowCloseEvent>();
     glfwSetWindowShouldClose(window_handle_, GLFW_TRUE);
 }
 
@@ -60,6 +62,7 @@ void Window::Init() {
     window_data_.Title  = spec_.Title;
     window_data_.Width  = spec_.Width;
     window_data_.Height = spec_.Height;
+    event_bus_          = spec_.EventBus;
 
     if (!s_GLFWInitialized) {
         int success = glfwInit();
@@ -139,7 +142,9 @@ void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height) 
     int h = std::max(1, height);
     int w = std::max(1, width);
 
-    SE_LOG_WARN("Window size callback: ({},{})", w, h);
+
+    // verify later if this logic is correct
+    event_bus_->Invoke<NewWindowResizeEvent>(h,w);
 
     glViewport(0, 0, w, h);
 }

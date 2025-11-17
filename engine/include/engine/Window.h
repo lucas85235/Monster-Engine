@@ -6,6 +6,7 @@
 
 #include "Engine.h"
 #include "event/Event.h"
+#include "new_event_system/EventBus.h"
 
 struct GLFWwindow;
 
@@ -20,6 +21,7 @@ struct WindowSpec {
     bool                  Decorated  = true;
     bool                  Fullscreen = false;
     bool                  VSync      = true;
+    EventBus*             EventBus;
     std::filesystem::path IconPath;
 };
 
@@ -76,6 +78,8 @@ class Window {
 
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
+    static void WindowResizeEvent();
+
    private:
     GLFWwindow*            window_handle_ = nullptr;
     Scope<GraphicsContext> context_;
@@ -90,6 +94,8 @@ class Window {
 
     WindowData window_data_;
     bool       vsync_ = true;
+
+    inline static EventBus* event_bus_;
 };
 
 }  // namespace se
