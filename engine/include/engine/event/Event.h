@@ -16,6 +16,7 @@ namespace se {
 
 enum class EventType {
     None = 0,
+    SampleEvent,
     WindowClose,
     WindowResize,
     WindowFocus,
