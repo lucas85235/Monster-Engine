@@ -1,5 +1,6 @@
 #include <engine/InputHandler.h>
 #include <engine/Log.h>
+
 #include <iostream>
 
 void InputHandler::initialize(GLFWwindow* window) {
@@ -13,33 +14,31 @@ void InputHandler::initialize(GLFWwindow* window) {
 }
 
 void InputHandler::processKeyboard(GLFWwindow* window, float deltaTime) {
-    if (!camera_)
-        return;
+    if (!camera_) return;
 
     const auto isPressed = [window](int key) { return glfwGetKey(window, key) == GLFW_PRESS; };
 
     camera_->processKeyboard(deltaTime,
-                             isPressed(GLFW_KEY_W),             // forward
-                             isPressed(GLFW_KEY_S),             // back
-                             isPressed(GLFW_KEY_A),             // left
-                             isPressed(GLFW_KEY_D),             // right
-                             isPressed(GLFW_KEY_SPACE),         // up
-                             isPressed(GLFW_KEY_LEFT_CONTROL)); // down
+                             isPressed(GLFW_KEY_W),              // forward
+                             isPressed(GLFW_KEY_S),              // back
+                             isPressed(GLFW_KEY_A),              // left
+                             isPressed(GLFW_KEY_D),              // right
+                             isPressed(GLFW_KEY_SPACE),          // up
+                             isPressed(GLFW_KEY_LEFT_CONTROL));  // down
 }
 
 void InputHandler::processMousePosition(double xpos, double ypos) {
-    if (!camera_)
-        return;
+    if (!camera_) return;
 
     if (firstMouse_) {
-        lastX_ = xpos;
-        lastY_ = ypos;
+        lastX_      = xpos;
+        lastY_      = ypos;
         firstMouse_ = false;
         return;
     }
 
     double xOffset = xpos - lastX_;
-    double yOffset = lastY_ - ypos; // Y inverted in GLFW
+    double yOffset = lastY_ - ypos;  // Y inverted in GLFW
 
     lastX_ = xpos;
     lastY_ = ypos;
@@ -47,8 +46,7 @@ void InputHandler::processMousePosition(double xpos, double ypos) {
     camera_->processMouseMovement(static_cast<float>(xOffset), static_cast<float>(yOffset));
 }
 void InputHandler::processMouseScroll(double xpos, double ypos) {
-    if (!camera_)
-        return;
+    if (!camera_) return;
     camera_->processMouseScroll(static_cast<float>(xpos), static_cast<float>(ypos));
 }
 
@@ -59,13 +57,12 @@ void InputHandler::setCursorModeFromString(GLFWwindow* window, const std::string
         glfwSetInputMode(window, GLFW_CURSOR, static_cast<int>(it->second));
         SE_LOG_INFO("Cursor mode set to: {}", modeString);
     } else {
-        SE_LOG_ERROR("Cursor mode not found: {}. The available ones are: normal, hidden, disabled",
-                     modeString);
+        SE_LOG_ERROR("Cursor mode not found: {}. The available ones are: normal, hidden, disabled", modeString);
     }
 }
 
 void InputHandler::setupMouseCapture(GLFWwindow* window) {
-    glfwSetWindowUserPointer(window, this);
+    // glfwSetWindowUserPointer(window, this);
 
     // mouse position
     glfwSetCursorPosCallback(window, mousePositionCallback);

@@ -1,12 +1,13 @@
 #pragma once
 
-#include "engine/Event.h"
 #include <string>
+
+#include "event/Event.h"
 
 namespace se {
 
 class Layer {
-  public:
+   public:
     Layer(const std::string& name = "Layer");
     virtual ~Layer() = default;
 
@@ -21,8 +22,8 @@ class Layer {
         return debugName_;
     }
 
-  protected:
+   protected:
     std::string debugName_;
 };
 
-} // namespace se
+}  // namespace se

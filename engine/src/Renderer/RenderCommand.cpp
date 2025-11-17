@@ -1,6 +1,8 @@
 #include "engine/renderer/RenderCommand.h"
-#include "engine/renderer/VertexArray.h"
+
 #include <glad/glad.h>
+
+#include "engine/renderer/VertexArray.h"
 
 namespace se {
 
@@ -61,4 +63,4 @@ void RenderCommand::SetWireframe(bool enabled) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-} // namespace se
+}  // namespace se

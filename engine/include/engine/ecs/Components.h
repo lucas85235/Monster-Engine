@@ -15,8 +15,8 @@ class VertexArray;
 // Similar to Unity's Transform component
 struct TransformComponent {
     glm::vec3 Position = {0.0f, 0.0f, 0.0f};
-    glm::vec3 Rotation = {0.0f, 0.0f, 0.0f}; // Euler angles in degrees
-    glm::vec3 Scale = {1.0f, 1.0f, 1.0f};
+    glm::vec3 Rotation = {0.0f, 0.0f, 0.0f};  // Euler angles in degrees
+    glm::vec3 Scale    = {1.0f, 1.0f, 1.0f};
 
     TransformComponent() = default;
 
@@ -27,8 +27,7 @@ struct TransformComponent {
     // Get the transformation matrix
     glm::mat4 GetTransform() const {
         glm::mat4 rotation = glm::toMat4(glm::quat(glm::radians(Rotation)));
-        return glm::translate(glm::mat4(1.0f), Position) * rotation *
-               glm::scale(glm::mat4(1.0f), Scale);
+        return glm::translate(glm::mat4(1.0f), Position) * rotation * glm::scale(glm::mat4(1.0f), Scale);
     }
 
     // Set position
@@ -99,27 +98,26 @@ struct NameComponent {
 // Handles mesh rendering for an entity
 struct MeshRenderComponent {
     std::shared_ptr<VertexArray> VertexArray;
-    std::shared_ptr<Material> Material;
-    bool IsVisible = true;
-    bool CastShadows = true;
-    bool ReceiveShadows = true;
+    std::shared_ptr<Material>    Material;
+    bool                         IsVisible      = true;
+    bool                         CastShadows    = true;
+    bool                         ReceiveShadows = true;
 
     MeshRenderComponent() = default;
 
     MeshRenderComponent(const MeshRenderComponent&) = default;
 
-    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat)
-        : VertexArray(va), Material(mat) {}
+    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat) : VertexArray(va), Material(mat) {}
 };
 
 struct DirectionalLightComponent {
     glm::vec3 Color{1.0f, 1.0f, 1.0f};
-    float Intensity = 1.0f;
-    bool Enabled = true;
-    bool CastShadows = true;
+    float     Intensity   = 1.0f;
+    bool      Enabled     = true;
+    bool      CastShadows = true;
 
     DirectionalLightComponent() = default;
 
     DirectionalLightComponent(const DirectionalLightComponent&) = default;
 };
-} // namespace se
+}  // namespace se

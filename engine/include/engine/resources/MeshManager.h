@@ -1,16 +1,17 @@
 #pragma once
 
-#include "engine/Mesh.h"
-#include "engine/renderer/VertexArray.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
+
+#include "engine/Mesh.h"
+#include "engine/renderer/VertexArray.h"
 
 namespace se {
 enum class PrimitiveMeshType { Triangle, Quad, Cube, Sphere, Capsule, Cylinder };
 
 class MeshManager {
-  public:
+   public:
     MeshManager() = delete;
 
     static void Init();
@@ -26,10 +27,10 @@ class MeshManager {
     // Clear all cached meshes
     static void ClearCache();
 
-  private:
+   private:
     static std::shared_ptr<VertexArray> CreatePrimitive(PrimitiveMeshType type);
 
     static std::unordered_map<PrimitiveMeshType, std::shared_ptr<VertexArray>> primitiveCache_;
-    static bool initialized_;
+    static bool                                                                initialized_;
 };
-} // namespace se
+}  // namespace se

@@ -1,5 +1,7 @@
 #include "engine/renderer/Buffer.h"
+
 #include <glad/glad.h>
+
 #include <stdexcept>
 
 namespace se {
@@ -69,14 +71,13 @@ uint32_t BufferElement::GetComponentCount() const {
 
 // ========== BufferLayout ==========
 
-BufferLayout::BufferLayout(const std::initializer_list<BufferElement>& elements)
-    : elements_(elements) {
+BufferLayout::BufferLayout(const std::initializer_list<BufferElement>& elements) : elements_(elements) {
     CalculateOffsetsAndStride();
 }
 
 void BufferLayout::CalculateOffsetsAndStride() {
     uint32_t offset = 0;
-    stride_ = 0;
+    stride_         = 0;
     for (auto& element : elements_) {
         element.Offset = offset;
         offset += element.Size;
@@ -137,4 +138,4 @@ void IndexBuffer::Unbind() const {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-} // namespace se
+}  // namespace se
