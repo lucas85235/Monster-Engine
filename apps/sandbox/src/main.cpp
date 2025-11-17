@@ -2,7 +2,8 @@
 #include <engine/Log.h>
 
 #include "AppLayer.h"
-#include "InputSample/InputSampleLayer.h"
+#include "event_sample/EventSampleLayer.h"
+#include "input_sample/InputSampleLayer.h"
 
 using namespace std;
 
@@ -13,6 +14,7 @@ int main() {
     appSpec.WindowHeight = 600;
 
     Application application(appSpec);
-    application.PushLayer<AppLayer>();
+    // application.PushLayer<AppLayer>();
+    application.PushLayer<EventSampleLayer>();
     application.Run();
 }
