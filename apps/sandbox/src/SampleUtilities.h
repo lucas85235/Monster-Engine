@@ -43,7 +43,6 @@ inline EngineMaterial LoadMaterial() {
     fs::path vertex_shader_location   = assets_folder.value() / "shaders" / "basic.vert";
 
     Ref shader = MaterialManager::GetShader("DefaultShader", vertex_shader_location, fragment_shader_location);
-
     EngineMaterial material = MaterialManager::CreateMaterial(shader);
     material->SetFloat("uSpecularStrength", 0.5f);
 

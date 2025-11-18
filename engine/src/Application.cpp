@@ -136,6 +136,26 @@ int Application::Run() {
             window_->SetHeight(height);
         }
 
+        static FramebufferSpecification fbSpec;
+        fbSpec.Width = width;
+        fbSpec.Height = height;
+        auto s_FrameBuffer = CreateScope<FrameBuffer>(FrameBuffer(fbSpec));
+
+        /*ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+        uint32_t width2 = (uint32_t)viewportSize.x;
+        uint32_t height2 = (uint32_t)viewportSize.y;
+
+        // Redimensionamento do FBO, se necessário
+        if (width2 > 0 && height2 > 0 && (width2 != s_FrameBuffer->GetSpecification().Width || height2 != s_FrameBuffer->GetSpecification().Height)) {
+            s_FrameBuffer->Resize(width2, height2);
+        }*/
+
+        s_FrameBuffer->Bind();
+
+//        SE_LOG_INFO("Step 0");
+//        imguiLayer_->FrameBufferBind();
+//        SE_LOG_INFO("Step 1");
+
         // Update all layers
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
 
@@ -145,11 +165,17 @@ int Application::Run() {
         // End frame
         renderer_->EndFrame();
 
+        s_FrameBuffer->Unbind();
+
         // ImGui rendering
         imguiLayer_->Begin();
 
         // Let layers draw their ImGui
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
+
+        imguiLayer_->RenderEditor(s_FrameBuffer->GetColorAttachmentID());
+//        imguiLayer_->FrameBufferBind();
+//        SE_LOG_INFO("Step 2");
 
         imguiLayer_->End();
 

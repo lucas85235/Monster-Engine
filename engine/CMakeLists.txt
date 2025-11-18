@@ -60,6 +60,8 @@ file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
 
 add_library(simple_engine STATIC
         ${PROJECT_SRCS}
+        include/engine/renderer/FrameBuffer.h
+        src/FrameBuffer.cpp
 )
 
 target_include_directories(simple_engine PUBLIC
