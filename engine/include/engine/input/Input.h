@@ -21,6 +21,8 @@ struct MouseButtonData {
     KeyState    OldState = KeyState::None;
 };
 
+class EventBus;
+
 class Input {
    public:
     Input() = delete;

@@ -6,7 +6,8 @@
 
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/input/Input.h"
+#include "engine/Log.h"
+#include "engine/input/InputManager.h"
 #include "engine/new_event_system/NewApplicationEvents.h"
 
 namespace se {
@@ -24,6 +25,8 @@ Application::Application(const ApplicationSpecification& specification) {
 #endif
 
     SE_LOG_INFO("Starting Simple Engine");
+    
+    InputManager::Get().Init();
 
     WindowSpec windowSpec;
     windowSpec.Title      = specification.Name;
@@ -113,7 +116,7 @@ int Application::Run() {
 
     while (running_) {
         // Check for window close
-        if (Input::IsKeyPressed(Key::Escape)) {
+        if (InputManager::Get().IsKeyDown(Key::Escape)) {
             window_->RequestClose();
         }
 
@@ -121,6 +124,12 @@ int Application::Run() {
         float currentTime = GetTime();
         float timestep    = glm::clamp(currentTime - lastTime, 0.001f, 0.1f);
         lastTime          = currentTime;
+
+        // Update Input Manager
+        InputManager::Get().Update();
+        
+        // Poll events
+        window_->OnUpdate();
 
         // Begin frame
         renderer_->BeginFrame();
@@ -153,9 +162,8 @@ int Application::Run() {
 
         imguiLayer_->End();
 
-        // Swap buffers and poll events
+        // Swap buffers
         window_->SwapBuffers();
-        window_->OnUpdate();
 
         event_bus_->dispatch();
 

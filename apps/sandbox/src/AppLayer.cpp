@@ -4,16 +4,16 @@
 #include <engine/Application.h>
 #include <engine/Log.h>
 #include <engine/ecs/Components.h>
-#include <engine/input/Input.h>
 #include <imgui.h>
 
 #include <gtc/type_ptr.hpp>
 
 #include "SampleUtilities.h"
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
 
-AppLayer::AppLayer() : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), inputHandler_(camera_) {}
+#include "engine/renderer/CameraController.h"
+#include "engine/input/InputManager.h"
+
+AppLayer::AppLayer() : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), cameraController_(camera_) {}
 
 AppLayer::~AppLayer() {}
 
@@ -39,9 +39,26 @@ void AppLayer::OnAttach() {
     auto& app    = Application::Get();
     auto* window = app.GetWindow().GetNativeWindow();
 
-    if (window) { inputHandler_.initialize(window); }
+    if (window) {
+        // inputHandler_.initialize(window); 
+        // CameraController doesn't need window initialization anymore
+    }
 
-    InputHandler::setCursorModeFromString(window, "normal");
+    // Setup Input Bindings
+    auto& input = InputManager::Get();
+    input.BindAxis("MoveForward", Key::W, 1.0f);
+    input.BindAxis("MoveForward", Key::S, -1.0f);
+    input.BindAxis("MoveRight", Key::D, 1.0f);
+    input.BindAxis("MoveRight", Key::A, -1.0f);
+    input.BindAxis("MoveUp", Key::Space, 1.0f);
+    input.BindAxis("MoveUp", Key::LeftControl, -1.0f);
+    input.BindAxis("LookX", Key::MouseX, 1.0f);
+    input.BindAxis("LookY", Key::MouseY, -1.0f); // Inverted Y
+    input.BindAction("ToggleCamera", Key::Tab);
+    input.BindAction("ToggleCursor", Key::LeftAlt);
+
+    // InputHandler::setCursorModeFromString(window, "normal");
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // Default to captured for camera
 
     RenderCommand::SetClearColor({0.3f, 0.3f, 0.3f, 1.0f});
 }
@@ -51,29 +68,6 @@ void AppLayer::OnDetach() {
     scene_.reset();
 }
 
-void AppLayer::OnEvent(Event& event) {
-    EventDispatcher dispatcher(event);
-    dispatcher.Dispatch<KeyPressedEvent>(SE_BIND_EVENT_FN(OnKeyPressedEvent));
-    dispatcher.Dispatch<MouseButtonPressedEvent>(SE_BIND_EVENT_FN(OnMouseButtonPressed));
-}
-
-bool AppLayer::OnKeyPressedEvent(KeyPressedEvent& e) {
-    // with a modifier logic and no repeat
-    if (e.GetRepeatCount() == 0) {
-        switch (e.GetKeyCode()) {
-            case Key::Tab:
-                camera_active_ = !camera_active_;
-                camera_.SetActive(camera_active_);
-                break;
-        }
-    }
-
-    return false;
-}
-
-bool AppLayer::OnMouseButtonPressed(MouseButtonPressedEvent& e) {
-    return false;
-}
 
 void AppLayer::OnUpdate(float ts) {
     animationTime_ += ts;
@@ -105,6 +99,17 @@ void AppLayer::OnUpdate(float ts) {
 
     // Handle input
     HandleInput(ts);
+
+    if (InputManager::Get().IsActionJustPressed("ToggleCamera")) {
+        camera_active_ = !camera_active_;
+        camera_.SetActive(camera_active_);
+    }
+
+    if (InputManager::Get().IsActionJustPressed("ToggleCursor")) {
+        static bool cursorLocked = true;
+        cursorLocked = !cursorLocked;
+        InputManager::Get().SetCursorMode(cursorLocked ? CursorMode::Locked : CursorMode::Normal);
+    }
 }
 
 void AppLayer::OnRender() {
@@ -223,10 +228,7 @@ void AppLayer::OnImGuiRender() {
 }
 
 void AppLayer::HandleInput(float deltaTime) {
-    auto&       app    = Application::Get();
-    GLFWwindow* window = app.GetWindow().GetNativeWindow();
-
-    if (window) { inputHandler_.processKeyboard(window, deltaTime); }
+    cameraController_.OnUpdate(deltaTime);
 }
 
 // ==================== Entity Creation Helpers ====================
