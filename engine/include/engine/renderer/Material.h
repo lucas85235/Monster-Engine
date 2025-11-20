@@ -18,9 +18,9 @@ class Material {
 
     void SetFloat(const std::string& name, float value);
     void SetInt(const std::string& name, int value);
-    void SetVector3(const std::string& name, const glm::vec3& value);
-    void SetVector4(const std::string& name, const glm::vec4& value);
-    void SetMatrix4(const std::string& name, const glm::mat4& value);
+    void SetVector3(const std::string& name, const Vector3& value);
+    void SetVector4(const std::string& name, const Vector4& value);
+    void SetMatrix4(const std::string& name, const Matrix4& value);
 
     std::shared_ptr<Shader> GetShader() const {
         return shader_;
@@ -30,9 +30,9 @@ class Material {
     std::shared_ptr<Shader>                    shader_;
     std::unordered_map<std::string, float>     floatUniforms_;
     std::unordered_map<std::string, int>       intUniforms_;
-    std::unordered_map<std::string, glm::vec3> vec3Uniforms_;
-    std::unordered_map<std::string, glm::vec4> vec4Uniforms_;
-    std::unordered_map<std::string, glm::mat4> mat4Uniforms_;
+    std::unordered_map<std::string, Vector3> vec3Uniforms_;
+    std::unordered_map<std::string, Vector4> vec4Uniforms_;
+    std::unordered_map<std::string, Matrix4> mat4Uniforms_;
 };
 
 }  // namespace se

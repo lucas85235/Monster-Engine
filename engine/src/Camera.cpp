@@ -3,16 +3,16 @@
 #include "ext/matrix_clip_space.hpp"
 #include "ext/matrix_transform.hpp"
 
-Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
-    : position_(position), world_up_(up), yaw_(yaw), pitch_(pitch), front_(glm::vec3(0.0f, 0.0f, -1.0f)) {
+Camera::Camera(se::Vector3 position, se::Vector3 up, float yaw, float pitch)
+    : position_(position), world_up_(up), yaw_(yaw), pitch_(pitch), front_(se::Vector3(0.0f, 0.0f, -1.0f)) {
     updateCameraVectors();
 }
 
-glm::mat4 Camera::getViewMatrix() const {
+se::Matrix4 Camera::getViewMatrix() const {
     return glm::lookAt(position_, position_ + front_, up_);
 }
 
-glm::mat4 Camera::getProjectionMatrix(float aspectRatio) const {
+se::Matrix4 Camera::getProjectionMatrix(float aspectRatio) const {
     return glm::perspective(glm::radians(fov_), aspectRatio, 0.1f, 100.0f);
 }
 
@@ -52,7 +52,7 @@ void Camera::ProcessMouseScroll(float xoffset, float yoffset) {
 
 void Camera::updateCameraVectors() {
     // calculate the new Front vector
-    glm::vec3 front;
+    se::Vector3 front;
     front.x = cos(glm::radians(yaw_)) * cos(glm::radians(pitch_));
     front.y = sin(glm::radians(pitch_));
     front.z = sin(glm::radians(yaw_)) * cos(glm::radians(pitch_));

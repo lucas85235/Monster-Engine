@@ -61,7 +61,7 @@ class Window {
     bool ShouldClose() const;
     void RequestClose() const;
 
-    auto* GetNativeWindow() const {
+    WindowHandle GetNativeWindow() const {
         return window_handle_;
     }
 
@@ -76,12 +76,12 @@ class Window {
    private:
     void Shutdown();
 
-    static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+    static void FramebufferSizeCallback(WindowHandle window, int width, int height);
 
     static void WindowResizeEvent();
 
    private:
-    GLFWwindow*            window_handle_ = nullptr;
+    WindowHandle           window_handle_ = nullptr;
     Scope<GraphicsContext> context_;
     WindowSpec             spec_;
 

@@ -66,7 +66,7 @@ void Renderer::SetClearColor(float r, float g, float b, float a) {
 }
 
 void Renderer::BeginScene(const Camera& camera, float aspectRatio) {
-    glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
+    Matrix4 projection = camera.getProjectionMatrix(aspectRatio);
     SceneRenderer::BeginScene(camera, projection);
 }
 

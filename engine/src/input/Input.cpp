@@ -6,9 +6,9 @@
 
 namespace se {
 
-GLFWwindow* Input::window_ = nullptr;
+WindowHandle Input::window_ = nullptr;
 
-void Input::SetWindow(GLFWwindow* window) {
+void Input::SetWindow(WindowHandle window) {
     window_ = window;
 }
 
@@ -37,7 +37,7 @@ void Input::UpdateKeyState(KeyCode key, KeyState newState) {
     keyData.State    = newState;
 }
 
-glm::vec2 Input::GetMousePosition() {
+Vector2 Input::GetMousePosition() {
     if (!window_) return {0.0f, 0.0f};
     double xpos, ypos;
     glfwGetCursorPos(window_, &xpos, &ypos);

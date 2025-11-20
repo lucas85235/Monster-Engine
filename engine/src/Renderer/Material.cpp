@@ -30,15 +30,15 @@ void Material::SetInt(const std::string& name, int value) {
     intUniforms_[name] = value;
 }
 
-void Material::SetVector3(const std::string& name, const glm::vec3& value) {
+void Material::SetVector3(const std::string& name, const Vector3& value) {
     vec3Uniforms_[name] = value;
 }
 
-void Material::SetVector4(const std::string& name, const glm::vec4& value) {
+void Material::SetVector4(const std::string& name, const Vector4& value) {
     vec4Uniforms_[name] = value;
 }
 
-void Material::SetMatrix4(const std::string& name, const glm::mat4& value) {
+void Material::SetMatrix4(const std::string& name, const Matrix4& value) {
     mat4Uniforms_[name] = value;
 }
 }  // namespace se

@@ -2,16 +2,32 @@
 #include "engine/ecs/Entity.h"
 #include "se_pch.h"
 
+struct GLFWwindow;
+struct GLFWmonitor;
+struct GLFWcursor;
+
 namespace se {
 class Event;
-using Vector2         = glm::vec2;
-using Vector3         = glm::vec3;
-using Vector4         = glm::vec4;
-using Matrix4         = glm::mat4;
-using Matrix3         = glm::mat3;
-using Matrix2         = glm::mat2;
-using MouseButton     = uint16_t;
-using KeyCode         = glm::uint16_t;
+
+// Math Types
+using Vector2     = glm::vec2;
+using Vector3     = glm::vec3;
+using Vector4     = glm::vec4;
+using Matrix4     = glm::mat4;
+using Matrix3     = glm::mat3;
+using Matrix2     = glm::mat2;
+using Quaternion  = glm::quat;
+using Color       = glm::vec4;
+
+// Input Types
+using MouseButton = uint16_t;
+using KeyCode     = uint16_t;
+
+// Windowing Types
+using WindowHandle  = GLFWwindow*;
+using MonitorHandle = GLFWmonitor*;
+using CursorHandle  = GLFWcursor*;
+
 using EventCallbackFn = std::function<void(Event&)>;
 using EventTypeId     = std::size_t;
 

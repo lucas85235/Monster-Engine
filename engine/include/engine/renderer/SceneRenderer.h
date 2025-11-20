@@ -25,18 +25,18 @@ class SceneRenderer {
 
     static void Shutdown();
 
-    static void BeginScene(const Camera& camera, const glm::mat4& projection);
+    static void BeginScene(const Camera& camera, const Matrix4& projection);
 
     static void EndScene();
 
     static void Submit(const std::shared_ptr<VertexArray>& vertexArray, const std::shared_ptr<Material>& material,
-                       const glm::mat4& transform = glm::mat4(1.0f), bool castsShadows = true, bool receiveShadows = true);
+                       const Matrix4& transform = Matrix4(1.0f), bool castsShadows = true, bool receiveShadows = true);
 
     struct DirectionalLightData {
-        glm::vec3 Direction{0.0f, -1.0f, 0.0f};
-        glm::vec3 Color{1.0f, 1.0f, 1.0f};
+        Vector3 Direction{0.0f, -1.0f, 0.0f};
+        Vector3 Color{1.0f, 1.0f, 1.0f};
         float     Intensity = 1.0f;
-        glm::vec3 Position{0.0f, 0.0f, 0.0f};
+        Vector3 Position{0.0f, 0.0f, 0.0f};
         bool      CastShadows = true;
         bool      Active      = false;
     };
@@ -59,17 +59,17 @@ class SceneRenderer {
     struct Submission {
         std::shared_ptr<VertexArray> vertex_array;
         std::shared_ptr<Material>    material;
-        glm::mat4                    Transform{1.0f};
+        Matrix4                    Transform{1.0f};
         bool                         CastsShadows   = true;
         bool                         ReceiveShadows = true;
     };
 
     struct SceneData {
-        glm::mat4               ViewMatrix;
-        glm::mat4               ProjectionMatrix;
-        glm::mat4               view_projection_matrix;
+        Matrix4               ViewMatrix;
+        Matrix4               ProjectionMatrix;
+        Matrix4               view_projection_matrix;
         DirectionalLightData    directional_light;
-        glm::mat4               LightSpaceMatrix{1.0f};
+        Matrix4               LightSpaceMatrix{1.0f};
         glm::ivec2              ShadowMapSize{1024, 1024};
         unsigned int            ShadowFramebuffer  = 0;
         unsigned int            ShadowDepthTexture = 0;
