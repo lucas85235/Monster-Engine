@@ -181,9 +181,7 @@ void Application::Close() {
     running_ = false;
 }
 
-void Application::PushOverlay() {
-    // TODO: Implement overlay support
-}
+
 
 Application& Application::Get() {
     return *s_Instance;

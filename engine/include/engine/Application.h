@@ -41,10 +41,17 @@ class Application {
         static_assert(std::is_base_of<Layer, T>::value, "T must inherit from Layer");
         auto layer = std::make_unique<T>();
         layer->OnAttach();
-        layer_stack_.push_back(std::move(layer));
+        layer_stack_.emplace(layer_stack_.begin() + layer_insert_index_, std::move(layer));
+        layer_insert_index_++;
     }
 
-    void PushOverlay();
+    template <typename T>
+    void PushOverlay() {
+        static_assert(std::is_base_of<Layer, T>::value, "T must inherit from Layer");
+        auto layer = std::make_unique<T>();
+        layer->OnAttach();
+        layer_stack_.emplace_back(std::move(layer));
+    }
 
     Window& GetWindow() {
         return *window_;
@@ -76,6 +83,7 @@ class Application {
     ApplicationSpecification specification_;
 
     std::vector<std::unique_ptr<Layer>> layer_stack_;
+    unsigned int                        layer_insert_index_ = 0;
 
     bool running_   = false;
     bool minimized_ = false;
