@@ -36,17 +36,17 @@ class Input {
 
     static void UpdateKeyState(KeyCode key, KeyState newState);
 
-    static glm::vec2 GetMousePosition();
+    static Vector2 GetMousePosition();
 
     static float GetMouseX();
 
     static float GetMouseY();
 
     // Internal: Used by Window to set the context
-    static void SetWindow(GLFWwindow* window);
+    static void SetWindow(WindowHandle window);
 
    private:
-    static GLFWwindow* window_;
+    static WindowHandle window_;
 
     inline static std::unordered_map<KeyCode, KeyData> key_states_;
 };

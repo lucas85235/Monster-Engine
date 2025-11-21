@@ -27,7 +27,7 @@ void InputManager::Update() {
 
 void InputManager::SetCursorMode(CursorMode mode) {
     auto& app = Application::Get();
-    GLFWwindow* window = app.GetWindow().GetNativeWindow();
+    WindowHandle window = app.GetWindow().GetNativeWindow();
     
     int glfwMode = GLFW_CURSOR_NORMAL;
     switch (mode) {
@@ -116,11 +116,11 @@ bool InputManager::IsMouseButtonDown(MouseButton button) const {
     return it != mouseButtonStates_.end() && it->second.IsDown;
 }
 
-glm::vec2 InputManager::GetMousePosition() const {
+Vector2 InputManager::GetMousePosition() const {
     return mousePosition_;
 }
 
-glm::vec2 InputManager::GetMouseDelta() const {
+Vector2 InputManager::GetMouseDelta() const {
     return mouseDelta_;
 }
 

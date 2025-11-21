@@ -16,7 +16,7 @@ void RenderCommand::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t
     glViewport(x, y, width, height);
 }
 
-void RenderCommand::SetClearColor(const glm::vec4& color) {
+void RenderCommand::SetClearColor(const Vector4& color) {
     glClearColor(color.r, color.g, color.b, color.a);
 }
 

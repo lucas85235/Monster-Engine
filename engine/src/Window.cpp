@@ -95,7 +95,7 @@ void Window::Init() {
     // Set callbacks
     glfwSetFramebufferSizeCallback(window_handle_, FramebufferSizeCallback);
 
-    glfwSetKeyCallback(window_handle_, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+    glfwSetKeyCallback(window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
         // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
         switch (action) {
@@ -114,7 +114,7 @@ void Window::Init() {
         }
     });
 
-    glfwSetMouseButtonCallback(window_handle_, [](GLFWwindow* window, int button, int action, int mods) {
+    glfwSetMouseButtonCallback(window_handle_, [](WindowHandle window, int button, int action, int mods) {
         // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
         switch (action) {
@@ -129,7 +129,7 @@ void Window::Init() {
         }
     });
 
-    glfwSetCursorPosCallback(window_handle_, [](GLFWwindow* window, double xpos, double ypos) {
+    glfwSetCursorPosCallback(window_handle_, [](WindowHandle window, double xpos, double ypos) {
         InputManager::Get().OnMouseMoved(static_cast<float>(xpos), static_cast<float>(ypos));
     });
 
@@ -146,7 +146,7 @@ void Window::Shutdown() {
     }
 }
 
-void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
+void Window::FramebufferSizeCallback(WindowHandle window, int width, int height) {
     int h = std::max(1, height);
     int w = std::max(1, width);
 

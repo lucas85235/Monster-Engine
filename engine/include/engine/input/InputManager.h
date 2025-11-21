@@ -47,8 +47,8 @@ public:
     // Raw Input (for internal use or debugging)
     bool IsKeyDown(KeyCode key) const;
     bool IsMouseButtonDown(MouseButton button) const;
-    glm::vec2 GetMousePosition() const;
-    glm::vec2 GetMouseDelta() const;
+    Vector2 GetMousePosition() const;
+    Vector2 GetMouseDelta() const;
 
     // Event Handling
     void OnKeyPressed(KeyCode key);
@@ -72,9 +72,9 @@ private:
     std::vector<ActionBinding> actionBindings_;
     std::vector<AxisBinding> axisBindings_;
 
-    glm::vec2 mousePosition_{0.0f};
-    glm::vec2 lastMousePosition_{0.0f};
-    glm::vec2 mouseDelta_{0.0f};
+    Vector2 mousePosition_{0.0f};
+    Vector2 lastMousePosition_{0.0f};
+    Vector2 mouseDelta_{0.0f};
     bool firstMouse_ = true;
 };
 

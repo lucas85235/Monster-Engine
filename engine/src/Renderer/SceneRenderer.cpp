@@ -42,7 +42,7 @@ void SceneRenderer::Shutdown() {
     sceneData_ = nullptr;
 }
 
-void SceneRenderer::BeginScene(const Camera& camera, const glm::mat4& projection) {
+void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) {
     sceneData_->ViewMatrix             = camera.getViewMatrix();
     sceneData_->ProjectionMatrix       = projection;
     sceneData_->view_projection_matrix = projection * sceneData_->ViewMatrix;
@@ -50,30 +50,30 @@ void SceneRenderer::BeginScene(const Camera& camera, const glm::mat4& projection
 
     // Prepare directional light data and shadow matrix
     if (!sceneData_->directional_light.Active) {
-        sceneData_->directional_light.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        sceneData_->directional_light.Direction = Vector3(0.0f, -1.0f, 0.0f);
         sceneData_->directional_light.Intensity = 0.0f;
-        sceneData_->directional_light.Color     = glm::vec3(1.0f);
+        sceneData_->directional_light.Color     = Vector3(1.0f);
         sceneData_->ShadowsEnabled              = false;
-        sceneData_->LightSpaceMatrix            = glm::mat4(1.0f);
+        sceneData_->LightSpaceMatrix            = Matrix4(1.0f);
     } else {
-        glm::vec3 lightDir = sceneData_->directional_light.Direction;
-        if (glm::length(lightDir) <= 0.0f) { lightDir = glm::vec3(0.0f, -1.0f, 0.0f); }
+        Vector3 lightDir = sceneData_->directional_light.Direction;
+        if (glm::length(lightDir) <= 0.0f) { lightDir = Vector3(0.0f, -1.0f, 0.0f); }
         lightDir                                = glm::normalize(lightDir);
         sceneData_->directional_light.Direction = lightDir;
 
         sceneData_->ShadowsEnabled = sceneData_->directional_light.CastShadows && sceneData_->directional_light.Intensity > 0.0f;
 
         if (sceneData_->ShadowsEnabled) {
-            const glm::vec3 focusPoint = sceneData_->directional_light.Position;
-            const glm::vec3 lightPos   = focusPoint - lightDir * sceneData_->ShadowDistance;
-            glm::vec3       up         = glm::vec3(0.0f, 1.0f, 0.0f);
-            if (glm::abs(glm::dot(up, lightDir)) > 0.95f) { up = glm::vec3(0.0f, 0.0f, 1.0f); }
-            glm::mat4 lightView          = glm::lookAt(lightPos, focusPoint, up);
-            glm::mat4 lightProj          = glm::ortho(-sceneData_->ShadowOrthoSize, sceneData_->ShadowOrthoSize, -sceneData_->ShadowOrthoSize,
+            const Vector3 focusPoint = sceneData_->directional_light.Position;
+            const Vector3 lightPos   = focusPoint - lightDir * sceneData_->ShadowDistance;
+            Vector3       up         = Vector3(0.0f, 1.0f, 0.0f);
+            if (glm::abs(glm::dot(up, lightDir)) > 0.95f) { up = Vector3(0.0f, 0.0f, 1.0f); }
+            Matrix4 lightView          = glm::lookAt(lightPos, focusPoint, up);
+            Matrix4 lightProj          = glm::ortho(-sceneData_->ShadowOrthoSize, sceneData_->ShadowOrthoSize, -sceneData_->ShadowOrthoSize,
                                                       sceneData_->ShadowOrthoSize, 0.1f, sceneData_->ShadowDistance * 2.0f);
             sceneData_->LightSpaceMatrix = lightProj * lightView;
         } else {
-            sceneData_->LightSpaceMatrix = glm::mat4(1.0f);
+            sceneData_->LightSpaceMatrix = Matrix4(1.0f);
         }
     }
 
@@ -88,7 +88,7 @@ void SceneRenderer::EndScene() {
     RenderScenePass();
 }
 
-void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray, const std::shared_ptr<Material>& material, const glm::mat4& transform,
+void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray, const std::shared_ptr<Material>& material, const Matrix4& transform,
                            bool castsShadows, bool receiveShadows) {
     if (!sceneData_) return;
 
@@ -108,7 +108,7 @@ void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
     sceneData_->directional_light.Active = true;
 
     if (glm::length(sceneData_->directional_light.Direction) <= 0.0f) {
-        sceneData_->directional_light.Direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        sceneData_->directional_light.Direction = Vector3(0.0f, -1.0f, 0.0f);
     } else {
         sceneData_->directional_light.Direction = glm::normalize(sceneData_->directional_light.Direction);
     }
@@ -121,7 +121,7 @@ void SceneRenderer::ClearDirectionalLight() {
 
     sceneData_->directional_light = DirectionalLightData{};
     sceneData_->ShadowsEnabled    = false;
-    sceneData_->LightSpaceMatrix  = glm::mat4(1.0f);
+    sceneData_->LightSpaceMatrix  = Matrix4(1.0f);
 }
 
 SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() {
