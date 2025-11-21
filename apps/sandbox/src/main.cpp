@@ -20,9 +20,9 @@ int main() {
     Application application(appSpec);
     application.PushOverlay<RmlUiLayer>();
     application.PushLayer<UILayer>();
+    application.PushLayer<ThirdPersonLayer>();
     // application.PushLayer<AppLayer>();
-    // application.PushLayer<ThirdPersonLayer>();
     // application.PushLayer<EventSampleLayer>();
-    application.PushLayer<InputSampleLayer>();
+    // application.PushLayer<InputSampleLayer>();
     application.Run();
 }

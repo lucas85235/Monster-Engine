@@ -44,4 +44,5 @@ private:
     float cameraDistance_ = 10.0f;
     float cameraHeight_ = 5.0f;
     float cameraAngle_ = 0.0f;
+    bool camera_active_ = true;
 };

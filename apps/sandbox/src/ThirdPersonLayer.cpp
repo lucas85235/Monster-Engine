@@ -33,6 +33,9 @@ void ThirdPersonLayer::OnAttach() {
     input.BindAction("Jump", Key::Space);
     input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
     input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
+    input.BindAction("ToggleCamera", Key::Tab);
+    input.BindAction("ToggleCursor", Key::LeftAlt);
+
     
     // Capture and hide cursor
     auto& app = Application::Get();
@@ -99,6 +102,19 @@ void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
     UpdateCamera();
     scene_->OnUpdate(ts);
+
+    if (InputManager::Get().IsActionJustPressed("ToggleCamera")) {
+        camera_active_ = !camera_active_;
+        camera_.SetActive(camera_active_);
+
+        SE_LOG_INFO("Camera active: {}", camera_active_);
+    }
+
+    if (InputManager::Get().IsActionJustPressed("ToggleCursor")) {
+        static bool cursorLocked = true;
+        cursorLocked = !cursorLocked;
+        InputManager::Get().SetCursorMode(cursorLocked ? CursorMode::Locked : CursorMode::Normal);
+    }
 }
 
 void ThirdPersonLayer::UpdatePlayer(float ts) {
