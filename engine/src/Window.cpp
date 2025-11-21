@@ -7,6 +7,7 @@
 #include "engine/Log.h"
 #include "engine/input/InputManager.h"
 #include "engine/renderer/GraphicsContext.h"
+#include "engine/new_event_system/InputEvents.h"
 
 namespace se {
 
@@ -96,15 +97,15 @@ void Window::Init() {
     glfwSetFramebufferSizeCallback(window_handle_, FramebufferSizeCallback);
 
     glfwSetKeyCallback(window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
-        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
-
         switch (action) {
             case GLFW_PRESS: {
                 InputManager::Get().OnKeyPressed(static_cast<KeyCode>(key));
+                event_bus_->Invoke<NewKeyPressedEvent>(static_cast<KeyCode>(key), scancode, mods);
                 break;
             }
             case GLFW_RELEASE: {
                 InputManager::Get().OnKeyReleased(static_cast<KeyCode>(key));
+                event_bus_->Invoke<NewKeyReleasedEvent>(static_cast<KeyCode>(key), scancode, mods);
                 break;
             }
             case GLFW_REPEAT: {
@@ -115,15 +116,15 @@ void Window::Init() {
     });
 
     glfwSetMouseButtonCallback(window_handle_, [](WindowHandle window, int button, int action, int mods) {
-        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
-
         switch (action) {
             case GLFW_PRESS: {
                 InputManager::Get().OnMouseButtonPressed(static_cast<MouseButton>(button));
+                event_bus_->Invoke<NewMouseButtonPressedEvent>(static_cast<MouseButton>(button));
                 break;
             }
             case GLFW_RELEASE: {
                 InputManager::Get().OnMouseButtonReleased(static_cast<MouseButton>(button));
+                event_bus_->Invoke<NewMouseButtonReleasedEvent>(static_cast<MouseButton>(button));
                 break;
             }
         }
@@ -131,6 +132,15 @@ void Window::Init() {
 
     glfwSetCursorPosCallback(window_handle_, [](WindowHandle window, double xpos, double ypos) {
         InputManager::Get().OnMouseMoved(static_cast<float>(xpos), static_cast<float>(ypos));
+        event_bus_->Invoke<NewMouseMovedEvent>(static_cast<float>(xpos), static_cast<float>(ypos));
+    });
+
+    glfwSetScrollCallback(window_handle_, [](WindowHandle window, double xoffset, double yoffset) {
+        event_bus_->Invoke<NewMouseScrolledEvent>(static_cast<float>(xoffset), static_cast<float>(yoffset));
+    });
+
+    glfwSetCharCallback(window_handle_, [](WindowHandle window, unsigned int codepoint) {
+        event_bus_->Invoke<NewCharTypedEvent>(codepoint);
     });
 
     // Set initial viewport

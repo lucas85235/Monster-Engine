@@ -80,9 +80,20 @@ std::shared_ptr<Canvas> Canvas::Create(const std::string& name) {
 void Canvas::LoadFromRML(const std::string& path) {
     Rml::Context* context = Rml::GetContext("main");
     if (context) {
-        if (document_) document_->Close();
+        if (document_) {
+            SE_LOG_INFO("Closing existing document");
+            document_->Close();
+        }
+        SE_LOG_INFO("Loading RML document from: {0}", path);
         document_ = context->LoadDocument(path);
-        if (document_) document_->Show();
+        if (document_) {
+            SE_LOG_INFO("Document loaded successfully, showing it now");
+            document_->Show();
+        } else {
+            SE_LOG_ERROR("Failed to load RML document from: {0}", path);
+        }
+    } else {
+        SE_LOG_ERROR("RmlUi context 'main' not found");
     }
 }
 
@@ -96,8 +107,16 @@ void Canvas::Hide() {
 
 std::shared_ptr<UIElement> Canvas::GetElementById(const std::string& id) {
     if (document_) {
+        SE_LOG_INFO("Looking for element with id: {0}", id);
         Rml::Element* el = document_->GetElementById(id);
-        if (el) return std::make_shared<UIElement>(el);
+        if (el) {
+            SE_LOG_INFO("Found element with id: {0}", id);
+            return std::make_shared<UIElement>(el);
+        } else {
+            SE_LOG_WARN("Element with id '{0}' not found", id);
+        }
+    } else {
+        SE_LOG_ERROR("Cannot get element by ID: document is null");
     }
     return nullptr;
 }

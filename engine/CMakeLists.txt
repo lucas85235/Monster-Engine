@@ -35,6 +35,7 @@ set(glm_DIR ${third_party_dir}/glm)
 set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
 set(rmlui_DIR ${third_party_dir}/RmlUi)
+set(freetype_DIR ${third_party_dir}/freetype)
 
 
 add_library(stb STATIC
@@ -53,11 +54,22 @@ add_subdirectory(${glad_DIR})
 add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
 
+# FreeType Configuration
+set(FT_DISABLE_ZLIB TRUE CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 TRUE CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG TRUE CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ TRUE CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI TRUE CACHE BOOL "" FORCE)
+add_subdirectory(${freetype_DIR})
 
+# Create alias for RmlUi to find FreeType
+if(TARGET freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()
 
 # RmlUi Configuration
 set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "none" CACHE STRING "" FORCE)
+set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
 add_subdirectory(${rmlui_DIR})
 
 find_package(OpenGL REQUIRED)

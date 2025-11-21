@@ -1,0 +1,13 @@
+<rml>
+<head>
+    <title>Demo UI</title>
+    <link type="text/rcss" href="demo.rcss"/>
+</head>
+<body>
+    <div id="container">
+        <div class="title">RmlUi Demo</div>
+        <button id="demo-button">Click Me!</button>
+        <button id="demo-button-2">Another Button</button>
+    </div>
+</body>
+</rml>

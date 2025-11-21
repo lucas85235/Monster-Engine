@@ -243,46 +243,4 @@ bool RmlUiSystemInterface::LogMessage(Rml::Log::Type type, const Rml::String& me
     return true;
 }
 
-// Font Engine Interface Implementation (Dummy)
-
-bool RmlUiFontEngineInterface::LoadFontFace(const Rml::String& file_name, int face_index, bool fallback_face, Rml::Style::FontWeight weight) {
-    return true;
-}
-
-bool RmlUiFontEngineInterface::LoadFontFace(Rml::Span<const Rml::byte> data, int face_index, const Rml::String& family, Rml::Style::FontStyle style, Rml::Style::FontWeight weight, bool fallback_face) {
-    return true;
-}
-
-Rml::FontFaceHandle RmlUiFontEngineInterface::GetFontFaceHandle(const Rml::String& family, Rml::Style::FontStyle style, Rml::Style::FontWeight weight, int size) {
-    return (Rml::FontFaceHandle)1; // Return a dummy handle
-}
-
-Rml::FontEffectsHandle RmlUiFontEngineInterface::PrepareFontEffects(Rml::FontFaceHandle handle, const Rml::FontEffectList& font_effects) {
-    return (Rml::FontEffectsHandle)1;
-}
-
-const Rml::FontMetrics& RmlUiFontEngineInterface::GetFontMetrics(Rml::FontFaceHandle handle) {
-    static Rml::FontMetrics metrics;
-    metrics.size = 12;
-    metrics.ascent = 10;
-    metrics.descent = 2;
-    metrics.line_spacing = 14;
-    return metrics;
-}
-
-int RmlUiFontEngineInterface::GetStringWidth(Rml::FontFaceHandle handle, Rml::StringView string, const Rml::TextShapingContext& text_shaping_context, Rml::Character prior_character) {
-    return 100; // Dummy fixed width
-}
-
-int RmlUiFontEngineInterface::GenerateString(Rml::RenderManager& render_manager, Rml::FontFaceHandle face_handle, Rml::FontEffectsHandle font_effects_handle, Rml::StringView string, Rml::Vector2f position, Rml::ColourbPremultiplied colour, float opacity, const Rml::TextShapingContext& text_shaping_context, Rml::TexturedMeshList& mesh_list) {
-    return 100; // Dummy fixed width
-}
-
-int RmlUiFontEngineInterface::GetVersion(Rml::FontFaceHandle handle) {
-    return 1;
-}
-
-void RmlUiFontEngineInterface::ReleaseFontResources() {
-}
-
 }  // namespace se
