@@ -120,4 +120,23 @@ struct DirectionalLightComponent {
 
     DirectionalLightComponent(const DirectionalLightComponent&) = default;
 };
+
+// ==================== Spring Arm Component ====================
+// Controls camera distance and rotation relative to target
+struct SpringArmComponent {
+    float TargetArmLength = 5.0f;
+    Vector3 SocketOffset = {0.0f, 0.0f, 0.0f};
+    bool UsePawnControlRotation = true;
+    
+    // Camera rotation (controlled by input)
+    float Pitch = -20.0f; // Start looking slightly down
+    float Yaw = 0.0f;
+    
+    // Constraints
+    float MinPitch = -80.0f;
+    float MaxPitch = 80.0f;
+
+    SpringArmComponent() = default;
+    SpringArmComponent(const SpringArmComponent&) = default;
+};
 }  // namespace se
