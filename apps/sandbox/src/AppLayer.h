@@ -1,7 +1,7 @@
 #pragma once
 
 #include <engine/Camera.h>
-#include <engine/InputHandler.h>
+#include <engine/renderer/CameraController.h>
 #include <engine/Layer.h>
 #include <engine/ecs/Scene.h>
 #include <engine/resources/MaterialManager.h>
@@ -11,8 +11,6 @@
 #include <memory>
 #include <string>
 
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
 
 using namespace se;
 class AppLayer : public Layer {
@@ -25,9 +23,6 @@ class AppLayer : public Layer {
 
     void OnDetach() override;
 
-    void OnEvent(Event& event) override;
-    bool OnKeyPressedEvent(KeyPressedEvent& e);
-    bool OnMouseButtonPressed(MouseButtonPressedEvent& e);
 
     void OnUpdate(float ts) override;
 
@@ -54,8 +49,8 @@ class AppLayer : public Layer {
     Ref<Material> material_;
 
     // Camera and input
-    Camera       camera_;
-    InputHandler inputHandler_;
+    Camera           camera_;
+    CameraController cameraController_;
 
     // Animation time
     float animationTime_ = 0.0f;

@@ -16,17 +16,17 @@ glm::mat4 Camera::getProjectionMatrix(float aspectRatio) const {
     return glm::perspective(glm::radians(fov_), aspectRatio, 0.1f, 100.0f);
 }
 
-void Camera::processKeyboard(float deltaTime, bool forward, bool back, bool left, bool right, bool upKey, bool downKey) {
+void Camera::ProcessKeyboard(CameraMovement direction, float deltaTime) {
     float velocity = movement_speed_ * deltaTime;
-    if (forward) position_ += front_ * velocity;
-    if (back) position_ -= front_ * velocity;
-    if (left) position_ -= right_ * velocity;
-    if (right) position_ += right_ * velocity;
-    if (upKey) position_ += world_up_ * velocity;
-    if (downKey) position_ -= world_up_ * velocity;
+    if (direction == CameraMovement::FORWARD) position_ += front_ * velocity;
+    if (direction == CameraMovement::BACKWARD) position_ -= front_ * velocity;
+    if (direction == CameraMovement::LEFT) position_ -= right_ * velocity;
+    if (direction == CameraMovement::RIGHT) position_ += right_ * velocity;
+    if (direction == CameraMovement::UP) position_ += world_up_ * velocity;
+    if (direction == CameraMovement::DOWN) position_ -= world_up_ * velocity;
 }
 
-void Camera::processMouseMovement(float xoffset, float yoffset, bool constrainPitch) {
+void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch) {
     if (!active_) return;
     xoffset *= mouse_sensitivity_;
     yoffset *= mouse_sensitivity_;
@@ -42,7 +42,7 @@ void Camera::processMouseMovement(float xoffset, float yoffset, bool constrainPi
     updateCameraVectors();
 }
 
-void Camera::processMouseScroll(float xoffset, float yoffset) {
+void Camera::ProcessMouseScroll(float xoffset, float yoffset) {
     fov_ -= yoffset;
     if (fov_ < 1.0f) fov_ = 1.0f;
     if (fov_ > 90.0f) fov_ = 90.0f;

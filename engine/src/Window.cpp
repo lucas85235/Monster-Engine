@@ -1,13 +1,11 @@
 #include "engine/Window.h"
 
 #include <GLFW/glfw3.h>
-
 #include <stdexcept>
 
 #include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/event/KeyEvent.h"
-#include "engine/input/Input.h"
+#include "engine/input/InputManager.h"
 #include "engine/renderer/GraphicsContext.h"
 
 namespace se {
@@ -98,32 +96,42 @@ void Window::Init() {
     glfwSetFramebufferSizeCallback(window_handle_, FramebufferSizeCallback);
 
     glfwSetKeyCallback(window_handle_, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
         switch (action) {
             case GLFW_PRESS: {
-                Input::UpdateKeyState(static_cast<KeyCode>(key), KeyState::Pressed);
-                KeyPressedEvent event(static_cast<KeyCode>(key), 0);
-                data.EventCallback(event);
+                InputManager::Get().OnKeyPressed(static_cast<KeyCode>(key));
                 break;
             }
             case GLFW_RELEASE: {
-                Input::UpdateKeyState(static_cast<KeyCode>(key), KeyState::Released);
-                KeyReleasedEvent event(static_cast<KeyCode>(key));
-                data.EventCallback(event);
+                InputManager::Get().OnKeyReleased(static_cast<KeyCode>(key));
                 break;
             }
             case GLFW_REPEAT: {
-                Input::UpdateKeyState(static_cast<KeyCode>(key), KeyState::Held);
-                KeyPressedEvent event(static_cast<KeyCode>(key), 1);
-                data.EventCallback(event);
+                // InputManager::Get().OnKeyRepeated(static_cast<KeyCode>(key));
                 break;
             }
         }
     });
 
-    // Set input context
-    Input::SetWindow(window_handle_);
+    glfwSetMouseButtonCallback(window_handle_, [](GLFWwindow* window, int button, int action, int mods) {
+        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+        switch (action) {
+            case GLFW_PRESS: {
+                InputManager::Get().OnMouseButtonPressed(static_cast<MouseButton>(button));
+                break;
+            }
+            case GLFW_RELEASE: {
+                InputManager::Get().OnMouseButtonReleased(static_cast<MouseButton>(button));
+                break;
+            }
+        }
+    });
+
+    glfwSetCursorPosCallback(window_handle_, [](GLFWwindow* window, double xpos, double ypos) {
+        InputManager::Get().OnMouseMoved(static_cast<float>(xpos), static_cast<float>(ypos));
+    });
 
     // Set initial viewport
     int frame_buffer_width, frame_buffer_height;

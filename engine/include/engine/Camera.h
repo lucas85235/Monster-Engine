@@ -13,14 +13,23 @@ class Camera {
     // Returns the projection matrix
     glm::mat4 getProjectionMatrix(float aspectRatio) const;
 
+    enum class CameraMovement {
+        FORWARD,
+        BACKWARD,
+        LEFT,
+        RIGHT,
+        UP,
+        DOWN
+    };
+
     // Processes input received from a keyboard-like input system
-    void processKeyboard(float deltaTime, bool forward, bool back, bool left, bool right, bool upKey, bool downKey);
+    void ProcessKeyboard(CameraMovement direction, float deltaTime);
 
     // Processes input received from a mouse input system
-    void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
+    void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
 
     // Processes input received from a mouse scroll-wheel event
-    void processMouseScroll(float xoffset, float yoffset);
+    void ProcessMouseScroll(float xoffset, float yoffset);
 
     // Getters for camera attributes
     glm::vec3 GetPosition() const {
