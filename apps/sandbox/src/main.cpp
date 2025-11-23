@@ -18,10 +18,10 @@ int main() {
     appSpec.WindowHeight = 720;
 
     Application application(appSpec);
-    application.PushOverlay<RmlUiLayer>();
-    application.PushLayer<UILayer>();
+    // application.PushOverlay<RmlUiLayer>();
+    // application.PushLayer<UILayer>();
     // application.PushLayer<AppLayer>();
-    // application.PushLayer<ThirdPersonLayer>();
+    application.PushLayer<ThirdPersonLayer>();
     // application.PushLayer<EventSampleLayer>();
     application.PushLayer<InputSampleLayer>();
     application.Run();
