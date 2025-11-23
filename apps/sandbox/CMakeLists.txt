@@ -1,8 +1,9 @@
 add_executable(sandbox
         src/AppLayer.cpp
         src/AppLayer.h
-        src/ThirdPersonLayer.cpp
-        src/ThirdPersonLayer.h
+        src/third_person_game/ThirdPersonLayer.cpp
+        src/third_person_game/ThirdPersonLayer.h
+        src/third_person_game/ThirdPersonUiLayer.h
         src/input_sample/InputSampleLayer.h
         src/input_sample/InputSampleLayer.cpp
         src/event_sample/EventSampleLayer.cpp

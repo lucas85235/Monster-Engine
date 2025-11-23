@@ -2,11 +2,11 @@
 #include <engine/Log.h>
 
 #include "AppLayer.h"
-#include "ThirdPersonLayer.h"
-#include "event_sample/EventSampleLayer.h"
-#include "input_sample/InputSampleLayer.h"
 #include "UILayer.h"
 #include "engine/ui/RmlUiLayer.h"
+#include "input_sample/InputSampleLayer.h"
+#include "third_person_game/ThirdPersonLayer.h"
+#include "third_person_game/ThirdPersonUiLayer.h"
 
 using namespace std;
 using namespace se;
@@ -19,7 +19,7 @@ int main() {
 
     Application application(appSpec);
     application.PushOverlay<RmlUiLayer>();
-    application.PushLayer<UILayer>();
+    application.PushLayer<ThirdPersonUiLayer>();
     application.PushLayer<ThirdPersonLayer>();
     // application.PushLayer<AppLayer>();
     // application.PushLayer<EventSampleLayer>();

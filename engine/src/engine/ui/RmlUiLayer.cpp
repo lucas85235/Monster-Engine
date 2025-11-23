@@ -1,12 +1,12 @@
 #include "engine/ui/RmlUiLayer.h"
+
+#include <GLFW/glfw3.h>
 #include <RmlUi/Debugger.h>
 
 #include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/new_event_system/NewApplicationEvents.h"
 #include "engine/new_event_system/InputEvents.h"
-
-#include <GLFW/glfw3.h>
+#include "engine/new_event_system/NewApplicationEvents.h"
 
 namespace se {
 
@@ -27,8 +27,8 @@ void RmlUiLayer::OnAttach() {
     }
 
     auto& window = Application::Get().GetWindow();
-    int width = window.GetWidth();
-    int height = window.GetHeight();
+    int   width  = window.GetWidth();
+    int   height = window.GetHeight();
 
     render_interface_->SetViewport(width, height);
 
@@ -38,7 +38,7 @@ void RmlUiLayer::OnAttach() {
         return;
     }
 
-    const std::string font_path = "assets/fonts/Roboto-Regular.ttf"; // relative to the executable
+    const std::string font_path = "assets/fonts/Rubik-Regular.ttf";
     if (!Rml::LoadFontFace(font_path)) {
         SE_LOG_ERROR("[RmlUiLayer] Failed to load font '{}'", font_path);
     } else {
@@ -64,26 +64,22 @@ void RmlUiLayer::OnAttach() {
 
     mouse_moved_listener_id_ = event_bus.AddListener<NewMouseMovedEvent>([this](const NewMouseMovedEvent& e) {
         SE_LOG_INFO("[RmlUiLayer] Mouse Moved: ({}, {})", e.x, e.y);
-        if (context_)
-            context_->ProcessMouseMove(static_cast<int>(e.x), static_cast<int>(e.y), 0);
+        if (context_) context_->ProcessMouseMove(static_cast<int>(e.x), static_cast<int>(e.y), 0);
     });
 
     mouse_pressed_listener_id_ = event_bus.AddListener<NewMouseButtonPressedEvent>([this](const NewMouseButtonPressedEvent& e) {
         SE_LOG_INFO("[RmlUiLayer] Mouse Button Pressed: {}", static_cast<int>(e.button));
-        if (context_)
-            context_->ProcessMouseButtonDown(static_cast<int>(e.button), 0);
+        if (context_) context_->ProcessMouseButtonDown(static_cast<int>(e.button), 0);
     });
 
     mouse_released_listener_id_ = event_bus.AddListener<NewMouseButtonReleasedEvent>([this](const NewMouseButtonReleasedEvent& e) {
         SE_LOG_INFO("[RmlUiLayer] Mouse Button Released: {}", static_cast<int>(e.button));
-        if (context_)
-            context_->ProcessMouseButtonUp(static_cast<int>(e.button), 0);
+        if (context_) context_->ProcessMouseButtonUp(static_cast<int>(e.button), 0);
     });
 
     mouse_scrolled_listener_id_ = event_bus.AddListener<NewMouseScrolledEvent>([this](const NewMouseScrolledEvent& e) {
         SE_LOG_INFO("[RmlUiLayer] Mouse Scrolled: ({}, {})", e.xOffset, e.yOffset);
-        if (context_)
-            context_->ProcessMouseWheel(Rml::Vector2f(e.xOffset, -e.yOffset), 0);
+        if (context_) context_->ProcessMouseWheel(Rml::Vector2f(e.xOffset, -e.yOffset), 0);
     });
 
     key_pressed_listener_id_ = event_bus.AddListener<NewKeyPressedEvent>([this](const NewKeyPressedEvent& e) {
@@ -102,11 +98,11 @@ void RmlUiLayer::OnAttach() {
     char_typed_listener_id_ = event_bus.AddListener<NewCharTypedEvent>([this](const NewCharTypedEvent& e) {
         SE_LOG_INFO("[RmlUiLayer] Char Typed: {} (0x{:X})", static_cast<char>(e.character), e.character);
         if (context_) {
-            if (e.character >= 32) // Printable
+            if (e.character >= 32)  // Printable
                 context_->ProcessTextInput(static_cast<Rml::Character>(e.character));
         }
     });
-    
+
     SE_LOG_INFO("[RmlUiLayer] Successfully attached and subscribed to input events");
 }
 
@@ -128,8 +124,7 @@ void RmlUiLayer::OnDetach() {
 }
 
 void RmlUiLayer::OnUpdate(float ts) {
-    if (context_)
-        context_->Update();
+    if (context_) context_->Update();
 }
 
 void RmlUiLayer::OnRender() {
@@ -138,9 +133,9 @@ void RmlUiLayer::OnRender() {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDisable(GL_DEPTH_TEST);
-        
+
         context_->Render();
-        
+
         glEnable(GL_DEPTH_TEST);
         glDisable(GL_BLEND);
     }

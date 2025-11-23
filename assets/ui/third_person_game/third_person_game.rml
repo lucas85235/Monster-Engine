@@ -1,0 +1,11 @@
+<rml>
+<head>
+    <link type="text/rcss" href="ui_healthbar.rcss" />
+</head>
+<body>
+    <div class="health-bar">
+        <div id="health-fill" class="health-fill"></div>
+        <div id="health-text" class="health-text">100</div>
+    </div>
+</body>
+</rml>

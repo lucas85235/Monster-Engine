@@ -1,5 +1,5 @@
 * {
-    font-family: "Roboto";
+    font-family: "Rubik";
     font-size: 14px;
     color: #e0e0e0;
 }
@@ -45,3 +45,4 @@ button:hover {
 button:active {
     background-color: #1a252f;
 }
+
