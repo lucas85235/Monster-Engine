@@ -1,4 +1,5 @@
 #include "engine/Renderer.h"
+
 #include "engine/Log.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
@@ -36,8 +37,7 @@ void Renderer::Init() {
 }
 
 void Renderer::Shutdown() {
-    if (!initialized_)
-        return;
+    if (!initialized_) return;
 
     SE_LOG_INFO("Shutting down Renderer");
 
@@ -66,7 +66,7 @@ void Renderer::SetClearColor(float r, float g, float b, float a) {
 }
 
 void Renderer::BeginScene(const Camera& camera, float aspectRatio) {
-    glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
+    Matrix4 projection = camera.getProjectionMatrix(aspectRatio);
     SceneRenderer::BeginScene(camera, projection);
 }
 
@@ -74,4 +74,4 @@ void Renderer::EndScene() {
     SceneRenderer::EndScene();
 }
 
-} // namespace se
+}  // namespace se

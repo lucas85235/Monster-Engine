@@ -1,40 +1,47 @@
 #pragma once
 
-#include <glm.hpp>
+#include "Engine.h"
 
 class Camera {
-  public:
+   public:
     // Camera constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 10.0f),
-           glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
+    Camera(se::Vector3 position = se::Vector3(0.0f, 0.0f, 10.0f), se::Vector3 up = se::Vector3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 
     // Returns the view matrix calculated using Euler angles and the LookAt matrix
-    glm::mat4 getViewMatrix() const;
+    se::Matrix4 getViewMatrix() const;
 
     // Returns the projection matrix
-    glm::mat4 getProjectionMatrix(float aspectRatio) const;
+    se::Matrix4 getProjectionMatrix(float aspectRatio) const;
+
+    enum class CameraMovement {
+        FORWARD,
+        BACKWARD,
+        LEFT,
+        RIGHT,
+        UP,
+        DOWN
+    };
 
     // Processes input received from a keyboard-like input system
-    void processKeyboard(float deltaTime, bool forward, bool back, bool left, bool right,
-                         bool upKey, bool downKey);
+    void ProcessKeyboard(CameraMovement direction, float deltaTime);
 
     // Processes input received from a mouse input system
-    void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
+    void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
 
     // Processes input received from a mouse scroll-wheel event
-    void processMouseScroll(float xoffset, float yoffset);
+    void ProcessMouseScroll(float xoffset, float yoffset);
 
     // Getters for camera attributes
-    glm::vec3 GetPosition() const {
+    se::Vector3 GetPosition() const {
         return position_;
     }
-    glm::vec3 GetFront() const {
+    se::Vector3 GetFront() const {
         return front_;
     }
-    glm::vec3 GetUp() const {
+    se::Vector3 GetUp() const {
         return up_;
     }
-    glm::vec3 GetRight() const {
+    se::Vector3 GetRight() const {
         return right_;
     }
     float GetYaw() const {
@@ -48,7 +55,7 @@ class Camera {
     }
 
     // Setters for camera attributes
-    void SetPosition(const glm::vec3& position) {
+    void SetPosition(const se::Vector3& position) {
         position_ = position;
     }
 
@@ -70,17 +77,17 @@ class Camera {
         active_ = active;
     }
 
-  private:
+   private:
     // Calculates the front vector from the Camera's (updated) Euler Angles
     void updateCameraVectors();
 
-  private:
+   private:
     // Camera Attributes
-    glm::vec3 position_;
-    glm::vec3 front_;
-    glm::vec3 up_;
-    glm::vec3 right_;
-    glm::vec3 world_up_;
+    se::Vector3 position_;
+    se::Vector3 front_;
+    se::Vector3 up_;
+    se::Vector3 right_;
+    se::Vector3 world_up_;
 
     // Euler Angles
     float yaw_;
@@ -89,7 +96,7 @@ class Camera {
     bool active_ = true;
 
     // Camera options
-    float movement_speed_ = 5.0f;
+    float movement_speed_    = 5.0f;
     float mouse_sensitivity_ = 0.1f;
-    float fov_ = 60.0f;
+    float fov_               = 60.0f;
 };

@@ -6,27 +6,14 @@
 namespace se {
 
 // Vertex Buffer Layout
-enum class ShaderDataType {
-    None = 0,
-    Float,
-    Float2,
-    Float3,
-    Float4,
-    Mat3,
-    Mat4,
-    Int,
-    Int2,
-    Int3,
-    Int4,
-    Bool
-};
+enum class ShaderDataType { None = 0, Float, Float2, Float3, Float4, Mat3, Mat4, Int, Int2, Int3, Int4, Bool };
 
 struct BufferElement {
-    std::string Name;
+    std::string    Name;
     ShaderDataType Type;
-    uint32_t Size;
-    uint32_t Offset;
-    bool Normalized;
+    uint32_t       Size;
+    uint32_t       Offset;
+    bool           Normalized;
 
     BufferElement() = default;
     BufferElement(ShaderDataType type, const std::string& name, bool normalized = false);
@@ -35,7 +22,7 @@ struct BufferElement {
 };
 
 class BufferLayout {
-  public:
+   public:
     BufferLayout() = default;
     BufferLayout(const std::initializer_list<BufferElement>& elements);
 
@@ -59,19 +46,19 @@ class BufferLayout {
         return elements_.end();
     }
 
-  private:
+   private:
     void CalculateOffsetsAndStride();
 
-  private:
+   private:
     std::vector<BufferElement> elements_;
-    uint32_t stride_ = 0;
+    uint32_t                   stride_ = 0;
 };
 
 // Vertex Buffer
 class VertexBuffer {
-  public:
+   public:
     VertexBuffer(const void* vertices, uint32_t size);
-    VertexBuffer(uint32_t size); // Dynamic buffer
+    VertexBuffer(uint32_t size);  // Dynamic buffer
     ~VertexBuffer();
 
     void Bind() const;
@@ -86,14 +73,14 @@ class VertexBuffer {
         layout_ = layout;
     }
 
-  private:
-    uint32_t rendererId_;
+   private:
+    uint32_t     rendererId_;
     BufferLayout layout_;
 };
 
 // Index Buffer
 class IndexBuffer {
-  public:
+   public:
     IndexBuffer(const uint32_t* indices, uint32_t count);
     ~IndexBuffer();
 
@@ -104,9 +91,9 @@ class IndexBuffer {
         return count_;
     }
 
-  private:
+   private:
     uint32_t rendererId_;
     uint32_t count_;
 };
 
-} // namespace se
+}  // namespace se

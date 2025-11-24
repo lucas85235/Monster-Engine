@@ -1,6 +1,8 @@
 #include "engine/renderer/RenderCommand.h"
-#include "engine/renderer/VertexArray.h"
+
 #include <glad/glad.h>
+
+#include "engine/renderer/VertexArray.h"
 
 namespace se {
 
@@ -14,7 +16,7 @@ void RenderCommand::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t
     glViewport(x, y, width, height);
 }
 
-void RenderCommand::SetClearColor(const glm::vec4& color) {
+void RenderCommand::SetClearColor(const Vector4& color) {
     glClearColor(color.r, color.g, color.b, color.a);
 }
 
@@ -61,4 +63,4 @@ void RenderCommand::SetWireframe(bool enabled) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-} // namespace se
+}  // namespace se

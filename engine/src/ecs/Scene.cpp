@@ -1,4 +1,5 @@
 #include "engine/ecs/Scene.h"
+
 #include "engine/Log.h"
 #include "engine/ecs/Components.h"
 #include "engine/ecs/RenderSystem.h"
@@ -43,13 +44,11 @@ Entity Scene::FindEntityByName(const std::string& name) {
 
     for (auto entity : view) {
         auto& nameComp = view.get<NameComponent>(entity);
-        if (nameComp.Name == name) {
-            return Entity(entity, this);
-        }
+        if (nameComp.Name == name) { return Entity(entity, this); }
     }
 
     SE_LOG_WARN("Entity with name '{}' not found", name);
-    return Entity(); // Return invalid entity
+    return Entity();  // Return invalid entity
 }
 
 void Scene::OnUpdate(float deltaTime) {
@@ -69,4 +68,4 @@ void Scene::Clear() {
     registry_.clear();
 }
 
-} // namespace se
+}  // namespace se

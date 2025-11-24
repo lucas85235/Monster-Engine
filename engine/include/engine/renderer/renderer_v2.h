@@ -4,19 +4,19 @@
 
 namespace Renderer {
 struct Texture {
-    GLuint Handle = 0;
-    uint32_t Width = 0;
+    GLuint   Handle = 0;
+    uint32_t Width  = 0;
     uint32_t Height = 0;
 };
 
 struct Framebuffer {
-    GLuint Handle = 0;
+    GLuint  Handle = 0;
     Texture ColorAttachment;
 };
 
-Texture CreateTexture(int width, int height);
-Texture LoadTexture(const std::filesystem::path& path);
+Texture     CreateTexture(int width, int height);
+Texture     LoadTexture(const std::filesystem::path& path);
 Framebuffer CreateFramebufferWithTexture(const Texture texture);
-bool AttachTextureToFramebuffer(Framebuffer& framebuffer, const Texture texture);
-void BlitFramebufferToSwapchain(const Framebuffer framebuffer);
-} // namespace Renderer
+bool        AttachTextureToFramebuffer(Framebuffer& framebuffer, const Texture texture);
+void        BlitFramebufferToSwapchain(const Framebuffer framebuffer);
+}  // namespace Renderer
