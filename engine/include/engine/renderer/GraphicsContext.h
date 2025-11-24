@@ -5,18 +5,18 @@ struct GLFWwindow;
 namespace se {
 
 class GraphicsContext {
-   public:
+  public:
     GraphicsContext(GLFWwindow* windowHandle);
     ~GraphicsContext();
 
-    void        Init();
-    void        SwapBuffers();
+    void Init();
+    void SwapBuffers();
     GLFWwindow* GetContext() {
         return windowHandle_;
     }
 
-   private:
+  private:
     GLFWwindow* windowHandle_;
 };
 
-}  // namespace se
+} // namespace se

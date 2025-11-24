@@ -71,14 +71,16 @@ uint32_t ReloadComputeShader(uint32_t shaderHandle, const std::filesystem::path&
     uint32_t newShaderHandle = CreateComputeShader(path);
 
     // Return old shader if compilation failed
-    if (newShaderHandle == -1) return shaderHandle;
+    if (newShaderHandle == -1)
+        return shaderHandle;
 
     glDeleteProgram(shaderHandle);
     return newShaderHandle;
 }
 
-uint32_t CreateGraphicsShader(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath) {
-    std::string vertexShaderSource   = ReadTextFile(vertexPath);
+uint32_t CreateGraphicsShader(const std::filesystem::path& vertexPath,
+                              const std::filesystem::path& fragmentPath) {
+    std::string vertexShaderSource = ReadTextFile(vertexPath);
     std::string fragmentShaderSource = ReadTextFile(fragmentPath);
 
     // Vertex shader
@@ -159,14 +161,16 @@ uint32_t CreateGraphicsShader(const std::filesystem::path& vertexPath, const std
     return program;
 }
 
-uint32_t ReloadGraphicsShader(uint32_t shaderHandle, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath) {
+uint32_t ReloadGraphicsShader(uint32_t shaderHandle, const std::filesystem::path& vertexPath,
+                              const std::filesystem::path& fragmentPath) {
     uint32_t newShaderHandle = CreateGraphicsShader(vertexPath, fragmentPath);
 
     // Return old shader if compilation failed
-    if (newShaderHandle == -1) return shaderHandle;
+    if (newShaderHandle == -1)
+        return shaderHandle;
 
     glDeleteProgram(shaderHandle);
     return newShaderHandle;
 }
 
-}  // namespace Renderer
+} // namespace Renderer
