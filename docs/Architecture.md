@@ -95,7 +95,8 @@ sequenceDiagram
             App->>Layer: OnImGuiRender()
         end
         App->>ImGui: End()
-        
+    end
+```
 
 ## Rendering Module
 
