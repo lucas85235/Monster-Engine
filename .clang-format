@@ -1,13 +1,13 @@
-BasedOnStyle: Google
+BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 150
+ColumnLimit: 100
 
 # Alignment
 AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: true
-AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
 AlignOperands: true
 AlignTrailingComments: true
 
@@ -26,8 +26,7 @@ BraceWrapping:
 
 # Indentation
 IndentCaseLabels: true
-# <-- Mudei isso aqui:
-IndentPPDirectives: None
+IndentPPDirectives: AfterHash
 NamespaceIndentation: None
 
 # Spacing
@@ -43,8 +42,8 @@ SpacesInSquareBrackets: false
 
 # Line breaks
 AllowShortFunctionsOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: true
-AllowShortLoopsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
 AlwaysBreakAfterReturnType: None
 AlwaysBreakTemplateDeclarations: Yes
 
@@ -54,11 +53,3 @@ PointerAlignment: Left
 
 # Other
 SortIncludes: true
-
-# Opcional – só se o seu clang-format for >= 9
-# (se der "unknown key 'AlignConsecutiveMacros'", apaga isso)
-AlignConsecutiveMacros: Consecutive
-
-# Opcional – só se o seu clang-format for >= 11
-# (se reclamar de 'Always', troque por true/false ou remova)
-AllowShortBlocksOnASingleLine: Always

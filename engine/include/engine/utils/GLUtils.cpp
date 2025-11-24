@@ -56,12 +56,14 @@ const char* GLDebugSeverityToString(GLenum severity) {
     }
 }
 
-static void GLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+static void GLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
+                            const GLchar* message, const void* userParam) {
     // TODO: Custom filters
-    if (severity != GL_DEBUG_SEVERITY_MEDIUM && severity != GL_DEBUG_SEVERITY_HIGH) return;
+    if (severity != GL_DEBUG_SEVERITY_MEDIUM && severity != GL_DEBUG_SEVERITY_HIGH)
+        return;
 
-    const char* sourceStr   = Utils::GLDebugSourceToString(source);
-    const char* typeStr     = Utils::GLDebugTypeToString(type);
+    const char* sourceStr = Utils::GLDebugSourceToString(source);
+    const char* typeStr = Utils::GLDebugTypeToString(type);
     const char* severityStr = Utils::GLDebugSeverityToString(severity);
 
     SE_LOG_INFO("[OpenGL] [{} - {} ({})]: [{}] {}", severityStr, typeStr, id, sourceStr, message);
@@ -71,4 +73,4 @@ void InitOpenGLDebugMessageCallback() {
     glDebugMessageCallback(GLDebugCallback, nullptr);
 }
 
-}  // namespace Renderer::Utils
+} // namespace Renderer::Utils

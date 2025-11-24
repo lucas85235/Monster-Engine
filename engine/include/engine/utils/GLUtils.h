@@ -10,4 +10,4 @@ const char* GLDebugSeverityToString(GLenum severity);
 
 void InitOpenGLDebugMessageCallback();
 
-}  // namespace Renderer::Utils
+} // namespace Renderer::Utils

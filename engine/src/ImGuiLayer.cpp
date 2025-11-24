@@ -1,9 +1,8 @@
 #include "engine/ImGuiLayer.h"
-
+#include "engine/Log.h"
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-#include "engine/Log.h"
 #include "examples/imgui_impl_glfw.h"
 #include "examples/imgui_impl_opengl3.h"
 
@@ -37,7 +36,7 @@ void ImGuiLayer::OnAttach() {
     // identical to regular ones.
     ImGuiStyle& style = ImGui::GetStyle();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-        style.WindowRounding              = 0.0f;
+        style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
@@ -87,4 +86,4 @@ void ImGuiLayer::End() {
     }
 }
 
-}  // namespace se
+} // namespace se

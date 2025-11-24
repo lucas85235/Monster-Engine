@@ -1,20 +1,17 @@
 #pragma once
 
 #include <engine/Camera.h>
-#include <engine/renderer/CameraController.h>
+#include <engine/InputHandler.h>
 #include <engine/Layer.h>
 #include <engine/ecs/Scene.h>
 #include <engine/resources/MaterialManager.h>
 #include <engine/resources/MeshManager.h>
-
 #include <glm.hpp>
 #include <memory>
 #include <string>
 
-
-using namespace se;
-class AppLayer : public Layer {
-   public:
+class AppLayer : public se::Layer {
+  public:
     AppLayer();
 
     ~AppLayer() override;
@@ -23,6 +20,7 @@ class AppLayer : public Layer {
 
     void OnDetach() override;
 
+    void OnEvent(se::Event& event) override;
 
     void OnUpdate(float ts) override;
 
@@ -30,7 +28,7 @@ class AppLayer : public Layer {
 
     void OnImGuiRender() override;
 
-   private:
+  private:
     void HandleInput(float deltaTime);
 
     void LoadMaterial();
@@ -38,19 +36,23 @@ class AppLayer : public Layer {
     // Helper methods for creating entities
     void AddDirectionalLight();
 
-    void CreateCubeEntity(const std::string& name, const Vector3& position, const Vector3& scale = Vector3(1.0f));
+    void CreateCubeEntity(const std::string& name, const glm::vec3& position,
+                          const glm::vec3& scale = glm::vec3(1.0f));
 
-    void CreateSphereEntity(const std::string& name, const Vector3& position);
+    void CreateSphereEntity(const std::string& name, const glm::vec3& position);
 
-    void CreateCapsuleEntity(const std::string& name, const Vector3& position);
+    void CreateCapsuleEntity(const std::string& name, const glm::vec3& position);
 
-   private:
-    Scope<Scene>  scene_;
-    Ref<Material> material_;
+  private:
+    // Scene
+    std::unique_ptr<se::Scene> scene_;
+
+    // Material
+    std::shared_ptr<se::Material> material_;
 
     // Camera and input
-    Camera           camera_;
-    CameraController cameraController_;
+    Camera camera_;
+    InputHandler inputHandler_;
 
     // Animation time
     float animationTime_ = 0.0f;

@@ -7,7 +7,7 @@ struct GLFWwindow;
 namespace se {
 
 class ImGuiLayer : public Layer {
-   public:
+  public:
     ImGuiLayer();
     ~ImGuiLayer() override;
 
@@ -17,13 +17,13 @@ class ImGuiLayer : public Layer {
     void OnRender() override;
     void OnEvent(Event& event) override;
 
-    void Begin();  // Start new ImGui frame
-    void End();    // Render ImGui draw data
+    void Begin(); // Start new ImGui frame
+    void End();   // Render ImGui draw data
 
     void SetWindow(GLFWwindow* window);
 
-   private:
+  private:
     GLFWwindow* window_ = nullptr;
 };
 
-}  // namespace se
+} // namespace se

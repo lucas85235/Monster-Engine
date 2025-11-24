@@ -4,7 +4,7 @@ namespace Renderer {
 
 Texture CreateTexture(int width, int height) {
     Texture result;
-    result.Width  = width;
+    result.Width = width;
     result.Height = height;
 
     glCreateTextures(GL_TEXTURE_2D, 1, &result.Handle);
@@ -21,9 +21,9 @@ Texture CreateTexture(int width, int height) {
 }
 
 Texture LoadTexture(const std::filesystem::path& path) {
-    int            width, height, channels;
-    std::string    filepath = path.string();
-    unsigned char* data     = stbi_load(filepath.c_str(), &width, &height, &channels, 0);
+    int width, height, channels;
+    std::string filepath = path.string();
+    unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 0);
 
     if (!data) {
         std::cerr << "Failed to load texture: " << filepath << "\n";
@@ -33,7 +33,7 @@ Texture LoadTexture(const std::filesystem::path& path) {
     GLenum format = channels == 4 ? GL_RGBA : channels == 3 ? GL_RGB : channels == 1 ? GL_RED : 0;
 
     Texture result;
-    result.Width  = width;
+    result.Width = width;
     result.Height = height;
 
     glCreateTextures(GL_TEXTURE_2D, 1, &result.Handle);
@@ -81,13 +81,13 @@ bool AttachTextureToFramebuffer(Framebuffer& framebuffer, const Texture texture)
 
 void BlitFramebufferToSwapchain(const Framebuffer framebuffer) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer.Handle);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);  // swapchain
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // swapchain
 
     glBlitFramebuffer(0, 0, framebuffer.ColorAttachment.Width,
-                      framebuffer.ColorAttachment.Height,  // Source rect
+                      framebuffer.ColorAttachment.Height, // Source rect
                       0, 0, framebuffer.ColorAttachment.Width,
-                      framebuffer.ColorAttachment.Height,  // Destination rect
+                      framebuffer.ColorAttachment.Height, // Destination rect
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
 }
 
-}  // namespace Renderer
+} // namespace Renderer
