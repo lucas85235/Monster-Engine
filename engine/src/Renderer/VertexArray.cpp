@@ -1,5 +1,4 @@
 #include "engine/renderer/VertexArray.h"
-
 #include <glad/glad.h>
 
 namespace se {
@@ -42,7 +41,9 @@ void VertexArray::Unbind() const {
 }
 
 void VertexArray::AddVertexBuffer(const std::shared_ptr<VertexBuffer>& vertexBuffer) {
-    if (vertexBuffer->GetLayout().GetElements().size() == 0) { throw std::runtime_error("Vertex Buffer has no layout!"); }
+    if (vertexBuffer->GetLayout().GetElements().size() == 0) {
+        throw std::runtime_error("Vertex Buffer has no layout!");
+    }
 
     glBindVertexArray(rendererId_);
     vertexBuffer->Bind();
@@ -50,8 +51,10 @@ void VertexArray::AddVertexBuffer(const std::shared_ptr<VertexBuffer>& vertexBuf
     const auto& layout = vertexBuffer->GetLayout();
     for (const auto& element : layout) {
         glEnableVertexAttribArray(vertexBufferIndex_);
-        glVertexAttribPointer(vertexBufferIndex_, element.GetComponentCount(), ShaderDataTypeToOpenGLBaseType(element.Type),
-                              element.Normalized ? GL_TRUE : GL_FALSE, layout.GetStride(), (const void*)(intptr_t)element.Offset);
+        glVertexAttribPointer(vertexBufferIndex_, element.GetComponentCount(),
+                              ShaderDataTypeToOpenGLBaseType(element.Type),
+                              element.Normalized ? GL_TRUE : GL_FALSE, layout.GetStride(),
+                              (const void*)(intptr_t)element.Offset);
         vertexBufferIndex_++;
     }
 
@@ -64,4 +67,4 @@ void VertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer
     indexBuffer_ = indexBuffer;
 }
 
-}  // namespace se
+} // namespace se

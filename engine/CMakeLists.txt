@@ -34,13 +34,12 @@ set(glad_DIR ${third_party_dir}/glad)
 set(glm_DIR ${third_party_dir}/glm)
 set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
-set(rmlui_DIR ${third_party_dir}/RmlUi)
-
 
 add_library(stb STATIC
         ${stb_DIR}/stb_image.cpp
         ${stb_DIR}/stb_image.h
 )
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                 IMPORT EXTERNAL PROJECTS                ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -52,13 +51,6 @@ add_subdirectory(${glfw_DIR})
 add_subdirectory(${glad_DIR})
 add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
-
-
-
-# RmlUi Configuration
-set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "none" CACHE STRING "" FORCE)
-add_subdirectory(${rmlui_DIR})
 
 find_package(OpenGL REQUIRED)
 
@@ -81,7 +73,6 @@ target_include_directories(simple_engine PUBLIC
         ${glm_DIR}
         ${stb_DIR}
         ${entt_DIR}
-        ${rmlui_DIR}/Include
 )
 
 # --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
@@ -97,8 +88,6 @@ target_link_libraries(simple_engine PUBLIC
         spdlog
         stb
         Entt
-        rmlui_core
-        rmlui_debugger
 )
 
 # Adiciona definições de compilação necessárias

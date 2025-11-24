@@ -4,98 +4,71 @@
 #include <memory>
 #include <string>
 
-#include "Engine.h"
-#include "event/Event.h"
-#include "new_event_system/EventBus.h"
-
 struct GLFWwindow;
 
 namespace se {
 
 class GraphicsContext;
 
-struct WindowSpec {
-    std::string           Title      = "Simple-Engine";
-    uint32_t              Width      = 800;
-    uint32_t              Height     = 600;
-    bool                  Decorated  = true;
-    bool                  Fullscreen = false;
-    bool                  VSync      = true;
-    EventBus*             EventBus;
-    std::filesystem::path IconPath;
+struct ApplicationSpec {
+    std::string Name = "Simple Engine";
+    uint32_t WindowWidth = 1280;
+    uint32_t WindowHeight = 720;
+    bool VSync = true;
 };
 
 class Window {
-   public:
-    explicit Window(const WindowSpec& spec);
+  public:
+    Window(const ApplicationSpec& spec);
     Window(uint32_t width, uint32_t height, const std::string& title);
     ~Window();
 
-    void OnUpdate();  // Poll events
-
-    void Init();
+    void OnUpdate(); // Poll events
 
     uint32_t GetWidth() const {
-        return spec_.Width;
+        return width_;
     }
 
     uint32_t GetHeight() const {
-        return spec_.Height;
+        return height_;
     }
 
     void SetWidth(uint32_t width) {
-        spec_.Width = width;
+        width_ = width;
     }
 
     void SetHeight(uint32_t height) {
-        spec_.Height = height;
+        height_ = height;
     }
 
     void SetVSync(bool enabled);
-    void SetTitle(const std::string& title);
-
     bool IsVSync() const {
         return vsync_;
     }
 
     bool ShouldClose() const;
-    void RequestClose() const;
+    void RequestClose();
 
-    WindowHandle GetNativeWindow() const {
-        return window_handle_;
+    auto* GetNativeWindow() const {
+        return handle_;
     }
 
-    void SwapBuffers() const;
+    void SwapBuffers();
 
-    static Window* Create(const WindowSpec& specification);
-
-    virtual void SetEventCallback(const EventCallbackFn& callback) {
-        window_data_.EventCallback = callback;
-    }
-
-   private:
+  private:
+    void Init(uint32_t width, uint32_t height, const std::string& title);
     void Shutdown();
 
-    static void FramebufferSizeCallback(WindowHandle window, int width, int height);
+    static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
-    static void WindowResizeEvent();
+  private:
+    GLFWwindow* handle_ = nullptr;
+    std::unique_ptr<GraphicsContext> context_;
 
-   private:
-    WindowHandle           window_handle_ = nullptr;
-    Scope<GraphicsContext> context_;
-    WindowSpec             spec_;
-
-    struct WindowData {
-        std::string Title;
-        uint32_t    Width, Height;
-
-        EventCallbackFn EventCallback;
-    };
-
-    WindowData window_data_;
-    bool       vsync_ = true;
-
-    inline static EventBus* event_bus_;
+    uint32_t width_;
+    uint32_t height_;
+    std::string title_;
+    bool vsync_ = true;
 };
 
-}  // namespace se
+} // namespace se

@@ -1,14 +1,13 @@
 #pragma once
 
+#include "engine/renderer/Buffer.h"
 #include <memory>
 #include <vector>
-
-#include "engine/renderer/Buffer.h"
 
 namespace se {
 
 class VertexArray {
-   public:
+  public:
     VertexArray();
     ~VertexArray();
 
@@ -25,11 +24,11 @@ class VertexArray {
         return indexBuffer_;
     }
 
-   private:
-    uint32_t                                   rendererId_;
-    uint32_t                                   vertexBufferIndex_ = 0;
+  private:
+    uint32_t rendererId_;
+    uint32_t vertexBufferIndex_ = 0;
     std::vector<std::shared_ptr<VertexBuffer>> vertexBuffers_;
-    std::shared_ptr<IndexBuffer>               indexBuffer_;
+    std::shared_ptr<IndexBuffer> indexBuffer_;
 };
 
-}  // namespace se
+} // namespace se

@@ -1,12 +1,11 @@
 #include "engine/resources/MaterialManager.h"
-
 #include "engine/Log.h"
 
 namespace se {
-std::shared_ptr<Material>                                MaterialManager::defaultMaterial_;
-std::shared_ptr<Shader>                                  MaterialManager::defaultShader_;
+std::shared_ptr<Material> MaterialManager::defaultMaterial_;
+std::shared_ptr<Shader> MaterialManager::defaultShader_;
 std::unordered_map<std::string, std::shared_ptr<Shader>> MaterialManager::shaderCache_;
-bool                                                     MaterialManager::initialized_ = false;
+bool MaterialManager::initialized_ = false;
 
 void MaterialManager::Init() {
     if (initialized_) {
@@ -30,7 +29,8 @@ void MaterialManager::Init() {
 }
 
 void MaterialManager::Shutdown() {
-    if (!initialized_) return;
+    if (!initialized_)
+        return;
 
     SE_LOG_INFO("Shutting down MaterialManager");
 
@@ -64,7 +64,8 @@ std::shared_ptr<Material> MaterialManager::CreateMaterial(std::shared_ptr<Shader
     return std::make_shared<Material>(shader);
 }
 
-std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name, const std::filesystem::path& vertPath,
+std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name,
+                                                   const std::filesystem::path& vertPath,
                                                    const std::filesystem::path& fragPath) {
     if (!initialized_) {
         SE_LOG_ERROR("MaterialManager not initialized!");
@@ -80,7 +81,7 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name, cons
 
     // Load and cache shader
     try {
-        auto shader        = Shader::CreateFromFiles(vertPath, fragPath);
+        auto shader = Shader::CreateFromFiles(vertPath, fragPath);
         shaderCache_[name] = shader;
         SE_LOG_INFO("Loaded and cached shader: {}", name);
         return shader;
@@ -137,4 +138,4 @@ void MaterialManager::ClearCache() {
     shaderCache_.clear();
     SE_LOG_INFO("MaterialManager cache cleared");
 }
-}  // namespace se
+} // namespace se

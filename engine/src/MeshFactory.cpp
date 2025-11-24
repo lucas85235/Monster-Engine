@@ -1,12 +1,11 @@
 #include "engine/MeshFactory.h"
-
 #include <array>
 #include <cmath>
 
 // Anonymous namespace to hold helper for computing normals
 namespace {
 static void addNormals(std::vector<float>& vertices, const std::vector<unsigned int>& indices) {
-    const size_t                      vertexCount = vertices.size() / 6;  // pos+color per vertex
+    const size_t vertexCount = vertices.size() / 6; // pos+color per vertex
     std::vector<std::array<float, 3>> normals(vertexCount, {0.f, 0.f, 0.f});
 
     // accumulate face normals
@@ -58,9 +57,9 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
         newVerts.push_back(vertices[i * 6 + 5]);
 
         // normalize normal
-        float nx     = normals[i][0];
-        float ny     = normals[i][1];
-        float nz     = normals[i][2];
+        float nx = normals[i][0];
+        float ny = normals[i][1];
+        float nz = normals[i][2];
         float length = std::sqrt(nx * nx + ny * ny + nz * nz);
         if (length > 0.f) {
             nx /= length;
@@ -74,9 +73,10 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
 
     vertices.swap(newVerts);
 }
-}  // namespace
+} // namespace
 
-void MeshFactory::addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g, float b) {
+void MeshFactory::addVertex(std::vector<float>& vertices, float x, float y, float z, float r,
+                            float g, float b) {
     vertices.push_back(x);
     vertices.push_back(y);
     vertices.push_back(z);
@@ -88,9 +88,9 @@ void MeshFactory::addVertex(std::vector<float>& vertices, float x, float y, floa
 Mesh MeshFactory::CreateTriangle() {
     std::vector<float> vertices = {
         // positions        // colors
-        0.0f,  0.5f,  0.0f, 1.0f, 0.0f, 0.0f,  // top - red
-        -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,  // bottom left - green
-        0.5f,  -0.5f, 0.0f, 0.0f, 0.0f, 1.0f   // bottom right - blue
+        0.0f,  0.5f,  0.0f, 1.0f, 0.0f, 0.0f, // top - red
+        -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom left - green
+        0.5f,  -0.5f, 0.0f, 0.0f, 0.0f, 1.0f  // bottom right - blue
     };
 
     std::vector<unsigned int> indices = {0, 1, 2};
@@ -103,15 +103,15 @@ Mesh MeshFactory::CreateTriangle() {
 Mesh MeshFactory::CreateQuad() {
     std::vector<float> vertices = {
         // positions        // colors
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,  // bottom left - red
-        0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,  // bottom right - green
-        0.5f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f,  // top right - blue
-        -0.5f, 0.5f,  0.0f, 1.0f, 1.0f, 0.0f   // top left - yellow
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left - red
+        0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom right - green
+        0.5f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f, // top right - blue
+        -0.5f, 0.5f,  0.0f, 1.0f, 1.0f, 0.0f  // top left - yellow
     };
 
     std::vector<unsigned int> indices = {
-        0, 1, 2,  // first triangle
-        2, 3, 0   // second triangle
+        0, 1, 2, // first triangle
+        2, 3, 0  // second triangle
     };
 
     addNormals(vertices, indices);
@@ -120,53 +120,53 @@ Mesh MeshFactory::CreateQuad() {
 }
 
 Mesh MeshFactory::CreateCube() {
-    std::vector<float>        vertices;
+    std::vector<float> vertices;
     std::vector<unsigned int> indices;
 
     // Front face (z = 0.5)
-    addVertex(vertices, -0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f);  // 0
-    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f);   // 1
-    addVertex(vertices, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f);    // 2
-    addVertex(vertices, -0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f);   // 3
+    addVertex(vertices, -0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f); // 0
+    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f);  // 1
+    addVertex(vertices, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f);   // 2
+    addVertex(vertices, -0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f);  // 3
 
     // Back face (z = -0.5)
-    addVertex(vertices, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f);  // 4
-    addVertex(vertices, 0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f);   // 5
-    addVertex(vertices, 0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f);    // 6
-    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f);   // 7
+    addVertex(vertices, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f); // 4
+    addVertex(vertices, 0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f);  // 5
+    addVertex(vertices, 0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f);   // 6
+    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f);  // 7
 
     // Top face (y = 0.5)
-    addVertex(vertices, -0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f);   // 8
-    addVertex(vertices, 0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f);    // 9
-    addVertex(vertices, 0.5f, 0.5f, -0.5f, 0.0f, 0.0f, 1.0f);   // 10
-    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 0.0f, 1.0f);  // 11
+    addVertex(vertices, -0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f);  // 8
+    addVertex(vertices, 0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f);   // 9
+    addVertex(vertices, 0.5f, 0.5f, -0.5f, 0.0f, 0.0f, 1.0f);  // 10
+    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 0.0f, 1.0f); // 11
 
     // Bottom face (y = -0.5)
-    addVertex(vertices, -0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 0.0f);   // 12
-    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 0.0f);    // 13
-    addVertex(vertices, 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f);   // 14
-    addVertex(vertices, -0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f);  // 15
+    addVertex(vertices, -0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 0.0f);  // 12
+    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 0.0f);   // 13
+    addVertex(vertices, 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f);  // 14
+    addVertex(vertices, -0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f); // 15
 
     // Right face (x = 0.5)
-    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 1.0f);   // 16
-    addVertex(vertices, 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f);  // 17
-    addVertex(vertices, 0.5f, 0.5f, -0.5f, 1.0f, 0.0f, 1.0f);   // 18
-    addVertex(vertices, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f);    // 19
+    addVertex(vertices, 0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 1.0f);  // 16
+    addVertex(vertices, 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f); // 17
+    addVertex(vertices, 0.5f, 0.5f, -0.5f, 1.0f, 0.0f, 1.0f);  // 18
+    addVertex(vertices, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f);   // 19
 
     // Left face (x = -0.5)
-    addVertex(vertices, -0.5f, -0.5f, 0.5f, 0.0f, 1.0f, 1.0f);   // 20
-    addVertex(vertices, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 1.0f);  // 21
-    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 1.0f);   // 22
-    addVertex(vertices, -0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 1.0f);    // 23
+    addVertex(vertices, -0.5f, -0.5f, 0.5f, 0.0f, 1.0f, 1.0f);  // 20
+    addVertex(vertices, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 1.0f); // 21
+    addVertex(vertices, -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 1.0f);  // 22
+    addVertex(vertices, -0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 1.0f);   // 23
 
     // Indices for all faces
     unsigned int cubeIndices[] = {
-        0,  1,  2,  2,  3,  0,   // front (+Z)
-        4,  6,  5,  4,  7,  6,   // back (-Z)
-        8,  9,  10, 10, 11, 8,   // top (+Y)
-        12, 14, 13, 12, 15, 14,  // bottom (-Y)
-        16, 17, 18, 18, 19, 16,  // right (+X)
-        20, 22, 21, 20, 23, 22   // left (-X)
+        0,  1,  2,  2,  3,  0,  // front (+Z)
+        4,  6,  5,  4,  7,  6,  // back (-Z)
+        8,  9,  10, 10, 11, 8,  // top (+Y)
+        12, 14, 13, 12, 15, 14, // bottom (-Y)
+        16, 17, 18, 18, 19, 16, // right (+X)
+        20, 22, 21, 20, 23, 22  // left (-X)
     };
 
     indices.assign(cubeIndices, cubeIndices + 36);
@@ -177,20 +177,20 @@ Mesh MeshFactory::CreateCube() {
 }
 
 Mesh MeshFactory::CreateSphere(int segments, int rings) {
-    std::vector<float>        vertices;
+    std::vector<float> vertices;
     std::vector<unsigned int> indices;
 
-    const float PI     = 3.14159265359f;
-    float       radius = 0.5f;
+    const float PI = 3.14159265359f;
+    float radius = 0.5f;
 
     // Generate vertices
     for (int ring = 0; ring <= rings; ring++) {
-        float theta    = ring * PI / rings;
+        float theta = ring * PI / rings;
         float sinTheta = std::sin(theta);
         float cosTheta = std::cos(theta);
 
         for (int seg = 0; seg <= segments; seg++) {
-            float phi    = seg * 2.0f * PI / segments;
+            float phi = seg * 2.0f * PI / segments;
             float sinPhi = std::sin(phi);
             float cosPhi = std::cos(phi);
 
@@ -210,7 +210,7 @@ Mesh MeshFactory::CreateSphere(int segments, int rings) {
     for (int ring = 0; ring < rings; ring++) {
         for (int seg = 0; seg < segments; seg++) {
             int current = ring * (segments + 1) + seg;
-            int next    = current + segments + 1;
+            int next = current + segments + 1;
 
             indices.push_back(current);
             indices.push_back(current + 1);
@@ -228,20 +228,20 @@ Mesh MeshFactory::CreateSphere(int segments, int rings) {
 }
 
 Mesh MeshFactory::CreateCapsule(float radius, float height, int segments) {
-    std::vector<float>        vertices;
+    std::vector<float> vertices;
     std::vector<unsigned int> indices;
 
-    const float PI         = 3.14159265359f;
-    float       halfHeight = height * 0.5f;
+    const float PI = 3.14159265359f;
+    float halfHeight = height * 0.5f;
 
     // Top hemisphere
     for (int ring = 0; ring <= segments / 2; ring++) {
-        float theta    = ring * PI / segments;
+        float theta = ring * PI / segments;
         float sinTheta = std::sin(theta);
         float cosTheta = std::cos(theta);
 
         for (int seg = 0; seg <= segments; seg++) {
-            float phi    = seg * 2.0f * PI / segments;
+            float phi = seg * 2.0f * PI / segments;
             float sinPhi = std::sin(phi);
             float cosPhi = std::cos(phi);
 
@@ -259,12 +259,12 @@ Mesh MeshFactory::CreateCapsule(float radius, float height, int segments) {
 
     // Bottom hemisphere
     for (int ring = segments / 2 + 1; ring <= segments; ring++) {
-        float theta    = ring * PI / segments;
+        float theta = ring * PI / segments;
         float sinTheta = std::sin(theta);
         float cosTheta = std::cos(theta);
 
         for (int seg = 0; seg <= segments; seg++) {
-            float phi    = seg * 2.0f * PI / segments;
+            float phi = seg * 2.0f * PI / segments;
             float sinPhi = std::sin(phi);
             float cosPhi = std::cos(phi);
 
@@ -284,7 +284,7 @@ Mesh MeshFactory::CreateCapsule(float radius, float height, int segments) {
     for (int ring = 0; ring < ringsCount - 1; ring++) {
         for (int seg = 0; seg < segments; seg++) {
             int current = ring * (segments + 1) + seg;
-            int next    = current + segments + 1;
+            int next = current + segments + 1;
 
             indices.push_back(current);
             indices.push_back(current + 1);
@@ -302,32 +302,32 @@ Mesh MeshFactory::CreateCapsule(float radius, float height, int segments) {
 }
 
 Mesh MeshFactory::CreateCylinder(float radius, float height, int segments) {
-    std::vector<float>        vertices;
+    std::vector<float> vertices;
     std::vector<unsigned int> indices;
 
-    const float PI         = 3.14159265359f;
-    float       halfHeight = height * 0.5f;
+    const float PI = 3.14159265359f;
+    float halfHeight = height * 0.5f;
 
     // Top circle
     for (int i = 0; i <= segments; i++) {
         float angle = i * 2.0f * PI / segments;
-        float x     = std::cos(angle) * radius;
-        float z     = std::sin(angle) * radius;
+        float x = std::cos(angle) * radius;
+        float z = std::sin(angle) * radius;
         addVertex(vertices, x, halfHeight, z, 1.0f, 0.0f, 0.0f);
     }
 
     // Bottom circle
     for (int i = 0; i <= segments; i++) {
         float angle = i * 2.0f * PI / segments;
-        float x     = std::cos(angle) * radius;
-        float z     = std::sin(angle) * radius;
+        float x = std::cos(angle) * radius;
+        float z = std::sin(angle) * radius;
         addVertex(vertices, x, -halfHeight, z, 0.0f, 1.0f, 0.0f);
     }
 
     // Side indices
     for (int i = 0; i < segments; i++) {
-        int top1    = i;
-        int top2    = i + 1;
+        int top1 = i;
+        int top2 = i + 1;
         int bottom1 = i + segments + 1;
         int bottom2 = i + segments + 2;
 

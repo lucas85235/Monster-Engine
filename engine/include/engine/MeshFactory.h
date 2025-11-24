@@ -1,14 +1,13 @@
 #pragma once
 
+#include "Mesh.h"
 #include <vector>
 
-#include "Mesh.h"
-
 class MeshFactory {
-   public:
+  public:
     // Create basic shapes
 
-    MeshFactory() = delete;  // Static class, no instances
+    MeshFactory() = delete; // Static class, no instances
 
     static Mesh CreateTriangle();
 
@@ -22,7 +21,8 @@ class MeshFactory {
 
     static Mesh CreateCylinder(float radius = 0.5f, float height = 1.0f, int segments = 16);
 
-   private:
+  private:
     // Helper functions
-    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g, float b);
+    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g,
+                          float b);
 };
