@@ -1,4 +1,6 @@
 #include "AppLayer.h"
+#include "engine/physics/PhysicsWorld.h"
+
 #include <engine/Application.h>
 #include <engine/Log.h>
 
@@ -11,6 +13,9 @@ int main() {
     appSpec.WindowHeight = 1080;
 
     se::LogInit(true);
+
+    auto physics_world = new se::PhysicsWorld();
+    physics_world->Initialize();
 
     se::Application application(appSpec);
     application.PushLayer<AppLayer>();

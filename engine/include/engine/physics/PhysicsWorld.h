@@ -7,6 +7,8 @@
 namespace se {
 class PhysicsWorld {
 public:
+
+    PhysicsWorld() = default;
     inline void Initialize() {
         int i;
         ///-----initialization_start-----
