@@ -4,6 +4,14 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 set(IMNODES_IMGUI_TARGET_NAME ImGui)
 
+# bullet
+set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_CPU_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_OPENGL3_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+set(BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_BULLET3 ON CACHE BOOL "" FORCE)
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                   COMPILATION RELATED                   ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -34,6 +42,7 @@ set(glad_DIR ${third_party_dir}/glad)
 set(glm_DIR ${third_party_dir}/glm)
 set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
+set(bullet_DIR ${third_party_dir}/bullet)
 
 add_library(stb STATIC
         ${stb_DIR}/stb_image.cpp
@@ -51,6 +60,7 @@ add_subdirectory(${glfw_DIR})
 add_subdirectory(${glad_DIR})
 add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
+add_subdirectory(${bullet_DIR})
 
 find_package(OpenGL REQUIRED)
 
@@ -73,12 +83,9 @@ target_include_directories(simple_engine PUBLIC
         ${glm_DIR}
         ${stb_DIR}
         ${entt_DIR}
+        ${bullet_DIR}/src
 )
 
-# --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
-
-# Liga a sua engine às suas dependências.
-# Agora voltamos a ligar explicitamente ao ALVO 'glad'.
 target_link_libraries(simple_engine PUBLIC
         glad
         glfw
@@ -88,9 +95,11 @@ target_link_libraries(simple_engine PUBLIC
         spdlog
         stb
         Entt
+        BulletDynamics
+        BulletCollision
+        LinearMath
 )
 
-# Adiciona definições de compilação necessárias
 target_compile_definitions(simple_engine PUBLIC
         GLFW_INCLUDE_NONE
         GLM_ENABLE_EXPERIMENTAL
