@@ -38,6 +38,10 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.IconPath   = specification.IconPath;
     windowSpec.EventBus   = event_bus_;
 
+    // Initialize the physics system
+    physics_world_ = CreateScope<PhysicsWorld>();
+    physics_world_->Initialize();
+
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
 
