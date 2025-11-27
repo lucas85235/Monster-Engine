@@ -6,9 +6,11 @@ add_executable(sandbox
         src/ThirdPersonLayer.h
         src/input_sample/InputSampleLayer.h
         src/input_sample/InputSampleLayer.cpp
-        src/event_sample/EventSampleLayer.cpp
         src/event_sample/EventSampleLayer.h
+        src/event_sample/EventSampleLayer.cpp
         src/event_sample/events/Events.h
+        src/physics_sample/PhysicsSampleLayer.h
+        src/physics_sample/PhysicsSampleLayer.cpp
         src/SampleUtilities.h
         src/main.cpp)
 
