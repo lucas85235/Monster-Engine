@@ -6,7 +6,6 @@
 
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/Log.h"
 #include "engine/input/InputManager.h"
 #include "engine/new_event_system/NewApplicationEvents.h"
 
@@ -25,7 +24,7 @@ Application::Application(const ApplicationSpecification& specification) {
 #endif
 
     SE_LOG_INFO("Starting Simple Engine");
-    
+
     InputManager::Get().Init();
 
     WindowSpec windowSpec;
@@ -37,10 +36,6 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.VSync      = specification.VSync;
     windowSpec.IconPath   = specification.IconPath;
     windowSpec.EventBus   = event_bus_;
-
-    // Initialize the physics system
-    physics_world_ = CreateScope<PhysicsWorld>();
-    physics_world_->Initialize();
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
@@ -54,6 +49,10 @@ Application::Application(const ApplicationSpecification& specification) {
 
     // Set default clear color
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+
+    // Initialize the physics system
+    physics_manager_ = CreateScope<PhysicsManager>();
+    physics_manager_->Initialize();
 
     // Create and attach ImGui layer
     imguiLayer_ = std::make_shared<ImGuiLayer>();
@@ -120,9 +119,7 @@ int Application::Run() {
 
     while (running_) {
         // Check for window close
-        if (InputManager::Get().IsKeyDown(Key::Escape)) {
-            window_->RequestClose();
-        }
+        if (InputManager::Get().IsKeyDown(Key::Escape)) { window_->RequestClose(); }
 
         // Calculate timestep
         float currentTime = GetTime();
@@ -131,12 +128,14 @@ int Application::Run() {
 
         // Update Input Manager
         InputManager::Get().Update();
-        
+
         // Poll events
         window_->OnUpdate();
 
         // Begin frame
         renderer_->BeginFrame();
+
+        physics_manager_->Update(timestep);
 
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
@@ -184,8 +183,6 @@ int Application::Run() {
 void Application::Close() {
     running_ = false;
 }
-
-
 
 Application& Application::Get() {
     return *s_Instance;

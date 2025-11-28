@@ -1,7 +1,7 @@
 #pragma once
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/ecs/Components.h"
+#include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/Scene.h"
 #include "engine/renderer/Material.h"
 #include "engine/resources/MaterialManager.h"

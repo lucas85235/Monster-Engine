@@ -3,7 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <engine/Application.h>
 #include <engine/Log.h>
-#include <engine/ecs/Components.h>
+#include <engine/ecs/SimpleComponents.h>
 #include <imgui.h>
 
 #include <gtc/type_ptr.hpp>

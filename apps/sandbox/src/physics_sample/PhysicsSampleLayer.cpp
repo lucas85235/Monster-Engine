@@ -1,7 +1,7 @@
 #include "PhysicsSampleLayer.h"
 
 #include "engine/Application.h"
-#include "engine/ecs/Components.h"
+#include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/Scene.h"
 #include "engine/new_event_system/EventBus.h"
 

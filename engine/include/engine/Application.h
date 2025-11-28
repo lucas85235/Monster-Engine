@@ -8,7 +8,7 @@
 #include "engine/Layer.h"
 #include "engine/Renderer.h"
 #include "engine/Window.h"
-#include "engine/physics/PhysicsWorld.h"
+#include "engine/physics/PhysicsManager.h"
 #include "event/ApplicationEvent.h"
 #include "new_event_system/EventBus.h"
 #include "new_event_system/NewApplicationEvents.h"
@@ -65,6 +65,10 @@ class Application {
         return *event_bus_;
     }
 
+    PhysicsManager& GetPhysicsManager() const {
+        return *physics_manager_;
+    }
+
     static Application& Get();
 
     float       GetTime();
@@ -76,7 +80,7 @@ class Application {
     std::unique_ptr<Window>     window_;
     std::unique_ptr<Renderer>   renderer_;
     std::shared_ptr<ImGuiLayer> imguiLayer_;
-    Scope<PhysicsWorld>         physics_world_;
+    Scope<PhysicsManager>       physics_manager_;
 
     bool OnWindowResize(const WindowResizeEvent& e);
     bool OnWindowMinimize(const WindowMinimizeEvent& e);

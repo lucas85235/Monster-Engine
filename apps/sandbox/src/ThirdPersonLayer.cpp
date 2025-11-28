@@ -4,7 +4,7 @@
 #include <engine/Log.h>
 #include <engine/input/InputManager.h>
 #include <engine/resources/MeshManager.h>
-#include <engine/ecs/Components.h>
+#include <engine/ecs/SimpleComponents.h>
 #include <imgui.h>
 #include <gtc/matrix_transform.hpp>
 

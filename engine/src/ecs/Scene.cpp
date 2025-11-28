@@ -1,7 +1,7 @@
 #include "engine/ecs/Scene.h"
 
 #include "engine/Log.h"
-#include "engine/ecs/Components.h"
+#include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/RenderSystem.h"
 
 namespace se {
