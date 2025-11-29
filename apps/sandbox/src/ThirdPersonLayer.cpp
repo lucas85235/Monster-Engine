@@ -126,8 +126,8 @@ void ThirdPersonLayer::CreateScene() {
 
 void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
-    UpdateCamera();
     scene_->OnUpdate(ts);
+    UpdateCamera();
 }
 
 void ThirdPersonLayer::UpdatePlayer(float ts) {

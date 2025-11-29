@@ -122,10 +122,9 @@ void PhysicsSystem::Update(float dt) {
         auto& transform_component = entry.entity.GetComponent<TransformComponent>();
         
         btTransform trans;
-        if (entry.body->getMotionState()) {
-            entry.body->getMotionState()->getWorldTransform(trans);
-        } else {
-            trans = entry.body->getWorldTransform();
+
+        if (entry.body) {
+            trans = entry.body->getInterpolationWorldTransform();
         }
 
         const btVector3& origin = trans.getOrigin();
