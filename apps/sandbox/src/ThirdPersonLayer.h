@@ -31,6 +31,8 @@ private:
 
     // Player
     Entity playerEntity_;
+    Entity cube_entity_;
+    Entity floor_entity_;
     glm::vec3 playerVelocity_{0.0f};
     bool isGrounded_ = false;
     

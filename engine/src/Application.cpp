@@ -135,8 +135,6 @@ int Application::Run() {
         // Begin frame
         renderer_->BeginFrame();
 
-        physics_manager_->Update(timestep);
-
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
 
@@ -169,6 +167,8 @@ int Application::Run() {
         window_->SwapBuffers();
 
         event_bus_->dispatch();
+
+        physics_manager_->Update(timestep);
 
         if (window_->ShouldClose()) {
             Close();

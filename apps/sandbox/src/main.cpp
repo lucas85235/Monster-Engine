@@ -22,8 +22,8 @@ int main() {
     // application.PushOverlay<RmlUiLayer>();
     // application.PushLayer<UILayer>();
     // application.PushLayer<AppLayer>();
-    // application.PushLayer<ThirdPersonLayer>();
-    application.PushLayer<PhysicsSampleLayer>();
+    application.PushLayer<ThirdPersonLayer>();
+    // application.PushLayer<PhysicsSampleLayer>();
     // application.PushLayer<EventSampleLayer>();
     application.PushLayer<InputSampleLayer>();
     application.Run();
