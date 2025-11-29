@@ -4,15 +4,23 @@
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/Application.h"
+#include "engine/physics/PhysicsSystem.h"
 
 namespace se {
 
 Scene::Scene(const std::string& name) : name_(name) {
     SE_LOG_INFO("Scene '{}' created", name_);
+    physics_system_ = new PhysicsSystem(this);
+    physics_system_->Initialize();
 }
 
 Scene::~Scene() {
     Clear();
+    if (physics_system_) {
+        physics_system_->Shutdown();
+        delete physics_system_;
+        physics_system_ = nullptr;
+    }
     SE_LOG_INFO("Scene '{}' destroyed", name_);
 }
 
@@ -37,6 +45,12 @@ void Scene::DestroyEntity(Entity entity) {
     auto& nameComp = entity.GetComponent<NameComponent>();
     SE_LOG_INFO("Entity '{}' destroyed", nameComp.Name);
 
+    // Remove from physics if needed
+    // Ideally PhysicsSystem listens to registry events, but for now we might need manual removal
+    // if we don't implement OnComponentRemoved.
+    // But PhysicsSystem::RemoveRigidBody takes a btRigidBody*.
+    // We should probably handle this via component removal.
+    
     registry_.destroy(entity.GetHandle());
 }
 
@@ -53,11 +67,17 @@ Entity Scene::FindEntityByName(const std::string& name) {
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    Application::Get().GetPhysicsManager().Update(deltaTime);
+    // Application::Get().GetPhysicsManager().Update(deltaTime);
+    if (physics_system_) {
+        physics_system_->Update(deltaTime);
+    }
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {
     RenderSystem::Render(*this, camera, aspectRatio);
+    if (physics_system_) {
+        physics_system_->RenderDebug(camera);
+    }
 }
 
 void Scene::Clear() {

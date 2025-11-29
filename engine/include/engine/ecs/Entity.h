@@ -11,7 +11,7 @@ class Scene;
 class Entity {
    public:
     Entity() = default;
-    Entity(entt::entity handle, Scene* scene);
+    Entity(entt::entity handle, Scene* scene) : entityHandle_(handle), scene_(scene) {}
     Entity(const Entity& other) = default;
 
     // Add component to entity
@@ -63,6 +63,8 @@ class Entity {
     entt::entity GetHandle() const {
         return entityHandle_;
     }
+
+    Scene* GetScene() const { return scene_; }
 
    private:
     entt::entity entityHandle_{entt::null};

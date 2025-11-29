@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <entt.hpp>
@@ -44,14 +43,18 @@ class Scene {
     // Clear all entities
     void Clear();
 
-    // Get entity count (number of alive entities)
+    // Get entity count
     size_t GetEntityCount() const {
         return registry_.storage<entt::entity>()->size();
     }
 
+    class PhysicsSystem* GetPhysicsSystem() { return physics_system_; }
+
    private:
     std::string    name_;
     entt::registry registry_;
+    
+    class PhysicsSystem* physics_system_ = nullptr;
 
     friend class Entity;
     friend class RenderSystem;

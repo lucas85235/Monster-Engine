@@ -51,8 +51,8 @@ Application::Application(const ApplicationSpecification& specification) {
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
     // Initialize the physics system
-    physics_manager_ = CreateScope<PhysicsManager>();
-    physics_manager_->Initialize();
+    // physics_manager_ = CreateScope<PhysicsManager>();
+    // physics_manager_->Initialize();
 
     // Create and attach ImGui layer
     imguiLayer_ = std::make_shared<ImGuiLayer>();
@@ -168,7 +168,7 @@ int Application::Run() {
 
         event_bus_->dispatch();
 
-        physics_manager_->Update(timestep);
+        // physics_manager_->Update(timestep);
 
         if (window_->ShouldClose()) {
             Close();

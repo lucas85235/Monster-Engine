@@ -11,6 +11,7 @@
 
 #include "MathUtils.h"
 #include "SampleUtilities.h"
+#include "engine/physics/PhysicsSystem.h"
 
 ThirdPersonLayer::ThirdPersonLayer() : Layer("ThirdPersonLayer"), camera_(glm::vec3(0.0f, 5.0f, 10.0f)) {}
 
@@ -177,69 +178,57 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         float newYaw = currentYaw + diff * glm::clamp(rotationSpeed * ts, 0.0f, 1.0f);
         newYaw = Math::NormalizeAngle(newYaw);
 
+        // Apply rotation to Rigidbody
+        rb.SetRotation({0.0f, newYaw, 0.0f});
+
         // Debug capture
         debugTargetYaw_ = targetYaw;
         debugCurrentYaw_ = currentYaw;
         debugNewYaw_ = newYaw;
-
-        // Check for large jumps
-        if (std::abs(newYaw - currentYaw) > 10.0f && std::abs(newYaw - currentYaw) < 350.0f) {
-             SE_LOG_WARN("Rotation Jump Detected! Current: {}, Target: {}, New: {}", currentYaw, targetYaw, newYaw);
-        }
-
-        // Sync rotation to physics body
-        btTransform tr = rb.GetRigidbody()->getWorldTransform();
-        
-        // Debug physics yaw before set
-        btQuaternion currentQ = tr.getRotation();
-        glm::quat qNorm(currentQ.w(), currentQ.x(), currentQ.y(), currentQ.z());
-        qNorm = glm::normalize(qNorm);
-        debugPhysicsYaw_ = glm::degrees(glm::yaw(qNorm));
-        debugPitch_ = glm::degrees(glm::pitch(qNorm));
-        debugRoll_ = glm::degrees(glm::roll(qNorm));
-
-        btQuaternion q;
-        q.setEuler(0, glm::radians(newYaw), 0); 
-        
-        glm::quat glmQ = glm::quat(glm::vec3(0, glm::radians(newYaw), 0));
-        tr.setRotation(btQuaternion(glmQ.x, glmQ.y, glmQ.z, glmQ.w));
-        rb.GetRigidbody()->setWorldTransform(tr);
-
-        desiredVelocity.setX(movement.x * moveSpeed_);
-        desiredVelocity.setZ(movement.z * moveSpeed_);
-    } else {
-        // Stop horizontal movement
-        desiredVelocity.setX(0);
-        desiredVelocity.setZ(0);
     }
 
-    rb.SetLinearVelocity(desiredVelocity);
+    // Ground Check using Raycast
+    glm::vec3 rayStart = transform.Position + glm::vec3(0.0f, 1.0f, 0.0f); // Center of capsule
+    glm::vec3 rayEnd   = transform.Position + glm::vec3(0.0f, -1.2f, 0.0f); // Below feet
+    glm::vec3 hitPoint, hitNormal;
 
-    // Handle jumping
+    bool hit = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, rb.GetRigidbody());
+    isGrounded_ = hit;
+
+    // Jumping
     if (input.IsActionJustPressed("Jump") && isGrounded_) {
-        isGrounded_ = false;
-        rb.AddImpulse({0.0f, 100.0f, 0.0f}, {0.0f, 0.0f, 0.0f}); // Impulse at center
+        desiredVelocity.setY(5.0f); // Jump impulse/velocity
     }
 
-    // Simple floor check using raycast or just position (temporary)
-    // Ideally we should use collision callbacks or a raycast.
-    // For now, let's trust the physics engine to handle collision, 
-    // but we need isGrounded for jumping.
-    // Let's use a simple raycast or check velocity Y approx 0?
-    // Checking velocity is unreliable.
-    // Let's assume grounded if y velocity is near 0 and we are low enough?
-    // Or just allow jumping for now.
-    // Let's keep the old simple check but based on physics position?
-    // No, let's use the contact manifold in a real engine, but here we don't have it exposed easily yet.
-    // Let's just allow infinite jump for debug or a simple height check.
-    // Player capsule has total height 2.0 (radius 0.5, height 1.0). Center is at 1.0 from bottom.
-    // Floor is at 0.0. So player center should be at 1.0.
-    // We check if we are close to the ground and not moving up/down significantly.
-    if (transform.Position.y < 1.1f && std::abs(rb.GetLinearVelocity().y()) < 0.1f) {
-        isGrounded_ = true;
+    // Apply Velocity
+    // We only control X and Z velocity directly. Y is controlled by gravity/jump unless we are grounded.
+    // If we are grounded, we might want to stick to the ground or just let physics handle it.
+    // For a simple character controller, setting linear velocity directly is often easiest but can fight with collisions.
+    // Better approach: Set X/Z velocity, keep existing Y velocity (unless jumping).
+    
+    if (!isGrounded_) {
+        // Keep existing Y if in air (gravity)
+        desiredVelocity.setY(currentVelocity.y());
+        
+        // If we just jumped, we already set Y to 5.0f above.
+        if (input.IsActionJustPressed("Jump") && isGrounded_) {
+             desiredVelocity.setY(5.0f);
+        }
     } else {
-        isGrounded_ = false;
+        // If grounded, we can still have some Y velocity from slopes, but mostly we want to stick.
+        // If we are jumping, we override Y.
+        if (input.IsActionJustPressed("Jump")) {
+             desiredVelocity.setY(5.0f);
+        }
     }
+
+    // Apply movement to desired velocity
+    float speed = 5.0f;
+    desiredVelocity.setX(movement.x * speed);
+    desiredVelocity.setZ(movement.z * speed);
+
+    // Set the velocity on the rigidbody
+    rb.SetLinearVelocity(desiredVelocity);
 }
 
 
@@ -289,7 +278,7 @@ void ThirdPersonLayer::OnRender() {
     auto& window      = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
     scene_->OnRender(camera_, aspectRatio);
-    Application::Get().GetPhysicsManager().RenderDebug(camera_);
+    // Application::Get().GetPhysicsManager().RenderDebug(camera_);
 }
 
 void ThirdPersonLayer::OnImGuiRender() {
@@ -320,5 +309,30 @@ void ThirdPersonLayer::OnImGuiRender() {
     ImGui::Text("Physics Pitch: %.2f", debugPitch_);
     ImGui::Text("Physics Roll: %.2f", debugRoll_);
 
+    ImGui::End();
+
+    // Performance Stats Panel
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+    const float PAD = 10.0f;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 work_pos = viewport->GetWorkPos(); // Use work area to avoid menu-bar/task-bar, if any!
+    ImVec2 work_size = viewport->GetWorkSize();
+    ImVec2 window_pos, window_pos_pivot;
+    window_pos.x = work_pos.x + work_size.x - PAD;
+    window_pos.y = work_pos.y + PAD;
+    window_pos_pivot.x = 1.0f;
+    window_pos_pivot.y = 0.0f;
+    ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+    ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+    if (ImGui::Begin("Performance Stats", nullptr, window_flags)) {
+        ImGui::Text("FPS: %.1f", io.Framerate);
+        ImGui::Text("Frametime: %.3f ms", 1000.0f / io.Framerate);
+        
+        if (scene_ && scene_->GetPhysicsSystem()) {
+            float physicsTime = scene_->GetPhysicsSystem()->GetLastPhysicsExecutionTime();
+            ImGui::Text("Physics: %.3f ms", physicsTime);
+        }
+    }
     ImGui::End();
 }

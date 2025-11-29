@@ -26,7 +26,7 @@ void PhysicsSampleLayer::OnAttach() {
     camera_ = Camera(Vector3(0.0f, 5.0f, 15.0f));
     camera_.SetPitch(-20.0f);
 
-    Application::Get().GetPhysicsManager().SetScene(*scene_);
+    // Application::Get().GetPhysicsManager().SetScene(*scene_);
 
     // Floor
     {
@@ -123,7 +123,7 @@ void PhysicsSampleLayer::OnRender() {
     
     scene_->OnRender(camera_, aspectRatio);
     
-    Application::Get().GetPhysicsManager().RenderDebug(camera_);
+    // Application::Get().GetPhysicsManager().RenderDebug(camera_);
 }
 
 void PhysicsSampleLayer::OnImGuiRender() {

@@ -25,9 +25,11 @@ class RigidbodyComponent : public Component {
     void SetLinearVelocity(const btVector3& velocity);
     btVector3 GetLinearVelocity() const;
     void SetAngularFactor(const btVector3& factor);
+    void SetRotation(const glm::vec3& rotation);
 
    private:
     RigidbodyData data_;
     btRigidBody* body_ = nullptr;
+    class PhysicsSystem* physics_system_ = nullptr;
 };
 }  // namespace se

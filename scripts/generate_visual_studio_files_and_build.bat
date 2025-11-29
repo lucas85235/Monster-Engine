@@ -20,6 +20,9 @@ set "C_BOLD=%ESC%[1m"
 :: Build and Run Script - SimpleEngine
 :: ===========================================
 
+:: Navigate to project root (parent folder of Scripts)
+cd /d "%~dp0\.."
+
 echo.
 echo %C_CYAN%========================================
 echo    SIMPLE ENGINE - BUILD SCRIPT
@@ -48,9 +51,6 @@ echo.
 :: STEP 2: Setup Visual Studio Environment
 :: ===========================================
 echo %C_BLUE%[STEP 2/4]%C_RESET% %C_YELLOW%Setting up Visual Studio 2022 environment...%C_RESET%
-
-:: Navigate to project root (parent folder of Scripts)
-cd /d "%~dp0\.."
 
 call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 
