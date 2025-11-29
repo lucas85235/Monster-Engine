@@ -17,7 +17,7 @@ inline Entity CreateCubeEntity(const std::string& name, const Vector3& position,
 
     auto entity = scene->CreateEntity(name);
 
-    Ref vertex_array = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+    Ref<VertexArray> vertex_array = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
 
     if (!vertex_array) {
         SE_LOG_ERROR("Failed to get cube mesh!");
@@ -42,7 +42,7 @@ inline EngineMaterial LoadMaterial() {
     fs::path fragment_shader_location = assets_folder.value() / "shaders" / "basic.frag";
     fs::path vertex_shader_location   = assets_folder.value() / "shaders" / "basic.vert";
 
-    Ref shader = MaterialManager::GetShader("DefaultShader", vertex_shader_location, fragment_shader_location);
+    Ref<Shader> shader = MaterialManager::GetShader("DefaultShader", vertex_shader_location, fragment_shader_location);
 
     EngineMaterial material = MaterialManager::CreateMaterial(shader);
     material->SetFloat("uSpecularStrength", 0.5f);

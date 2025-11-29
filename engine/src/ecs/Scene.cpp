@@ -3,6 +3,7 @@
 #include "engine/Log.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/RenderSystem.h"
+#include "engine/Application.h"
 
 namespace se {
 
@@ -52,11 +53,7 @@ Entity Scene::FindEntityByName(const std::string& name) {
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    // Systems can be implemented here
-    // Example: Physics system, Animation system, etc.
-
-    // For now, just a placeholder
-    (void)deltaTime;
+    Application::Get().GetPhysicsManager().Update(deltaTime);
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {

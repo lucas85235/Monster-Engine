@@ -15,6 +15,7 @@ class RenderCommand {
 
     static void DrawIndexed(const VertexArray* vertexArray, uint32_t indexCount = 0);
     static void DrawArrays(const VertexArray* vertexArray, uint32_t vertexCount);
+    static void DrawLines(const VertexArray* vertexArray, uint32_t vertexCount);
 
     static void SetDepthTest(bool enabled);
     static void SetBlend(bool enabled);

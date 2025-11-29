@@ -21,6 +21,14 @@ public:
     virtual void OnImGuiRender() override;
 
 private:
+    float debugTargetYaw_ = 0.0f;
+    float debugCurrentYaw_ = 0.0f;
+    float debugNewYaw_ = 0.0f;
+    float debugPhysicsYaw_ = 0.0f;
+    float debugPitch_ = 0.0f;
+    float debugRoll_ = 0.0f;
+    float lastRotationDiff_ = 0.0f;
+
     void CreateScene();
     void UpdatePlayer(float ts);
     void UpdateCamera();

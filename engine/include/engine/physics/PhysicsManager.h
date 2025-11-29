@@ -24,6 +24,8 @@ public:
 
     static BoxCollider* CreateBoxCollider(const Vector3& size);
 
+    void RenderDebug(const Camera& camera);
+
     void SetScene(Scene& scene) {
         scene_ = &scene;
     }
@@ -44,6 +46,7 @@ private:
     int                                  max_substeps_ = 10;
 
     Scene* scene_ = nullptr;
+    class PhysicsDebugDraw* debug_drawer_ = nullptr;
 
     std::vector<std::pair<Entity, btRigidBody*>> bodies_;
 };

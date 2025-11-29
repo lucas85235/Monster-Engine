@@ -21,6 +21,11 @@ class RigidbodyComponent : public Component {
 
     void AddForce(const btVector3& force, const btVector3& point);
     void AddImpulse(const btVector3& impulse, const btVector3& point);
+
+    void SetLinearVelocity(const btVector3& velocity);
+    btVector3 GetLinearVelocity() const;
+    void SetAngularFactor(const btVector3& factor);
+
    private:
     RigidbodyData data_;
     btRigidBody* body_ = nullptr;

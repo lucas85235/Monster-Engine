@@ -35,6 +35,11 @@ void RenderCommand::DrawArrays(const VertexArray* vertexArray, uint32_t vertexCo
     glDrawArrays(GL_TRIANGLES, 0, vertexCount);
 }
 
+void RenderCommand::DrawLines(const VertexArray* vertexArray, uint32_t vertexCount) {
+    vertexArray->Bind();
+    glDrawArrays(GL_LINES, 0, vertexCount);
+}
+
 void RenderCommand::SetDepthTest(bool enabled) {
     if (enabled)
         glEnable(GL_DEPTH_TEST);

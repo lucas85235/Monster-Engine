@@ -52,18 +52,17 @@ void ThirdPersonLayer::CreateScene() {
         floor_entity_.AddComponent<MeshRenderComponent>(mesh, material_);
 
         auto& transform = floor_entity_.GetComponent<TransformComponent>();
+        transform.SetPosition({0.0f, -1.0f, 0.0f});
+        transform.SetScale({50.0f, 2.0f, 50.0f});
 
         RigidbodyData data = RigidbodyData{.mass = 0.0f, .gravityScale = 1.0f};
         floor_entity_.AddComponent<RigidbodyComponent>(data, floor_entity_);
-
-        transform.SetPosition({0.0f, -1.0f, 0.0f});
-        transform.SetScale({50.0f, 2.0f, 50.0f});
     }
 
-    // Create player cube
+    // Create player capsule
     {
         playerEntity_ = scene_->CreateEntity("Player");
-        auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+        auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
 
         if (!material_) {
             SE_LOG_ERROR("Material not loaded, retrying");
@@ -72,12 +71,18 @@ void ThirdPersonLayer::CreateScene() {
 
         playerEntity_.AddComponent<MeshRenderComponent>(mesh, material_);
 
-        RigidbodyData data = RigidbodyData{.mass = 10.0f, .gravityScale = 1.0f};
-        playerEntity_.AddComponent<RigidbodyComponent>(data, playerEntity_);
+        // Add Capsule Collider
+        playerEntity_.AddComponent<CapsuleCollider>(0.5f, 1.0f);
 
         auto& transform = playerEntity_.GetComponent<TransformComponent>();
-        transform.SetPosition({0.0f, 20.0f, 0.0f});
+        transform.SetPosition({0.0f, 5.0f, 0.0f});
         transform.SetScale({1.0f, 1.0f, 1.0f});
+
+        RigidbodyData data = RigidbodyData{.mass = 10.0f, .gravityScale = 1.0f};
+        auto& rb = playerEntity_.AddComponent<RigidbodyComponent>(data, playerEntity_);
+        
+        // Lock rotation to prevent tipping over
+        rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
 
         // Add camera spring arm
         auto& springArm           = playerEntity_.AddComponent<SpringArmComponent>();
@@ -111,6 +116,7 @@ void ThirdPersonLayer::CreateScene() {
         cube_entity_.GetComponent<TransformComponent>().SetPosition({0.0f, 10.0f, 0.0f});
 
         cube_entity_.AddComponent<MeshRenderComponent>(mesh, material_);
+        cube_entity_.AddComponent<BoxCollider>(Vector3(1.0f, 1.0f, 1.0f));
 
         RigidbodyData data;
         cube_entity_.AddComponent<RigidbodyComponent>(data, cube_entity_);
@@ -127,8 +133,7 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
     auto& input     = InputManager::Get();
     auto& transform = playerEntity_.GetComponent<TransformComponent>();
     auto& springArm = playerEntity_.GetComponent<SpringArmComponent>();
-
-    glm::vec3 position = transform.Position;
+    auto& rb        = playerEntity_.GetComponent<RigidbodyComponent>();
 
     // Calculate camera-relative movement direction
     float moveForward = input.GetAxis("MoveForward");
@@ -142,6 +147,9 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
     glm::vec3 camRight   = {cosYaw, 0.0f, -sinYaw};
 
     glm::vec3 movement = (camForward * moveForward + camRight * moveRight);
+    
+    btVector3 currentVelocity = rb.GetLinearVelocity();
+    btVector3 desiredVelocity(0, currentVelocity.y(), 0);
 
     if (glm::length(movement) > 0.01f) {
         movement = glm::normalize(movement);
@@ -149,35 +157,91 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         // Smoothly rotate player to face movement direction
         float targetYaw     = Math::CalculateYawFromDirection(movement.x, movement.z);
         float currentYaw    = transform.Rotation.y;
+        
+        // Hysteresis for 180 degree turns
+        float diff = targetYaw - currentYaw;
+        diff = Math::NormalizeAngle(diff);
+        
+        // If we are near the singularity (180 degrees), favor the previous direction
+        if (std::abs(diff) > 170.0f && std::abs(lastRotationDiff_) > 0.0f) {
+            // If signs match, we are good. If signs differ, we might be flipping.
+            // Force diff to have the same sign as lastRotationDiff_
+            if ((diff > 0 && lastRotationDiff_ < 0) || (diff < 0 && lastRotationDiff_ > 0)) {
+                if (diff > 0) diff -= 360.0f;
+                else diff += 360.0f;
+            }
+        }
+        lastRotationDiff_ = diff;
+
         float rotationSpeed = 10.0f;
-        float newYaw        = Math::InterpolateYaw(currentYaw, targetYaw, rotationSpeed * ts);
+        float newYaw = currentYaw + diff * glm::clamp(rotationSpeed * ts, 0.0f, 1.0f);
+        newYaw = Math::NormalizeAngle(newYaw);
 
-        transform.Rotation.y = newYaw;
-        position += movement * moveSpeed_ * ts;
+        // Debug capture
+        debugTargetYaw_ = targetYaw;
+        debugCurrentYaw_ = currentYaw;
+        debugNewYaw_ = newYaw;
+
+        // Check for large jumps
+        if (std::abs(newYaw - currentYaw) > 10.0f && std::abs(newYaw - currentYaw) < 350.0f) {
+             SE_LOG_WARN("Rotation Jump Detected! Current: {}, Target: {}, New: {}", currentYaw, targetYaw, newYaw);
+        }
+
+        // Sync rotation to physics body
+        btTransform tr = rb.GetRigidbody()->getWorldTransform();
+        
+        // Debug physics yaw before set
+        btQuaternion currentQ = tr.getRotation();
+        glm::quat qNorm(currentQ.w(), currentQ.x(), currentQ.y(), currentQ.z());
+        qNorm = glm::normalize(qNorm);
+        debugPhysicsYaw_ = glm::degrees(glm::yaw(qNorm));
+        debugPitch_ = glm::degrees(glm::pitch(qNorm));
+        debugRoll_ = glm::degrees(glm::roll(qNorm));
+
+        btQuaternion q;
+        q.setEuler(0, glm::radians(newYaw), 0); 
+        
+        glm::quat glmQ = glm::quat(glm::vec3(0, glm::radians(newYaw), 0));
+        tr.setRotation(btQuaternion(glmQ.x, glmQ.y, glmQ.z, glmQ.w));
+        rb.GetRigidbody()->setWorldTransform(tr);
+
+        desiredVelocity.setX(movement.x * moveSpeed_);
+        desiredVelocity.setZ(movement.z * moveSpeed_);
+    } else {
+        // Stop horizontal movement
+        desiredVelocity.setX(0);
+        desiredVelocity.setZ(0);
     }
 
-    // Handle jumping and gravity
+    rb.SetLinearVelocity(desiredVelocity);
+
+    // Handle jumping
     if (input.IsActionJustPressed("Jump") && isGrounded_) {
-        isGrounded_              = false;
-        auto      force_position = playerEntity_.GetComponent<TransformComponent>().Position - Vector3{0.0f, -2.0f, 0.0f};
-        btVector3 force_pos(force_position.x, force_position.y, force_position.z);
-        playerEntity_.GetComponent<RigidbodyComponent>().AddImpulse({0.0, 100.0f, 0.0f}, force_pos);
+        isGrounded_ = false;
+        rb.AddImpulse({0.0f, 100.0f, 0.0f}, {0.0f, 0.0f, 0.0f}); // Impulse at center
     }
 
-    // Simple floor collision (y = 0)
-    float playerBottom = position.y - 0.5f;
-    float floorY       = 0.0f;
-
-    if (playerBottom <= floorY) {
-        isGrounded_       = true;
+    // Simple floor check using raycast or just position (temporary)
+    // Ideally we should use collision callbacks or a raycast.
+    // For now, let's trust the physics engine to handle collision, 
+    // but we need isGrounded for jumping.
+    // Let's use a simple raycast or check velocity Y approx 0?
+    // Checking velocity is unreliable.
+    // Let's assume grounded if y velocity is near 0 and we are low enough?
+    // Or just allow jumping for now.
+    // Let's keep the old simple check but based on physics position?
+    // No, let's use the contact manifold in a real engine, but here we don't have it exposed easily yet.
+    // Let's just allow infinite jump for debug or a simple height check.
+    // Player capsule has total height 2.0 (radius 0.5, height 1.0). Center is at 1.0 from bottom.
+    // Floor is at 0.0. So player center should be at 1.0.
+    // We check if we are close to the ground and not moving up/down significantly.
+    if (transform.Position.y < 1.1f && std::abs(rb.GetLinearVelocity().y()) < 0.1f) {
+        isGrounded_ = true;
     } else {
         isGrounded_ = false;
     }
-
-    auto      force_position = playerEntity_.GetComponent<TransformComponent>().Position - position;
-    btVector3 force_pos(force_position.x, force_position.y, force_position.z);
-    playerEntity_.GetComponent<RigidbodyComponent>().AddForce(force_pos, force_pos);
 }
+
 
 void ThirdPersonLayer::UpdateCamera() {
     auto& input = InputManager::Get();
@@ -225,6 +289,7 @@ void ThirdPersonLayer::OnRender() {
     auto& window      = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
     scene_->OnRender(camera_, aspectRatio);
+    Application::Get().GetPhysicsManager().RenderDebug(camera_);
 }
 
 void ThirdPersonLayer::OnImGuiRender() {
@@ -245,6 +310,15 @@ void ThirdPersonLayer::OnImGuiRender() {
         ImGui::DragFloat("Arm Yaw", &springArm.Yaw, 1.0f);
         ImGui::DragFloat3("Socket Offset", &springArm.SocketOffset.x, 0.1f);
     }
+
+    ImGui::Separator();
+    ImGui::Text("Rotation Debug:");
+    ImGui::Text("Target Yaw: %.2f", debugTargetYaw_);
+    ImGui::Text("Current Yaw: %.2f", debugCurrentYaw_);
+    ImGui::Text("New Yaw: %.2f", debugNewYaw_);
+    ImGui::Text("Physics Yaw: %.2f", debugPhysicsYaw_);
+    ImGui::Text("Physics Pitch: %.2f", debugPitch_);
+    ImGui::Text("Physics Roll: %.2f", debugRoll_);
 
     ImGui::End();
 }
