@@ -28,10 +28,12 @@ private:
     float debugPitch_ = 0.0f;
     float debugRoll_ = 0.0f;
     float lastRotationDiff_ = 0.0f;
+    float lastShootTime_ = 0.0f;
 
     void CreateScene();
     void UpdatePlayer(float ts);
     void UpdateCamera();
+    void Shoot();
 
     std::shared_ptr<Scene> scene_;
     std::shared_ptr<Material> material_;

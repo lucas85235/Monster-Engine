@@ -37,6 +37,7 @@ void ThirdPersonLayer::OnAttach() {
     auto& app    = Application::Get();
     auto* window = app.GetWindow().GetNativeWindow();
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
 }
 
 void ThirdPersonLayer::OnDetach() {
@@ -229,6 +230,47 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
     // Set the velocity on the rigidbody
     rb.SetLinearVelocity(desiredVelocity);
+
+    // Shooting
+    if (input.IsMouseButtonDown(0)) { // Left Mouse Button
+        Shoot();
+    }
+}
+
+void ThirdPersonLayer::Shoot() {
+    float time = (float)glfwGetTime();
+    if (time - lastShootTime_ < 0.2f) return; // 0.2s cooldown
+    lastShootTime_ = time;
+
+    // Get camera forward
+    float yawRad = glm::radians(camera_.GetYaw());
+    float pitchRad = glm::radians(camera_.GetPitch());
+    glm::vec3 forward;
+    forward.x = cos(yawRad) * cos(pitchRad);
+    forward.y = sin(pitchRad);
+    forward.z = sin(yawRad) * cos(pitchRad);
+    forward = glm::normalize(forward);
+
+    // Spawn position
+    glm::vec3 spawnPos = camera_.GetPosition() + forward * 2.0f;
+
+    // Create Entity
+    auto box = scene_->CreateEntity("BulletBox");
+    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+    box.AddComponent<MeshRenderComponent>(mesh, material_);
+    box.AddComponent<BoxCollider>(glm::vec3(0.5f)); 
+    
+    box.GetComponent<TransformComponent>().SetPosition(spawnPos);
+    box.GetComponent<TransformComponent>().SetScale(glm::vec3(0.5f));
+
+    RigidbodyData data;
+    data.mass = 2.0f;
+    auto& rb = box.AddComponent<RigidbodyComponent>(data, box);
+    
+    // Apply impulse
+    btVector3 impulse(forward.x, forward.y, forward.z);
+    impulse *= 50.0f; // Force
+    rb.GetRigidbody()->applyCentralImpulse(impulse);
 }
 
 
