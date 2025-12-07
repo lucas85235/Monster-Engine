@@ -4,6 +4,14 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 set(IMNODES_IMGUI_TARGET_NAME ImGui)
 
+# bullet
+set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_CPU_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_OPENGL3_DEMOS OFF CACHE BOOL "" FORCE)
+set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+set(BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_BULLET3 ON CACHE BOOL "" FORCE)
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                   COMPILATION RELATED                   ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -35,6 +43,7 @@ set(glm_DIR ${third_party_dir}/glm)
 set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
 set(rmlui_DIR ${third_party_dir}/RmlUi)
+set(bullet_DIR ${third_party_dir}/bullet)
 
 
 add_library(stb STATIC
@@ -52,6 +61,7 @@ add_subdirectory(${glfw_DIR})
 add_subdirectory(${glad_DIR})
 add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
+add_subdirectory(${bullet_DIR})
 
 
 
@@ -82,6 +92,7 @@ target_include_directories(simple_engine PUBLIC
         ${stb_DIR}
         ${entt_DIR}
         ${rmlui_DIR}/Include
+        ${bullet_DIR}/src
 )
 
 # --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
@@ -99,6 +110,9 @@ target_link_libraries(simple_engine PUBLIC
         Entt
         rmlui_core
         rmlui_debugger
+        BulletDynamics
+        BulletCollision
+        LinearMath
 )
 
 # Adiciona definições de compilação necessárias

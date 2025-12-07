@@ -1,7 +1,7 @@
 #include "EventSampleLayer.h"
 
 #include "engine/Application.h"
-#include "engine/new_event_system/EventBus.h"
+#include "engine/events/EventBus.h"
 #include "events/Events.h"
 EventSampleLayer::~EventSampleLayer() {}
 void EventSampleLayer::OnDetach() {

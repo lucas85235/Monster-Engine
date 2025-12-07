@@ -8,9 +8,9 @@
 #include "engine/Layer.h"
 #include "engine/Renderer.h"
 #include "engine/Window.h"
-#include "event/ApplicationEvent.h"
-#include "new_event_system/EventBus.h"
-#include "new_event_system/NewApplicationEvents.h"
+#include "engine/events/ApplicationEvent.h"
+#include "engine/events/EventBus.h"
+#include "engine/events/NewApplicationEvents.h"
 
 namespace se {
 
@@ -64,17 +64,19 @@ class Application {
         return *event_bus_;
     }
 
+
     static Application& Get();
 
-    float GetTime();
-    static bool  OnWindowResizeNew(const NewWindowResizeEvent& e);
-    bool  OnWindowMinimizeNew(const NewWindowMinimizeEvent& e);
-    bool  OnWindowCloseNew(const NewWindowCloseEvent& e);
+    float       GetTime();
+    static bool OnWindowResizeNew(const NewWindowResizeEvent& e);
+    bool        OnWindowMinimizeNew(const NewWindowMinimizeEvent& e);
+    bool        OnWindowCloseNew(const NewWindowCloseEvent& e);
 
    private:
     std::unique_ptr<Window>     window_;
     std::unique_ptr<Renderer>   renderer_;
     std::shared_ptr<ImGuiLayer> imguiLayer_;
+
 
     bool OnWindowResize(const WindowResizeEvent& e);
     bool OnWindowMinimize(const WindowMinimizeEvent& e);

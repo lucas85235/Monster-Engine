@@ -10,14 +10,14 @@ namespace se {
 class Event;
 
 // Math Types
-using Vector2     = glm::vec2;
-using Vector3     = glm::vec3;
-using Vector4     = glm::vec4;
-using Matrix4     = glm::mat4;
-using Matrix3     = glm::mat3;
-using Matrix2     = glm::mat2;
-using Quaternion  = glm::quat;
-using Color       = glm::vec4;
+using Vector2    = glm::vec2;
+using Vector3    = glm::vec3;
+using Vector4    = glm::vec4;
+using Matrix4    = glm::mat4;
+using Matrix3    = glm::mat3;
+using Matrix2    = glm::mat2;
+using Quaternion = glm::quat;
+using Color      = glm::vec4;
 
 // Input Types
 using MouseButton = uint16_t;
@@ -64,6 +64,7 @@ constexpr Ref<T> CreateRef(Args&&... args) {
 #define BIT(x)               (1 << x)
 #define SE_BIND_EVENT_FN(fn) [this](auto&&... args) -> decltype(auto) { return this->fn(std::forward<decltype(args)>(args)...); }
 
+// just for debug :)
 #define DEBUG
 
 }  // namespace se

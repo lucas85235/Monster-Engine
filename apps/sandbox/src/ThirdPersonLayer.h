@@ -21,9 +21,19 @@ public:
     virtual void OnImGuiRender() override;
 
 private:
+    float debugTargetYaw_ = 0.0f;
+    float debugCurrentYaw_ = 0.0f;
+    float debugNewYaw_ = 0.0f;
+    float debugPhysicsYaw_ = 0.0f;
+    float debugPitch_ = 0.0f;
+    float debugRoll_ = 0.0f;
+    float lastRotationDiff_ = 0.0f;
+    float lastShootTime_ = 0.0f;
+
     void CreateScene();
     void UpdatePlayer(float ts);
     void UpdateCamera();
+    void Shoot();
 
     std::shared_ptr<Scene> scene_;
     std::shared_ptr<Material> material_;
@@ -31,6 +41,8 @@ private:
 
     // Player
     Entity playerEntity_;
+    Entity cube_entity_;
+    Entity floor_entity_;
     glm::vec3 playerVelocity_{0.0f};
     bool isGrounded_ = false;
     

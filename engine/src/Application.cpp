@@ -6,9 +6,9 @@
 
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/Log.h"
 #include "engine/input/InputManager.h"
-#include "engine/new_event_system/NewApplicationEvents.h"
+#include "engine/core/ServiceLocator.h"
+#include "engine/events/NewApplicationEvents.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -25,7 +25,10 @@ Application::Application(const ApplicationSpecification& specification) {
 #endif
 
     SE_LOG_INFO("Starting Simple Engine");
-    
+
+    // Initialize ServiceLocator
+    ServiceLocator::Initialize();
+
     InputManager::Get().Init();
 
     WindowSpec windowSpec;
@@ -48,6 +51,11 @@ Application::Application(const ApplicationSpecification& specification) {
     renderer_ = std::make_unique<Renderer>();
     renderer_->Init();
 
+    // Register services with ServiceLocator
+    ServiceLocator::Get().ProvideRenderer(renderer_.get());
+    ServiceLocator::Get().ProvideInputManager(&InputManager::Get());
+    ServiceLocator::Get().ProvideEventBus(event_bus_);
+
     // Set default clear color
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
@@ -59,6 +67,8 @@ Application::Application(const ApplicationSpecification& specification) {
     event_bus_->AddListener<NewWindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResizeNew));
     event_bus_->AddListener<NewWindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimizeNew));
     event_bus_->AddListener<NewWindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowCloseNew));
+    
+    SE_LOG_INFO("Application initialized successfully");
 }
 
 Application::~Application() {
@@ -73,6 +83,10 @@ Application::~Application() {
 
     // Cleanup systems
     renderer_.reset();
+    
+    // Shutdown ServiceLocator
+    ServiceLocator::Shutdown();
+    
     glfwTerminate();
 
     s_Instance = nullptr;
@@ -116,9 +130,7 @@ int Application::Run() {
 
     while (running_) {
         // Check for window close
-        if (InputManager::Get().IsKeyDown(Key::Escape)) {
-            window_->RequestClose();
-        }
+        if (InputManager::Get().IsKeyDown(Key::Escape)) { window_->RequestClose(); }
 
         // Calculate timestep
         float currentTime = GetTime();
@@ -127,7 +139,7 @@ int Application::Run() {
 
         // Update Input Manager
         InputManager::Get().Update();
-        
+
         // Poll events
         window_->OnUpdate();
 
@@ -167,6 +179,8 @@ int Application::Run() {
 
         event_bus_->dispatch();
 
+        // physics_manager_->Update(timestep);
+
         if (window_->ShouldClose()) {
             Close();
             break;
@@ -180,8 +194,6 @@ int Application::Run() {
 void Application::Close() {
     running_ = false;
 }
-
-
 
 Application& Application::Get() {
     return *s_Instance;

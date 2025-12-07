@@ -5,8 +5,8 @@
 #include <string>
 
 #include "Engine.h"
-#include "event/Event.h"
-#include "new_event_system/EventBus.h"
+#include "engine/events/LegacyEvent.h"
+#include "engine/events/EventBus.h"
 
 struct GLFWwindow;
 

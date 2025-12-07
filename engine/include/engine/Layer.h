@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "event/Event.h"
+#include "engine/events/LegacyEvent.h"
 
 namespace se {
 

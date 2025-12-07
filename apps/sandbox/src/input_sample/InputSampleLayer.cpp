@@ -1,7 +1,7 @@
 #include "InputSampleLayer.h"
 
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
+#include "engine/events/KeyEvent.h"
+#include "engine/events/MouseEvent.h"
 #include "engine/input/Input.h"
 #include "engine/input/KeyCodes.h"
 
@@ -63,8 +63,8 @@ bool InputSampleLayer::OnMouseButtonPressed(MouseButtonPressedEvent& e) {
 }
 void InputSampleLayer::UpdateCameraInput() {
     // every single frame
-    if (Input::IsKeyDown(Key::W)) { SE_LOG_INFO("W"); }
-    if (Input::IsKeyDown(Key::S)) { SE_LOG_INFO("S"); }
-    if (Input::IsKeyDown(Key::D)) { SE_LOG_INFO("D"); }
-    if (Input::IsKeyDown(Key::A)) { SE_LOG_INFO("A"); }
+    // if (Input::IsKeyDown(Key::W)) { SE_LOG_INFO("W"); }
+    // if (Input::IsKeyDown(Key::S)) { SE_LOG_INFO("S"); }
+    // if (Input::IsKeyDown(Key::D)) { SE_LOG_INFO("D"); }
+    // if (Input::IsKeyDown(Key::A)) { SE_LOG_INFO("A"); }
 }
