@@ -1,7 +1,7 @@
 #include "InputSampleLayer.h"
 
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
+#include "engine/events/KeyEvent.h"
+#include "engine/events/MouseEvent.h"
 #include "engine/input/Input.h"
 #include "engine/input/KeyCodes.h"
 

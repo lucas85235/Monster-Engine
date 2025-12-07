@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Event.h"
+#include "engine/events/LegacyEvent.h"
 #include "engine/input/MouseCodes.h"
 
 namespace se {

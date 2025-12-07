@@ -2,7 +2,7 @@
 
 #include <sstream>
 
-#include "Event.h"
+#include "engine/events/LegacyEvent.h"
 
 namespace se {
 

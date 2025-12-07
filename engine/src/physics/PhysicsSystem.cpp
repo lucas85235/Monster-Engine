@@ -156,21 +156,32 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
 
     btCollisionShape* final_shape = nullptr;
     btCollisionShape* child_shape = nullptr;
-    btVector3         offset(0, 0, 0);
+    btVector3 offset(0, 0, 0);
+    uint16_t collision_group = 0x0001;
+    uint16_t collision_mask = 0xFFFF;
+    bool is_trigger = false;
 
-    // Reuse logic from PhysicsManager (simplified)
     if (entity.HasComponent<BoxCollider>()) {
         auto& box = entity.GetComponent<BoxCollider>();
         child_shape = new btBoxShape(btVector3(box.Size.x * 0.5f, box.Size.y * 0.5f, box.Size.z * 0.5f));
         offset = btVector3(box.Offset.x, box.Offset.y, box.Offset.z);
+        collision_group = box.CollisionGroup;
+        collision_mask = box.CollisionMask;
+        is_trigger = box.IsTrigger;
     } else if (entity.HasComponent<SphereCollider>()) {
         auto& sphere = entity.GetComponent<SphereCollider>();
         child_shape = new btSphereShape(sphere.Radius);
         offset = btVector3(sphere.Offset.x, sphere.Offset.y, sphere.Offset.z);
+        collision_group = sphere.CollisionGroup;
+        collision_mask = sphere.CollisionMask;
+        is_trigger = sphere.IsTrigger;
     } else if (entity.HasComponent<CapsuleCollider>()) {
         auto& capsule = entity.GetComponent<CapsuleCollider>();
         child_shape = new btCapsuleShape(capsule.Radius, capsule.Height);
         offset = btVector3(capsule.Offset.x, capsule.Offset.y, capsule.Offset.z);
+        collision_group = capsule.CollisionGroup;
+        collision_mask = capsule.CollisionMask;
+        is_trigger = capsule.IsTrigger;
     } else {
         child_shape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
     }
@@ -192,11 +203,15 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
     btTransform start_transform;
     start_transform.setIdentity();
 
-    btScalar mass = data.mass;
-    bool is_dynamic = (mass != 0.0f);
+    btScalar mass = 0.0f;
+    if (data.type == RigidbodyType::Dynamic) {
+        mass = data.mass;
+    }
 
     btVector3 local_inertia(0.0f, 0.0f, 0.0f);
-    if (is_dynamic) { final_shape->calculateLocalInertia(mass, local_inertia); }
+    if (mass != 0.0f) { 
+        final_shape->calculateLocalInertia(mass, local_inertia); 
+    }
 
     start_transform.setOrigin(btVector3(transform_component.Position.x, transform_component.Position.y, transform_component.Position.z));
     glm::quat q = glm::quat(glm::radians(transform_component.Rotation));
@@ -205,14 +220,41 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
     btDefaultMotionState* motion_state = new btDefaultMotionState(start_transform);
     btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, final_shape, local_inertia);
 
+    rb_info.m_friction = data.material.Friction;
+    rb_info.m_restitution = data.material.Restitution;
+    rb_info.m_linearDamping = data.material.LinearDamping;
+    rb_info.m_angularDamping = data.material.AngularDamping;
+
     btRigidBody* rigid_body = new btRigidBody(rb_info);
-    
-    dynamics_world_->addRigidBody(rigid_body);
+
+    if (data.type == RigidbodyType::Kinematic) {
+        rigid_body->setCollisionFlags(rigid_body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+        rigid_body->setActivationState(DISABLE_DEACTIVATION);
+    }
+
+    if (is_trigger) {
+        rigid_body->setCollisionFlags(rigid_body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    }
+
+    btVector3 angular_factor(
+        data.freezeRotationX ? 0.0f : 1.0f,
+        data.freezeRotationY ? 0.0f : 1.0f,
+        data.freezeRotationZ ? 0.0f : 1.0f
+    );
+    rigid_body->setAngularFactor(angular_factor);
+
+    rigid_body->setGravity(btVector3(0.0f, -9.81f * data.gravityScale, 0.0f));
+
+    dynamics_world_->addRigidBody(rigid_body, collision_group, collision_mask);
     
     bodies_.push_back({entity, rigid_body});
 
+    SE_LOG_INFO("Added rigidbody: mass={}, type={}, friction={}", 
+                mass, static_cast<int>(data.type), data.material.Friction);
+
     return rigid_body;
 }
+
 
 void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
     std::lock_guard<std::mutex> lock(physics_mutex_);

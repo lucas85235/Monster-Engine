@@ -16,8 +16,6 @@ RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data, Entity entity)
     }
 }
 
-void RigidbodyComponent::Update(float delta_time) {}
-
 void RigidbodyComponent::AddForce(const btVector3& force, const btVector3& point) {
     if (body_ && physics_system_) {
         std::lock_guard<std::mutex> lock(physics_system_->GetMutex());
@@ -68,6 +66,22 @@ void RigidbodyComponent::SetRotation(const glm::vec3& rotation) {
         body_->setWorldTransform(transform);
         if (body_->getMotionState()) {
             body_->getMotionState()->setWorldTransform(transform);
+        }
+    }
+}
+
+void RigidbodyComponent::SetKinematic(bool kinematic) {
+    if (body_ && physics_system_) {
+        std::lock_guard<std::mutex> lock(physics_system_->GetMutex());
+        
+        if (kinematic) {
+            body_->setCollisionFlags(body_->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+            body_->setActivationState(DISABLE_DEACTIVATION);
+            data_.type = RigidbodyType::Kinematic;
+        } else {
+            body_->setCollisionFlags(body_->getCollisionFlags() & ~btCollisionObject::CF_KINEMATIC_OBJECT);
+            body_->setActivationState(ACTIVE_TAG);
+            data_.type = RigidbodyType::Dynamic;
         }
     }
 }

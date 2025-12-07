@@ -3,9 +3,9 @@
 
 #include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/event/ApplicationEvent.h"
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
+#include "engine/events/ApplicationEvent.h"
+#include "engine/events/KeyEvent.h"
+#include "engine/events/MouseEvent.h"
 
 #include <GLFW/glfw3.h>
 

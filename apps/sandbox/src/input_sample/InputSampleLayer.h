@@ -1,8 +1,8 @@
 #pragma once
 #include "apps/sandbox/src/SampleUtilities.h"
 #include "engine/Layer.h"
-#include "engine/event/KeyEvent.h"
-#include "engine/event/MouseEvent.h"
+#include "engine/events/KeyEvent.h"
+#include "engine/events/MouseEvent.h"
 
 using namespace se;
 class InputSampleLayer : public se::Layer {

@@ -1,7 +1,7 @@
 #pragma once
 #include <functional>
 
-#include "IEventChannel.h"
+#include "engine/events/IEventChannel.h"
 
 namespace se {
 

@@ -3,7 +3,7 @@
 #include "engine/Application.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
-#include "engine/new_event_system/EventBus.h"
+#include "engine/events/EventBus.h"
 #include "engine/physics/RigidbodyComponent.h"
 #include "engine/physics/BoxCollider.h"
 #include "engine/resources/MeshManager.h"

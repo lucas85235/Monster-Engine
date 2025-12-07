@@ -1,7 +1,7 @@
 #pragma once
 #include "engine/Layer.h"
-#include "engine/new_event_system/EventBus.h"
-#include "engine/new_event_system/NewApplicationEvents.h"
+#include "engine/events/EventBus.h"
+#include "engine/events/NewApplicationEvents.h"
 #include "engine/Camera.h"
 #include "engine/renderer/Material.h"
 using namespace se;

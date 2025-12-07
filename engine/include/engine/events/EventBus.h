@@ -1,6 +1,6 @@
 #pragma once
 #include "Engine.h"
-#include "engine/new_event_system/EventChannel.h"
+#include "engine/events/EventChannel.h"
 
 namespace se {
 class EventBus {

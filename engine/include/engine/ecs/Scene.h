@@ -9,9 +9,16 @@
 
 namespace se {
 
+class PhysicsSystem;
+
+struct SceneSettings {
+    bool EnablePhysics = true;
+};
+
 class Scene {
    public:
-    Scene(const std::string& name = "Untitled Scene");
+    Scene(const std::string& name = "Untitled Scene", const SceneSettings& settings = {});
+    Scene(const std::string& name, PhysicsSystem* externalPhysics);
     ~Scene();
 
     // Create a new entity
@@ -48,13 +55,18 @@ class Scene {
         return registry_.storage<entt::entity>()->size();
     }
 
-    class PhysicsSystem* GetPhysicsSystem() { return physics_system_; }
+    PhysicsSystem* GetPhysicsSystem() { return physics_system_; }
+    bool HasPhysics() const { return physics_system_ != nullptr; }
+
+    entt::registry& GetRegistry() { return registry_; }
+    const entt::registry& GetRegistry() const { return registry_; }
 
    private:
     std::string    name_;
     entt::registry registry_;
     
-    class PhysicsSystem* physics_system_ = nullptr;
+    PhysicsSystem* physics_system_ = nullptr;
+    bool owns_physics_ = false;
 
     friend class Entity;
     friend class RenderSystem;

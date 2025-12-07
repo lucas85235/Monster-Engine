@@ -8,15 +8,25 @@
 
 namespace se {
 
-Scene::Scene(const std::string& name) : name_(name) {
+Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(name), owns_physics_(false) {
     SE_LOG_INFO("Scene '{}' created", name_);
-    physics_system_ = new PhysicsSystem(this);
-    physics_system_->Initialize();
+    
+    if (settings.EnablePhysics) {
+        physics_system_ = new PhysicsSystem(this);
+        physics_system_->Initialize();
+        owns_physics_ = true;
+        SE_LOG_INFO("Scene '{}' physics enabled", name_);
+    }
+}
+
+Scene::Scene(const std::string& name, PhysicsSystem* externalPhysics) 
+    : name_(name), physics_system_(externalPhysics), owns_physics_(false) {
+    SE_LOG_INFO("Scene '{}' created with external physics", name_);
 }
 
 Scene::~Scene() {
     Clear();
-    if (physics_system_) {
+    if (owns_physics_ && physics_system_) {
         physics_system_->Shutdown();
         delete physics_system_;
         physics_system_ = nullptr;
@@ -27,7 +37,6 @@ Scene::~Scene() {
 Entity Scene::CreateEntity(const std::string& name) {
     Entity entity(registry_.create(), this);
 
-    // All entities have Transform and Name components by default
     entity.AddComponent<TransformComponent>();
     entity.AddComponent<NameComponent>(name.empty() ? "Entity" : name);
 
@@ -44,12 +53,6 @@ void Scene::DestroyEntity(Entity entity) {
 
     auto& nameComp = entity.GetComponent<NameComponent>();
     SE_LOG_INFO("Entity '{}' destroyed", nameComp.Name);
-
-    // Remove from physics if needed
-    // Ideally PhysicsSystem listens to registry events, but for now we might need manual removal
-    // if we don't implement OnComponentRemoved.
-    // But PhysicsSystem::RemoveRigidBody takes a btRigidBody*.
-    // We should probably handle this via component removal.
     
     registry_.destroy(entity.GetHandle());
 }
@@ -63,11 +66,10 @@ Entity Scene::FindEntityByName(const std::string& name) {
     }
 
     SE_LOG_WARN("Entity with name '{}' not found", name);
-    return Entity();  // Return invalid entity
+    return Entity();
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    // Application::Get().GetPhysicsManager().Update(deltaTime);
     if (physics_system_) {
         physics_system_->Update(deltaTime);
     }

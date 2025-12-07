@@ -12,6 +12,8 @@
 #include "MathUtils.h"
 #include "SampleUtilities.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/physics/RigidbodyComponent.h"
+#include "engine/physics/BoxCollider.h"
 
 ThirdPersonLayer::ThirdPersonLayer() : Layer("ThirdPersonLayer"), camera_(glm::vec3(0.0f, 5.0f, 10.0f)) {}
 
