@@ -1,14 +1,13 @@
 #include "engine/Application.h"
 
 #include <GLFW/glfw3.h>
-
 #include <glm.hpp>
 
 #include "Engine.h"
 #include "engine/Log.h"
 #include "engine/input/InputManager.h"
 #include "engine/core/ServiceLocator.h"
-#include "engine/events/NewApplicationEvents.h"
+#include "engine/events/Events.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -26,9 +25,6 @@ Application::Application(const ApplicationSpecification& specification) {
 
     SE_LOG_INFO("Starting Simple Engine");
 
-    // Initialize ServiceLocator
-    ServiceLocator::Initialize();
-
     InputManager::Get().Init();
 
     WindowSpec windowSpec;
@@ -39,13 +35,11 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.Fullscreen = specification.Fullscreen;
     windowSpec.VSync      = specification.VSync;
     windowSpec.IconPath   = specification.IconPath;
-    windowSpec.EventBus   = event_bus_;
+    windowSpec.EventBus   = event_bus_.get();
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
-
     window_->Init();
-    window_->SetEventCallback(SE_BIND_EVENT_FN(OnEvent));
 
     // Create and initialize renderer
     renderer_ = std::make_unique<Renderer>();
@@ -54,7 +48,7 @@ Application::Application(const ApplicationSpecification& specification) {
     // Register services with ServiceLocator
     ServiceLocator::Get().ProvideRenderer(renderer_.get());
     ServiceLocator::Get().ProvideInputManager(&InputManager::Get());
-    ServiceLocator::Get().ProvideEventBus(event_bus_);
+    ServiceLocator::Get().ProvideEventBus(event_bus_.get());
 
     // Set default clear color
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
@@ -64,9 +58,27 @@ Application::Application(const ApplicationSpecification& specification) {
     imguiLayer_->SetWindow(window_->GetNativeWindow());
     imguiLayer_->OnAttach();
 
-    event_bus_->AddListener<NewWindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResizeNew));
-    event_bus_->AddListener<NewWindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimizeNew));
-    event_bus_->AddListener<NewWindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowCloseNew));
+    // Register event listeners with the new EventBus
+    event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
+    event_bus_->AddListener<WindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimize));
+    event_bus_->AddListener<WindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowClose));
+    
+    // Forward input events to InputManager
+    event_bus_->AddListener<KeyPressedEvent>([](const KeyPressedEvent& e) {
+        InputManager::Get().OnKeyPressed(e.keyCode);
+    });
+    event_bus_->AddListener<KeyReleasedEvent>([](const KeyReleasedEvent& e) {
+        InputManager::Get().OnKeyReleased(e.keyCode);
+    });
+    event_bus_->AddListener<MouseButtonPressedEvent>([](const MouseButtonPressedEvent& e) {
+        InputManager::Get().OnMouseButtonPressed(e.button);
+    });
+    event_bus_->AddListener<MouseButtonReleasedEvent>([](const MouseButtonReleasedEvent& e) {
+        InputManager::Get().OnMouseButtonReleased(e.button);
+    });
+    event_bus_->AddListener<MouseMovedEvent>([](const MouseMovedEvent& e) {
+        InputManager::Get().OnMouseMoved(e.x, e.y);
+    });
     
     SE_LOG_INFO("Application initialized successfully");
 }
@@ -84,42 +96,12 @@ Application::~Application() {
     // Cleanup systems
     renderer_.reset();
     
-    // Shutdown ServiceLocator
-    ServiceLocator::Shutdown();
+    // Reset ServiceLocator
+    ServiceLocator::Get().Reset();
     
     glfwTerminate();
 
     s_Instance = nullptr;
-}
-
-void Application::OnEvent(Event& event) {
-    switch (event.GetEventType()) {
-        case EventType::WindowResize:
-            event_bus_->Invoke<NewWindowResizeEvent>();
-            break;
-
-        case EventType::WindowMinimize:
-            event_bus_->Invoke<NewWindowMinimizeEvent>();
-            break;
-
-        case EventType::WindowClose:
-            event_bus_->Invoke<NewWindowCloseEvent>();
-            break;
-        default:;
-    }
-
-    for (auto it = layer_stack_.end(); it != layer_stack_.begin();) {
-        (*--it)->OnEvent(event);
-        if (event.Handled) break;
-    }
-
-    if (event.Handled) return;
-
-    for (auto& eventCallback : event_callbacks_) {
-        eventCallback(event);
-
-        if (event.Handled) break;
-    }
 }
 
 int Application::Run() {
@@ -143,6 +125,12 @@ int Application::Run() {
         // Poll events
         window_->OnUpdate();
 
+        // Dispatch events from the EventBus
+        event_bus_->dispatch();
+
+        // Skip rendering if minimized
+        if (minimized_) continue;
+
         // Begin frame
         renderer_->BeginFrame();
 
@@ -152,7 +140,8 @@ int Application::Run() {
         // Clear screen with the configured color
         renderer_->Clear();
 
-        if (window_->GetWidth() != width || window_->GetHeight() != height) {
+        if (window_->GetWidth() != static_cast<uint32_t>(width) || 
+            window_->GetHeight() != static_cast<uint32_t>(height)) {
             window_->SetWidth(width);
             window_->SetHeight(height);
         }
@@ -177,10 +166,6 @@ int Application::Run() {
         // Swap buffers
         window_->SwapBuffers();
 
-        event_bus_->dispatch();
-
-        // physics_manager_->Update(timestep);
-
         if (window_->ShouldClose()) {
             Close();
             break;
@@ -203,32 +188,17 @@ float Application::GetTime() {
     return static_cast<float>(glfwGetTime());
 }
 
-// new event system //////////////////////////////////////////
-bool Application::OnWindowResizeNew(const NewWindowResizeEvent& e) {
-    const uint32_t width = e.width, height = e.height;
-    if (width == 0 || height == 0) { return false; }
-    return false;
-}
-
-bool Application::OnWindowMinimizeNew(const NewWindowMinimizeEvent& e) {
-    minimized_ = e.minimized;
-    return false;
-}
-
-bool Application::OnWindowCloseNew(const NewWindowCloseEvent& e) {
-    Close();
-    return false;
-}
-
 bool Application::OnWindowResize(const WindowResizeEvent& e) {
-    const uint32_t width = e.GetWidth(), height = e.GetHeight();
-    if (width == 0 || height == 0) { return false; }
-
+    if (e.width == 0 || e.height == 0) { 
+        minimized_ = true;
+        return false; 
+    }
+    minimized_ = false;
     return false;
 }
 
 bool Application::OnWindowMinimize(const WindowMinimizeEvent& e) {
-    minimized_ = e.IsMinimized();
+    minimized_ = e.minimized;
     return false;
 }
 
@@ -236,4 +206,5 @@ bool Application::OnWindowClose(const WindowCloseEvent& e) {
     Close();
     return false;
 }
+
 }  // namespace se

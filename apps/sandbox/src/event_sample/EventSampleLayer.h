@@ -1,8 +1,9 @@
 #pragma once
 #include "engine/Layer.h"
 #include "engine/events/EventBus.h"
-#include "engine/events/NewApplicationEvents.h"
+#include "engine/events/Events.h"
 #include "events/Events.h"
+
 using namespace se;
 
 struct EnemySpawned {
@@ -18,12 +19,11 @@ class EventSampleLayer : public Layer {
     void OnUpdate(float ts) override;
     void OnRender() override;
     void OnImGuiRender() override;
-    void OnEvent(Event& event) override;
 
    private:
     void OnEnemySpawned(const EnemySpawned& e);
-    void OnWindowResizedNew(const NewWindowResizeEvent& e);
-    void OnWindowCloseNew(const NewWindowCloseEvent& e);
+    void OnWindowResized(const WindowResizeEvent& e);
+    void OnWindowClose(const WindowCloseEvent& e);
     void OnNoInputEventTriggered(const SampleEventWithNoInputs& e);
     void OnSingleInputEventTriggered(const SampleEventWithOneInput& e);
     void OnTwoInputEventsTriggered(const SampleEventWithTwoInputs& e);

@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <memory>
@@ -9,7 +8,6 @@
 
 namespace se {
 
-// Forward declarations
 class Window;
 
 class Renderer {
@@ -17,35 +15,30 @@ class Renderer {
     Renderer();
     ~Renderer();
 
-    // Initialize renderer subsystems
     void Init();
     void Shutdown();
 
-    // Begin/End frame
     void BeginFrame();
     void EndFrame();
 
-    // Clear screen
     void Clear();
     void SetClearColor(float r, float g, float b, float a = 1.0f);
 
-    // Scene rendering
     void BeginScene(const Camera& camera, float aspectRatio);
     void EndScene();
 
-    // Get renderer stats
-    RenderStats GetStats() const {
-        return SceneRenderer::GetStats();
-    }
-    void ResetStats() {
-        SceneRenderer::ResetStats();
-    }
+    // Access to SceneRenderer instance
+    SceneRenderer& GetSceneRenderer() { return sceneRenderer_; }
+
+    RenderStats GetStats() const { return sceneRenderer_.GetStats(); }
+    void ResetStats() { sceneRenderer_.ResetStats(); }
 
     // Disable copy/move
     Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;
 
    private:
+    SceneRenderer sceneRenderer_;
     bool initialized_ = false;
 };
 

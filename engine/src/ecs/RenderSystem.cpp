@@ -4,6 +4,7 @@
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/Scene.h"
 #include "engine/renderer/SceneRenderer.h"
+#include "engine/core/ServiceLocator.h"
 
 namespace se {
 bool RenderSystem::initialized_ = false;
@@ -31,10 +32,17 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         return;
     }
 
+    // Get SceneRenderer from ServiceLocator
+    if (!ServiceLocator::Get().HasSceneRenderer()) {
+        SE_LOG_ERROR("SceneRenderer not available in ServiceLocator!");
+        return;
+    }
+    SceneRenderer& sceneRenderer = ServiceLocator::Get().GetSceneRenderer();
+
     // Configure lighting
-    SceneRenderer::ClearDirectionalLight();
+    sceneRenderer.ClearDirectionalLight();
     SceneRenderer::DirectionalLightData lightData;
-    auto                                lightView = scene.GetAllEntitiesWith<TransformComponent, DirectionalLightComponent>();
+    auto lightView = scene.GetAllEntitiesWith<TransformComponent, DirectionalLightComponent>();
     for (auto entity : lightView) {
         auto& transform = lightView.get<TransformComponent>(entity);
         auto& light     = lightView.get<DirectionalLightComponent>(entity);
@@ -50,13 +58,13 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         lightData.Intensity   = glm::max(light.Intensity, 0.0f);
         lightData.CastShadows = light.CastShadows;
         lightData.Active      = true;
-        SceneRenderer::SetDirectionalLight(lightData);
+        sceneRenderer.SetDirectionalLight(lightData);
         break;
     }
 
     // Begin scene rendering
     glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
-    SceneRenderer::BeginScene(camera, projection);
+    sceneRenderer.BeginScene(camera, projection);
 
     // Get all entities with TransformComponent and MeshRenderComponent
     auto view = scene.GetAllEntitiesWith<TransformComponent, MeshRenderComponent>();
@@ -93,8 +101,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         }
 
         // Submit to renderer
-        SceneRenderer::Submit(meshRender.VertexArray, meshRender.Material, transform.GetTransform(), meshRender.CastShadows,
-                              meshRender.ReceiveShadows);
+        sceneRenderer.Submit(meshRender.VertexArray, meshRender.Material, transform.GetTransform(), 
+                            meshRender.CastShadows, meshRender.ReceiveShadows);
         renderedCount++;
     }
 
@@ -106,6 +114,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
 
     // End scene rendering
-    SceneRenderer::EndScene();
+    sceneRenderer.EndScene();
 }
+
 }  // namespace se

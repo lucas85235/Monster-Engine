@@ -1,9 +1,9 @@
 #pragma once
 #include "engine/Layer.h"
 #include "engine/events/EventBus.h"
-#include "engine/events/NewApplicationEvents.h"
 #include "engine/Camera.h"
 #include "engine/renderer/Material.h"
+
 using namespace se;
 
 class PhysicsSampleLayer : public Layer
@@ -15,7 +15,6 @@ public:
     void OnUpdate(float ts) override;
     void OnRender() override;
     void OnImGuiRender() override;
-    void OnEvent(Event& event) override;
 
 private:
     Entity player_entity_;

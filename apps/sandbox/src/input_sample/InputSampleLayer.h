@@ -1,10 +1,11 @@
 #pragma once
 #include "apps/sandbox/src/SampleUtilities.h"
 #include "engine/Layer.h"
-#include "engine/events/KeyEvent.h"
-#include "engine/events/MouseEvent.h"
+#include "engine/events/EventBus.h"
+#include "engine/events/Events.h"
 
 using namespace se;
+
 class InputSampleLayer : public se::Layer {
    public:
     InputSampleLayer();
@@ -14,12 +15,13 @@ class InputSampleLayer : public se::Layer {
     void OnUpdate(float ts) override;
     void OnRender() override;
     void OnImGuiRender() override;
-    void OnEvent(se::Event& event) override;
-    bool OnKeyPressedEvent(KeyPressedEvent& e);
-    bool OnMouseButtonPressed(MouseButtonPressedEvent& e);
 
     void UpdateCameraInput();
 
    private:
+    void OnKeyPressed(const KeyPressedEvent& e);
+    void OnMouseButtonPressed(const MouseButtonPressedEvent& e);
+
     Scope<Scene> scene_ = nullptr;
+    EventBus* event_bus_ = nullptr;
 };

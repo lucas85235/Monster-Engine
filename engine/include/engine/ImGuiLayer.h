@@ -15,7 +15,6 @@ class ImGuiLayer : public Layer {
     void OnDetach() override;
     void OnUpdate(float ts) override;
     void OnRender() override;
-    void OnEvent(Event& event) override;
 
     void Begin();  // Start new ImGui frame
     void End();    // Render ImGui draw data

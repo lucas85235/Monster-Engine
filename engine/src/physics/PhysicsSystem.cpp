@@ -143,6 +143,9 @@ void PhysicsSystem::Update(float dt) {
         transform_component.Rotation.x = glm::degrees(pitch);
         transform_component.Rotation.y = glm::degrees(yaw);
         transform_component.Rotation.z = glm::degrees(roll);
+        
+        // Invalidate cached transform matrix after physics update
+        transform_component.MarkDirty();
     }
 }
 

@@ -8,9 +8,8 @@
 #include "engine/Layer.h"
 #include "engine/Renderer.h"
 #include "engine/Window.h"
-#include "engine/events/ApplicationEvent.h"
 #include "engine/events/EventBus.h"
-#include "engine/events/NewApplicationEvents.h"
+#include "engine/events/Events.h"
 
 namespace se {
 
@@ -31,7 +30,6 @@ class Application {
    public:
     Application(const ApplicationSpecification& specification);
     ~Application();
-    void OnEvent(Event& event);
 
     int  Run();
     void Close();
@@ -53,34 +51,23 @@ class Application {
         layer_stack_.emplace_back(std::move(layer));
     }
 
-    Window& GetWindow() {
-        return *window_;
-    }
-    Renderer& GetRenderer() {
-        return *renderer_;
-    }
-
-    EventBus& GetEventBus() const {
-        return *event_bus_;
-    }
-
+    Window& GetWindow() { return *window_; }
+    Renderer& GetRenderer() { return *renderer_; }
+    EventBus& GetEventBus() { return *event_bus_; }
 
     static Application& Get();
 
-    float       GetTime();
-    static bool OnWindowResizeNew(const NewWindowResizeEvent& e);
-    bool        OnWindowMinimizeNew(const NewWindowMinimizeEvent& e);
-    bool        OnWindowCloseNew(const NewWindowCloseEvent& e);
+    float GetTime();
 
    private:
-    std::unique_ptr<Window>     window_;
-    std::unique_ptr<Renderer>   renderer_;
-    std::shared_ptr<ImGuiLayer> imguiLayer_;
-
-
+    // Event handlers for the new EventBus system
     bool OnWindowResize(const WindowResizeEvent& e);
     bool OnWindowMinimize(const WindowMinimizeEvent& e);
     bool OnWindowClose(const WindowCloseEvent& e);
+
+    std::unique_ptr<Window>     window_;
+    std::unique_ptr<Renderer>   renderer_;
+    std::shared_ptr<ImGuiLayer> imguiLayer_;
 
     ApplicationSpecification specification_;
 
@@ -92,9 +79,7 @@ class Application {
 
     static Application* s_Instance;
 
-    EventBus* event_bus_ = new EventBus();
-
-    std::vector<EventCallbackFn> event_callbacks_;
+    std::unique_ptr<EventBus> event_bus_ = std::make_unique<EventBus>();
 };
 
 }  // namespace se
