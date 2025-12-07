@@ -80,7 +80,9 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
                                     sceneData_.directional_light.Intensity > 0.0f;
 
         if (sceneData_.ShadowsEnabled) {
-            const Vector3 focusPoint = sceneData_.directional_light.Position;
+            // Shadow frustum follows camera position for consistent shadow coverage
+            Vector3 cameraPos = glm::inverse(sceneData_.ViewMatrix)[3];
+            const Vector3 focusPoint = Vector3(cameraPos.x, 0.0f, cameraPos.z);
             const Vector3 lightPos   = focusPoint - lightDir * sceneData_.ShadowDistance;
             Vector3       up         = Vector3(0.0f, 1.0f, 0.0f);
             if (glm::abs(glm::dot(up, lightDir)) > 0.95f) { up = Vector3(0.0f, 0.0f, 1.0f); }
@@ -138,19 +140,73 @@ SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() const {
     return sceneData_.directional_light;
 }
 
+void SceneRenderer::SetShadowMapSize(int width, int height) {
+    if (width <= 0 || height <= 0) {
+        SE_LOG_WARN("Invalid shadow map size: {}x{}, using default 1024x1024", width, height);
+        width = 1024;
+        height = 1024;
+    }
+    
+    if (sceneData_.ShadowMapSize.x != width || sceneData_.ShadowMapSize.y != height) {
+        sceneData_.ShadowMapSize = glm::ivec2(width, height);
+        if (initialized_) {
+            DestroyShadowResources();
+            InitializeShadowResources();
+        }
+    }
+}
+
+void SceneRenderer::SetShadowDistance(float distance) {
+    sceneData_.ShadowDistance = glm::max(distance, 1.0f);
+}
+
+void SceneRenderer::SetShadowOrthoSize(float size) {
+    sceneData_.ShadowOrthoSize = glm::max(size, 1.0f);
+}
+
+void SceneRenderer::SetAmbientStrength(float strength) {
+    sceneData_.AmbientStrength = glm::clamp(strength, 0.0f, 1.0f);
+}
+
 void SceneRenderer::InitializeShadowResources() {
+    SE_LOG_INFO("Creating shadow resources ({}x{})", 
+                sceneData_.ShadowMapSize.x, sceneData_.ShadowMapSize.y);
+    
     sceneData_.ShadowShader = std::make_shared<Shader>(kShadowVertexSource, kShadowFragmentSource);
+    if (!sceneData_.ShadowShader || sceneData_.ShadowShader->getID() == 0) {
+        SE_LOG_ERROR("Failed to create shadow shader");
+        return;
+    }
 
     glGenFramebuffers(1, &sceneData_.ShadowFramebuffer);
+    if (sceneData_.ShadowFramebuffer == 0) {
+        SE_LOG_ERROR("Failed to generate shadow framebuffer");
+        return;
+    }
+
     glGenTextures(1, &sceneData_.ShadowDepthTexture);
+    if (sceneData_.ShadowDepthTexture == 0) {
+        SE_LOG_ERROR("Failed to generate shadow depth texture");
+        glDeleteFramebuffers(1, &sceneData_.ShadowFramebuffer);
+        sceneData_.ShadowFramebuffer = 0;
+        return;
+    }
 
     glBindTexture(GL_TEXTURE_2D, sceneData_.ShadowDepthTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, sceneData_.ShadowMapSize.x, 
                  sceneData_.ShadowMapSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
+    GLenum texError = glGetError();
+    if (texError != GL_NO_ERROR) {
+        SE_LOG_ERROR("GL error creating shadow depth texture: 0x{:X}", texError);
+    }
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
     const float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
@@ -159,8 +215,19 @@ void SceneRenderer::InitializeShadowResources() {
                            sceneData_.ShadowDepthTexture, 0);
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
+    
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        SE_LOG_ERROR("Shadow framebuffer incomplete, status: 0x{:X}", status);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        DestroyShadowResources();
+        return;
+    }
+    
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    SE_LOG_INFO("Shadow resources created successfully");
 }
+
 
 void SceneRenderer::DestroyShadowResources() {
     if (sceneData_.ShadowDepthTexture) {

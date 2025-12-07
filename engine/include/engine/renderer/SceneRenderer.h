@@ -55,6 +55,11 @@ class SceneRenderer {
     void ClearDirectionalLight();
     DirectionalLightData GetDirectionalLight() const;
 
+    void SetShadowMapSize(int width, int height);
+    void SetShadowDistance(float distance);
+    void SetShadowOrthoSize(float size);
+    void SetAmbientStrength(float strength);
+
     RenderStats GetStats() const { return stats_; }
     void ResetStats() { stats_.Reset(); }
 

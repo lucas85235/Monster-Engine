@@ -75,7 +75,7 @@ void PhysicsSystem::PhysicsLoop() {
 
     using Clock = std::chrono::high_resolution_clock;
     auto last_time = Clock::now();
-    const float fixed_step = 1.0f / 60.0f;
+    const float fixed_step = 1.0f / 120.0f;
 
     while (running_) {
         auto current_time = Clock::now();
