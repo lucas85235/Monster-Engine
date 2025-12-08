@@ -168,6 +168,14 @@ void SceneRenderer::SetAmbientStrength(float strength) {
     sceneData_.AmbientStrength = glm::clamp(strength, 0.0f, 1.0f);
 }
 
+void SceneRenderer::SetAOStrength(float strength) {
+    sceneData_.AOStrength = glm::clamp(strength, 0.0f, 1.0f);
+}
+
+void SceneRenderer::SetAORadius(float radius) {
+    sceneData_.AORadius = glm::max(radius, 0.1f);
+}
+
 void SceneRenderer::InitializeShadowResources() {
     SE_LOG_INFO("Creating shadow resources ({}x{})", 
                 sceneData_.ShadowMapSize.x, sceneData_.ShadowMapSize.y);
@@ -304,6 +312,8 @@ void SceneRenderer::RenderScenePass() {
         shader->setFloat("uReceiveShadows", submission.ReceiveShadows ? 1.0f : 0.0f);
         shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && 
                          sceneData_.directional_light.Active ? 1.0f : 0.0f);
+        shader->setFloat("uAOStrength", sceneData_.AOStrength);
+        shader->setFloat("uAORadius", sceneData_.AORadius);
 
         RenderCommand::DrawIndexed(submission.vertex_array.get());
 

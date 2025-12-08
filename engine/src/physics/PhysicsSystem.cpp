@@ -75,7 +75,7 @@ void PhysicsSystem::PhysicsLoop() {
 
     using Clock = std::chrono::high_resolution_clock;
     auto last_time = Clock::now();
-    const float fixed_step = 1.0f / 120.0f;
+    const float fixed_step = 1.0f / 70.0f;
 
     while (running_) {
         auto current_time = Clock::now();
@@ -95,7 +95,7 @@ void PhysicsSystem::PhysicsLoop() {
             std::lock_guard<std::mutex> lock(physics_mutex_);
             if (dynamics_world_) {
                 auto start_physics = Clock::now();
-                dynamics_world_->stepSimulation(dt, 10, fixed_step);
+                dynamics_world_->stepSimulation(dt, 20, fixed_step);
                 auto end_physics = Clock::now();
                 std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
                 last_physics_execution_time_ = physics_duration.count();
@@ -286,6 +286,12 @@ void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
         }
     }
 
+    void PhysicsSystem::UpdateDebugDraw(float dt) {
+        if (debug_drawer_) {
+            debug_drawer_->UpdateTimedElements(dt);
+        }
+    }
+
     struct RaycastCallback : public btCollisionWorld::ClosestRayResultCallback {
         btCollisionObject* m_ignoredBody;
 
@@ -315,6 +321,28 @@ void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
         }
 
         return false;
+    }
+
+    btRigidBody* PhysicsSystem::RaycastHitBody(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody) {
+        std::lock_guard<std::mutex> lock(physics_mutex_);
+        if (!dynamics_world_) return nullptr;
+
+        btVector3 btStart(start.x, start.y, start.z);
+        btVector3 btEnd(end.x, end.y, end.z);
+
+        RaycastCallback rayCallback(btStart, btEnd, ignoredBody);
+        dynamics_world_->rayTest(btStart, btEnd, rayCallback);
+
+        if (rayCallback.hasHit()) {
+            hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(), rayCallback.m_hitPointWorld.y(), rayCallback.m_hitPointWorld.z());
+            
+            const btCollisionObject* hitObj = rayCallback.m_collisionObject;
+            if (hitObj) {
+                return const_cast<btRigidBody*>(btRigidBody::upcast(hitObj));
+            }
+        }
+
+        return nullptr;
     }
 
 } // namespace se

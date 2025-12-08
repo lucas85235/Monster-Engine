@@ -58,6 +58,11 @@ int PhysicsDebugDraw::getDebugMode() const {
 }
 
 void PhysicsDebugDraw::Flush(const Camera& camera) {
+    // Add timed lines to the render list
+    for (const auto& timedLine : timedLines_) {
+        lines_.push_back({timedLine.From, timedLine.To, timedLine.Color});
+    }
+
     if (lines_.empty()) { return; }
 
     std::vector<float> vertices;
@@ -100,6 +105,55 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         shader_->unbind();
     }
     lines_.clear();
+}
+
+void PhysicsDebugDraw::DrawDebugLine(const Vector3& from, const Vector3& to, const Vector3& color, float duration) {
+    timedLines_.push_back({from, to, color, duration});
+}
+
+void PhysicsDebugDraw::DrawDebugSphere(const Vector3& center, float radius, const Vector3& color, float duration, int segments) {
+    const float pi = 3.14159265359f;
+    
+    // Draw circles in XY, XZ, and YZ planes
+    for (int i = 0; i < segments; ++i) {
+        float angle1 = (float)i / segments * 2.0f * pi;
+        float angle2 = (float)(i + 1) / segments * 2.0f * pi;
+        
+        // XZ circle (horizontal)
+        Vector3 p1 = center + Vector3(cos(angle1) * radius, 0, sin(angle1) * radius);
+        Vector3 p2 = center + Vector3(cos(angle2) * radius, 0, sin(angle2) * radius);
+        timedLines_.push_back({p1, p2, color, duration});
+        
+        // XY circle (vertical front)
+        p1 = center + Vector3(cos(angle1) * radius, sin(angle1) * radius, 0);
+        p2 = center + Vector3(cos(angle2) * radius, sin(angle2) * radius, 0);
+        timedLines_.push_back({p1, p2, color, duration});
+        
+        // YZ circle (vertical side)
+        p1 = center + Vector3(0, sin(angle1) * radius, cos(angle1) * radius);
+        p2 = center + Vector3(0, sin(angle2) * radius, cos(angle2) * radius);
+        timedLines_.push_back({p1, p2, color, duration});
+    }
+}
+
+void PhysicsDebugDraw::DrawDebugPoint(const Vector3& point, float size, const Vector3& color, float duration) {
+    float half = size * 0.5f;
+    // Draw a cross at the point
+    timedLines_.push_back({point - Vector3(half, 0, 0), point + Vector3(half, 0, 0), color, duration});
+    timedLines_.push_back({point - Vector3(0, half, 0), point + Vector3(0, half, 0), color, duration});
+    timedLines_.push_back({point - Vector3(0, 0, half), point + Vector3(0, 0, half), color, duration});
+}
+
+void PhysicsDebugDraw::UpdateTimedElements(float deltaTime) {
+    // Remove expired timed lines
+    timedLines_.erase(
+        std::remove_if(timedLines_.begin(), timedLines_.end(),
+            [deltaTime](TimedDebugLine& line) {
+                line.RemainingTime -= deltaTime;
+                return line.RemainingTime <= 0.0f;
+            }),
+        timedLines_.end()
+    );
 }
 
 } // namespace se

@@ -59,6 +59,8 @@ class SceneRenderer {
     void SetShadowDistance(float distance);
     void SetShadowOrthoSize(float size);
     void SetAmbientStrength(float strength);
+    void SetAOStrength(float strength);
+    void SetAORadius(float radius);
 
     RenderStats GetStats() const { return stats_; }
     void ResetStats() { stats_.Reset(); }
@@ -85,6 +87,8 @@ class SceneRenderer {
         float                ShadowDistance  = 100.0f;
         float                ShadowOrthoSize = 10.0f;
         float                AmbientStrength = 0.2f;
+        float                AOStrength      = 0.5f;   // Ambient Occlusion intensity
+        float                AORadius        = 1.0f;   // AO sampling radius
         bool                 ShadowsEnabled  = true;
         std::vector<Submission> Submissions;
     };

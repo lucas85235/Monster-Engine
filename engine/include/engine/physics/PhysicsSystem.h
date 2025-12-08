@@ -39,8 +39,15 @@ public:
 
     // Raycast
     bool Raycast(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody = nullptr);
+    
+    // Raycast that also returns the hit rigidbody (for grabbing objects)
+    btRigidBody* RaycastHitBody(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody = nullptr);
 
     btDiscreteDynamicsWorld* GetDynamicsWorld() { return dynamics_world_; }
+    PhysicsDebugDraw* GetDebugDrawer() { return debug_drawer_; }
+    
+    // Update debug drawing (call from main thread after Update)
+    void UpdateDebugDraw(float dt);
     
     // Thread-safe access to lock the world if needed manually
     std::mutex& GetMutex() { return physics_mutex_; }

@@ -6,14 +6,17 @@
 #include <engine/input/InputManager.h>
 #include <engine/resources/MeshManager.h>
 #include <imgui.h>
+#include <btBulletDynamicsCommon.h>
 
 #include <gtc/matrix_transform.hpp>
 
 #include "MathUtils.h"
 #include "SampleUtilities.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/RigidbodyComponent.h"
 #include "engine/physics/BoxCollider.h"
+
 
 ThirdPersonLayer::ThirdPersonLayer() : Layer("ThirdPersonLayer"), camera_(glm::vec3(0.0f, 5.0f, 10.0f)) {}
 
@@ -32,6 +35,8 @@ void ThirdPersonLayer::OnAttach() {
     input.BindAxis("MoveRight", Key::D, 1.0f);
     input.BindAxis("MoveRight", Key::A, -1.0f);
     input.BindAction("Jump", Key::Space);
+    input.BindAction("Grab", Key::E);
+    input.BindAction("ToggleMouse", Key::Tab);
     input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
     input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
 
@@ -39,7 +44,7 @@ void ThirdPersonLayer::OnAttach() {
     auto& app    = Application::Get();
     auto* window = app.GetWindow().GetNativeWindow();
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
+    mouseCaptured_ = true;
 }
 
 void ThirdPersonLayer::OnDetach() {
@@ -49,7 +54,7 @@ void ThirdPersonLayer::OnDetach() {
 void ThirdPersonLayer::CreateScene() {
     scene_ = CreateScope<Scene>("Third Person Scene");
 
-    // Create floor
+    // Create floor and walls
     {
         floor_entity_ = scene_->CreateEntity("Floor");
         auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
@@ -61,6 +66,34 @@ void ThirdPersonLayer::CreateScene() {
 
         RigidbodyData data = RigidbodyData{.mass = 0.0f, .gravityScale = 1.0f};
         floor_entity_.AddComponent<RigidbodyComponent>(data, floor_entity_);
+
+        // Create walls - data-driven approach
+        struct WallDef {
+            const char* name;
+            glm::vec3 position;
+            glm::vec3 scale;
+        };
+
+        const WallDef wallDefinitions[] = {
+            {"Wall_North", {0.0f, 25.0f, 25.0f}, {50.0f, 50.0f, 1.0f}},
+            {"Wall_South", {0.0f, 25.0f, -25.0f}, {50.0f, 50.0f, 1.0f}},
+            {"Wall_East", {25.0f, 25.0f, 0.0f}, {1.0f, 50.0f, 50.0f}},
+            {"Wall_West", {-25.0f, 25.0f, 0.0f}, {1.0f, 50.0f, 50.0f}},
+        };
+
+        walls_.reserve(std::size(wallDefinitions));
+
+        for (const auto& def : wallDefinitions) {
+            auto wall = scene_->CreateEntity(def.name);
+            wall.AddComponent<MeshRenderComponent>(mesh, material_);
+
+            auto& wallTransform = wall.GetComponent<TransformComponent>();
+            wallTransform.SetPosition(def.position);
+            wallTransform.SetScale(def.scale);
+
+            wall.AddComponent<RigidbodyComponent>(data, wall);
+            walls_.emplace_back(wall);
+        }
     }
 
     // Create player capsule
@@ -129,6 +162,7 @@ void ThirdPersonLayer::CreateScene() {
 
 void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
+    UpdateGrabSystem(ts);
     scene_->OnUpdate(ts);
     UpdateCamera();
 }
@@ -237,11 +271,25 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
     if (input.IsMouseButtonDown(0)) { // Left Mouse Button
         Shoot();
     }
+
+    // Toggle mouse capture with Tab
+    if (input.IsActionJustPressed("ToggleMouse")) {
+        auto& app = Application::Get();
+        auto* window = app.GetWindow().GetNativeWindow();
+        mouseCaptured_ = !mouseCaptured_;
+        glfwSetInputMode(window, GLFW_CURSOR, mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
+    }
+
+    // Grab/Release with E
+    if (input.IsActionJustPressed("Grab")) {
+        TryGrabOrRelease();
+    }
 }
 
 void ThirdPersonLayer::Shoot() {
     float time = (float)glfwGetTime();
-    if (time - lastShootTime_ < 0.2f) return; // 0.2s cooldown
+    if (time - lastShootTime_ < 0.0f) return; // 0.2s cooldown
     lastShootTime_ = time;
 
     // Get camera forward
@@ -254,13 +302,13 @@ void ThirdPersonLayer::Shoot() {
     forward = glm::normalize(forward);
 
     // Spawn position
-    glm::vec3 spawnPos = camera_.GetPosition() + forward * 2.0f;
+    glm::vec3 spawnPos = camera_.GetPosition() + forward * 10.0f;
 
     // Create Entity
     auto box = scene_->CreateEntity("BulletBox");
     auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
     box.AddComponent<MeshRenderComponent>(mesh, material_);
-    box.AddComponent<BoxCollider>(glm::vec3(0.5f)); 
+    box.AddComponent<BoxCollider>(glm::vec3(1.0f)); 
     
     box.GetComponent<TransformComponent>().SetPosition(spawnPos);
     box.GetComponent<TransformComponent>().SetScale(glm::vec3(0.5f));
@@ -283,7 +331,6 @@ void ThirdPersonLayer::UpdateCamera() {
     auto& springArm   = playerEntity_.GetComponent<SpringArmComponent>();
     auto& playerTrans = playerEntity_.GetComponent<TransformComponent>();
 
-    // Update spring arm rotation from mouse input
     float mouseX = input.GetAxis("CameraRotateX");
     float mouseY = input.GetAxis("CameraRotateY");
 
@@ -291,38 +338,173 @@ void ThirdPersonLayer::UpdateCamera() {
     springArm.Pitch -= mouseY * 0.1f;
     springArm.Pitch = glm::clamp(springArm.Pitch, springArm.MinPitch, springArm.MaxPitch);
 
-    // Calculate camera position using spherical coordinates
-    float yawRad   = springArm.Yaw * 0.0174533f;
-    float pitchRad = springArm.Pitch * 0.0174533f;
+    float yawRad   = glm::radians(springArm.Yaw);
+    float pitchRad = glm::radians(springArm.Pitch);
 
     float sinYaw   = std::sin(yawRad);
     float cosYaw   = std::cos(yawRad);
     float sinPitch = std::sin(pitchRad);
     float cosPitch = std::cos(pitchRad);
 
-    glm::vec3 camOffset;
-    camOffset.x = springArm.TargetArmLength * cosPitch * sinYaw;
-    camOffset.y = springArm.TargetArmLength * sinPitch;
-    camOffset.z = springArm.TargetArmLength * cosPitch * cosYaw;
+    glm::vec3 direction;
+    direction.x = cosPitch * sinYaw;
+    direction.y = sinPitch;
+    direction.z = cosPitch * cosYaw;
 
     glm::vec3 targetPos = playerTrans.Position + springArm.SocketOffset;
-    glm::vec3 camPos    = targetPos + camOffset;
+    
+    float desiredArmLength = springArm.TargetArmLength;
+
+    if (springArm.DoCollisionTest && scene_->GetPhysicsSystem()) {
+        btRigidBody* playerBody = nullptr;
+        if (playerEntity_.HasComponent<RigidbodyComponent>()) {
+            playerBody = playerEntity_.GetComponent<RigidbodyComponent>().GetRigidbody();
+        }
+
+        glm::vec3 rayStart = targetPos;
+        glm::vec3 rayEnd   = targetPos + direction * (springArm.TargetArmLength + springArm.ProbeSize);
+        glm::vec3 hitPoint, hitNormal;
+
+        bool hit = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, playerBody);
+
+        if (hit) {
+            float hitDistance = glm::length(hitPoint - rayStart) - springArm.ProbeSize;
+            desiredArmLength = glm::max(hitDistance, 0.5f);
+        }
+    }
+
+    float lerpSpeed = (desiredArmLength < springArm.CurrentArmLength) ? 15.0f : 5.0f;
+    springArm.CurrentArmLength = glm::mix(springArm.CurrentArmLength, desiredArmLength, glm::clamp(lerpSpeed * (1.0f / 60.0f), 0.0f, 1.0f));
+
+    glm::vec3 camPos = targetPos + direction * springArm.CurrentArmLength;
 
     camera_.SetPosition(camPos);
+    camera_.SetYaw(-springArm.Yaw - 90.0f);
+    camera_.SetPitch(-springArm.Pitch);
+}
 
-    // Set camera rotation to look at target
-    float camYaw   = -springArm.Yaw - 90.0f;
-    float camPitch = -springArm.Pitch;
+void ThirdPersonLayer::TryGrabOrRelease() {
+    if (grabbedBody_) {
+        // Release the object
+        grabbedBody_->setGravity(btVector3(savedGravity_.x, savedGravity_.y, savedGravity_.z));
+        grabbedBody_->setLinearVelocity(btVector3(0, 0, 0));
+        grabbedBody_->activate();
+        SE_LOG_INFO("Released grabbed object");
+        grabbedBody_ = nullptr;
+        return;
+    }
 
-    camera_.SetYaw(camYaw);
-    camera_.SetPitch(camPitch);
+    // Try to grab an object with raycast
+    auto& rb = playerEntity_.GetComponent<RigidbodyComponent>();
+    
+    // Get camera forward direction
+    float yawRad = glm::radians(camera_.GetYaw());
+    float pitchRad = glm::radians(camera_.GetPitch());
+    glm::vec3 forward;
+    forward.x = cos(yawRad) * cos(pitchRad);
+    forward.y = sin(pitchRad);
+    forward.z = sin(yawRad) * cos(pitchRad);
+    forward = glm::normalize(forward);
+
+    glm::vec3 rayStart = camera_.GetPosition();
+    glm::vec3 rayEnd = rayStart + forward * grabMaxDistance_;
+    glm::vec3 hitPoint;
+
+    btRigidBody* hitBody = scene_->GetPhysicsSystem()->RaycastHitBody(rayStart, rayEnd, hitPoint, rb.GetRigidbody());
+
+    // Debug visualization - draw raycast line and hit point for 10 seconds
+    auto* debugDraw = scene_->GetPhysicsSystem()->GetDebugDrawer();
+    if (debugDraw) {
+        if (hitBody) {
+            // Green line to hit point
+            debugDraw->DrawDebugLine(rayStart, hitPoint, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
+            // Green sphere at hit point
+            debugDraw->DrawDebugSphere(hitPoint, 0.2f, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
+        } else {
+            // Red line to end of raycast (no hit)
+            debugDraw->DrawDebugLine(rayStart, rayEnd, glm::vec3(1.0f, 0.0f, 0.0f), 10.0f);
+        }
+    }
+
+    if (hitBody && hitBody->getMass() > 0.0f) {
+        // Don't grab static objects or the player
+        if (hitBody == rb.GetRigidbody()) return;
+        
+        grabbedBody_ = hitBody;
+        
+        // Save and disable gravity
+        btVector3 grav = grabbedBody_->getGravity();
+        savedGravity_ = glm::vec3(grav.x(), grav.y(), grav.z());
+        grabbedBody_->setGravity(btVector3(0, 0, 0));
+        grabbedBody_->setActivationState(DISABLE_DEACTIVATION);
+        
+        // Calculate initial grab distance
+        grabDistance_ = glm::length(hitPoint - rayStart);
+        grabDistance_ = glm::clamp(grabDistance_, 2.0f, grabMaxDistance_);
+        
+        SE_LOG_INFO("Grabbed object at distance {:.2f}", grabDistance_);
+    }
+}
+
+void ThirdPersonLayer::UpdateGrabSystem(float ts) {
+    if (!grabbedBody_) return;
+
+    // Get camera forward direction
+    float yawRad = glm::radians(camera_.GetYaw());
+    float pitchRad = glm::radians(camera_.GetPitch());
+    glm::vec3 forward;
+    forward.x = cos(yawRad) * cos(pitchRad);
+    forward.y = sin(pitchRad);
+    forward.z = sin(yawRad) * cos(pitchRad);
+    forward = glm::normalize(forward);
+
+    // Target position in front of camera
+    glm::vec3 targetPos = camera_.GetPosition() + forward * grabDistance_;
+
+    // Get current object position
+    btTransform transform;
+    grabbedBody_->getMotionState()->getWorldTransform(transform);
+    btVector3 currentPos = transform.getOrigin();
+    glm::vec3 objPos(currentPos.x(), currentPos.y(), currentPos.z());
+
+    // Calculate velocity to move towards target (spring-like behavior)
+    glm::vec3 delta = targetPos - objPos;
+    float distance = glm::length(delta);
+    
+    // If object is too far, drop it
+    if (distance > grabMaxDistance_ * 1.5f) {
+        grabbedBody_->setGravity(btVector3(savedGravity_.x, savedGravity_.y, savedGravity_.z));
+        grabbedBody_->activate();
+        SE_LOG_INFO("Object dropped (too far)");
+        grabbedBody_ = nullptr;
+        return;
+    }
+
+    // Apply velocity towards target position
+    float grabStrength = 15.0f;
+    glm::vec3 velocity = delta * grabStrength;
+    
+    // Dampen existing velocity for smooth movement
+    btVector3 currentVel = grabbedBody_->getLinearVelocity();
+    glm::vec3 dampedVel = glm::vec3(currentVel.x(), currentVel.y(), currentVel.z()) * 0.5f;
+    velocity = velocity + dampedVel * 0.1f;
+    
+    grabbedBody_->setLinearVelocity(btVector3(velocity.x, velocity.y, velocity.z));
+    
+    // Dampen angular velocity
+    grabbedBody_->setAngularVelocity(grabbedBody_->getAngularVelocity() * 0.9f);
 }
 
 void ThirdPersonLayer::OnRender() {
     auto& window      = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
     scene_->OnRender(camera_, aspectRatio);
-    // Application::Get().GetPhysicsManager().RenderDebug(camera_);
+    
+    // Update and render debug drawing
+    if (scene_->GetPhysicsSystem()) {
+        scene_->GetPhysicsSystem()->UpdateDebugDraw(1.0f / 60.0f); // Approximate dt
+        scene_->GetPhysicsSystem()->RenderDebug(camera_);
+    }
 }
 
 void ThirdPersonLayer::OnImGuiRender() {

@@ -152,15 +152,20 @@ struct DirectionalLightComponent {
 
 // ==================== Spring Arm Component ====================
 struct SpringArmComponent {
-    float   TargetArmLength        = 5.0f;
-    Vector3 SocketOffset           = {0.0f, 0.0f, 0.0f};
-    bool    UsePawnControlRotation = true;
+    float   TargetArmLength = 5.0f;
+    Vector3 SocketOffset    = {0.0f, 0.0f, 0.0f};
 
     float Pitch = -20.0f;
     float Yaw   = 0.0f;
 
     float MinPitch = -80.0f;
     float MaxPitch = 80.0f;
+
+    bool  DoCollisionTest = true;
+    float ProbeSize       = 0.12f;
+    float CollisionLag    = 0.0f;
+
+    mutable float CurrentArmLength = 5.0f;
 
     SpringArmComponent() = default;
     SpringArmComponent(const SpringArmComponent&) = default;

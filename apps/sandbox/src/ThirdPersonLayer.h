@@ -7,6 +7,8 @@
 #include <engine/ecs/Entity.h>
 #include <glm.hpp>
 
+class btRigidBody;
+
 using namespace se;
 
 class ThirdPersonLayer : public Layer {
@@ -34,6 +36,8 @@ private:
     void UpdatePlayer(float ts);
     void UpdateCamera();
     void Shoot();
+    void UpdateGrabSystem(float ts);
+    void TryGrabOrRelease();
 
     std::shared_ptr<Scene> scene_;
     std::shared_ptr<Material> material_;
@@ -43,6 +47,7 @@ private:
     Entity playerEntity_;
     Entity cube_entity_;
     Entity floor_entity_;
+    std::vector<Entity> walls_;
     glm::vec3 playerVelocity_{0.0f};
     bool isGrounded_ = false;
     
@@ -56,4 +61,13 @@ private:
     float cameraDistance_ = 10.0f;
     float cameraHeight_ = 5.0f;
     float cameraAngle_ = 0.0f;
+
+    // Grab system (Half-Life style)
+    btRigidBody* grabbedBody_ = nullptr;
+    float grabDistance_ = 100.0f;
+    float grabMaxDistance_ = 30.0f;
+    glm::vec3 savedGravity_{0.0f};
+    
+    // Mouse toggle
+    bool mouseCaptured_ = true;
 };
