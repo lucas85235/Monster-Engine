@@ -9,8 +9,7 @@ namespace se {
 PhysicsDebugDraw::PhysicsDebugDraw() {
     debug_mode_ = DBG_DrawWireframe;
 
-    const std::string vertexSrc = R"(
-        #version 330 core
+    const std::string vertexSrc = R"(#version 330 core
         layout (location = 0) in vec3 a_Position;
         uniform mat4 u_ViewProjection;
         void main() {
@@ -18,8 +17,7 @@ PhysicsDebugDraw::PhysicsDebugDraw() {
         }
     )";
 
-    const std::string fragmentSrc = R"(
-        #version 330 core
+    const std::string fragmentSrc = R"(#version 330 core
         out vec4 FragColor;
         void main() {
             FragColor = vec4(0.0, 1.0, 0.0, 1.0);
@@ -32,6 +30,7 @@ PhysicsDebugDraw::PhysicsDebugDraw() {
 PhysicsDebugDraw::~PhysicsDebugDraw() {}
 
 void PhysicsDebugDraw::drawLine(const btVector3& from, const btVector3& to, const btVector3& color) {
+    std::lock_guard<std::mutex> lock(mutex_);
     lines_.push_back({
         Vector3(from.x(), from.y(), from.z()),
         Vector3(to.x(), to.y(), to.z()),
@@ -56,13 +55,16 @@ void PhysicsDebugDraw::setDebugMode(int debugMode) {
 int PhysicsDebugDraw::getDebugMode() const {
     return debug_mode_;
 }
-
 void PhysicsDebugDraw::Flush(const Camera& camera) {
-    // Add timed lines to the render list
     for (const auto& timedLine : timedLines_) {
-        lines_.push_back({timedLine.From, timedLine.To, timedLine.Color});
+        // Just add them, we will lock later or Lock here? 
+        // timedLines is main thread only.
+        drawLine(btVector3(timedLine.From.x, timedLine.From.y, timedLine.From.z),
+                 btVector3(timedLine.To.x, timedLine.To.y, timedLine.To.z),
+                 btVector3(timedLine.Color.x, timedLine.Color.y, timedLine.Color.z));
     }
 
+    std::lock_guard<std::mutex> lock(mutex_);
     if (lines_.empty()) { return; }
 
     std::vector<float> vertices;

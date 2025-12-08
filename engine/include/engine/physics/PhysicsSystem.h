@@ -6,6 +6,7 @@
 #include <vector>
 #include <queue>
 #include <functional>
+#include <memory>
 
 #include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h>
 #include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
@@ -13,6 +14,9 @@
 
 #include "engine/ecs/Entity.h"
 #include "engine/Camera.h"
+
+class btConstraintSolverPoolMt;
+class btITaskScheduler;
 
 namespace se {
 
@@ -58,11 +62,17 @@ private:
     Scene* scene_;
     
     // Bullet Physics
+    // Using btDiscreteDynamicsWorldMt for multithreading
     btDiscreteDynamicsWorld*             dynamics_world_ = nullptr;
     btDefaultCollisionConfiguration*     collision_configuration_ = nullptr;
     btCollisionDispatcher*               dispatcher_ = nullptr;
     btBroadphaseInterface*               overlapping_pair_cache_broadphase_interface_ = nullptr;
     btSequentialImpulseConstraintSolver* solver_ = nullptr;
+    
+    // MT specific
+    btConstraintSolverPoolMt*            solver_pool_ = nullptr;
+    btITaskScheduler*                    task_scheduler_ = nullptr;
+
     PhysicsDebugDraw*                    debug_drawer_ = nullptr;
 
     // Threading
@@ -76,9 +86,19 @@ public:
     float GetLastPhysicsExecutionTime() const { return last_physics_execution_time_; }
 
 private:
-    
-    // Command Queue for deferred operations if needed (currently using mutex for immediate access)
-    // std::queue<std::function<void()>> command_queue_;
+    void ProcessPendingCommands();
+    void RemoveBodyInternal(btRigidBody* body);
+
+    // Deferred command queue for thread-safe body operations
+    struct PendingAddBody {
+        Entity entity;
+        btRigidBody* body;
+        uint16_t collision_group;
+        uint16_t collision_mask;
+    };
+    std::queue<PendingAddBody> pending_add_bodies_;
+    std::queue<btRigidBody*> pending_remove_bodies_;
+    std::mutex command_queue_mutex_;
 
     struct BodyEntry {
         Entity entity;

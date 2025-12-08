@@ -1,5 +1,10 @@
 #include "engine/physics/PhysicsSystem.h"
 
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h>
+#include <BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h>
+#include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
+#include <LinearMath/btThreads.h>
+
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/BoxCollider.h"
@@ -8,6 +13,7 @@
 #include "engine/Log.h"
 
 #include <chrono>
+#include <algorithm>
 
 namespace se {
 
@@ -18,15 +24,37 @@ PhysicsSystem::~PhysicsSystem() {
     Shutdown();
 }
 
+
 void PhysicsSystem::Initialize() {
-    SE_LOG_INFO("Initializing PhysicsSystem...");
+    SE_LOG_INFO("Initializing PhysicsSystem (Multi-Threaded)...");
+
+    // Init Task Scheduler
+    task_scheduler_ = btCreateDefaultTaskScheduler();
+    btSetTaskScheduler(task_scheduler_);
 
     // Bullet Init
-    collision_configuration_ = new btDefaultCollisionConfiguration();
-    dispatcher_ = new btCollisionDispatcher(collision_configuration_);
+    btDefaultCollisionConstructionInfo cci;
+    // [FIX] Increased pool sizes significantly to 1,048,576 (1M) to handle very high object counts
+    cci.m_defaultMaxPersistentManifoldPoolSize = 1048576;
+    cci.m_defaultMaxCollisionAlgorithmPoolSize = 1048576;
+    collision_configuration_ = new btDefaultCollisionConfiguration(cci);
+    
+    // Use MT Dispatcher
+    dispatcher_ = new btCollisionDispatcherMt(collision_configuration_);
     overlapping_pair_cache_broadphase_interface_ = new btDbvtBroadphase();
-    solver_ = new btSequentialImpulseConstraintSolver;
-    dynamics_world_ = new btDiscreteDynamicsWorld(dispatcher_, overlapping_pair_cache_broadphase_interface_, solver_, collision_configuration_);
+    
+    // Create Solver Pool
+    solver_pool_ = new btConstraintSolverPoolMt(task_scheduler_->getMaxNumThreads());
+    
+    // Create MT World
+    // Pass nullptr for the single-threaded fallback solver to avoid race conditions
+    dynamics_world_ = new btDiscreteDynamicsWorldMt(
+        (btDispatcher*)dispatcher_, 
+        overlapping_pair_cache_broadphase_interface_, 
+        solver_pool_, 
+        (btConstraintSolver*)nullptr, 
+        (btCollisionConfiguration*)collision_configuration_
+    );
 
     dynamics_world_->setGravity(btVector3(0.0f, -9.81f, 0.0f));
 
@@ -38,6 +66,9 @@ void PhysicsSystem::Initialize() {
     physics_thread_ = std::thread(&PhysicsSystem::PhysicsLoop, this);
 }
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// [MODIFIED] Shutdown: Clean up solver and recursively delete shapes.
+// -----------------------------------------------------------------------------------------------------------------------------
 void PhysicsSystem::Shutdown() {
     if (running_) {
         running_ = false;
@@ -53,18 +84,37 @@ void PhysicsSystem::Shutdown() {
             if (entry.body) {
                 dynamics_world_->removeRigidBody(entry.body);
                 delete entry.body->getMotionState();
-                delete entry.body->getCollisionShape(); // Note: Compound shapes might need recursive delete if not managed
+                
+                // [FIX] Recursively delete shapes to avoid memory leaks
+                btCollisionShape* shape = entry.body->getCollisionShape();
+                if (shape) {
+                    if (shape->isCompound()) {
+                        btCompoundShape* compound = static_cast<btCompoundShape*>(shape);
+                        int childCount = compound->getNumChildShapes();
+                        for (int i = childCount - 1; i >= 0; i--) {
+                            btCollisionShape* child = compound->getChildShape(i);
+                            delete child;
+                        }
+                    }
+                    delete shape;
+                }
+                
                 delete entry.body;
             }
         }
         bodies_.clear();
 
         delete dynamics_world_;
-        delete solver_;
+        // solver_ is nullptr in MT setup, delete the pool instead
+        delete solver_pool_;
         delete overlapping_pair_cache_broadphase_interface_;
         delete dispatcher_;
         delete collision_configuration_;
         delete debug_drawer_;
+        
+        // Cleanup Scheduler
+        btSetTaskScheduler(nullptr);
+        delete task_scheduler_;
 
         dynamics_world_ = nullptr;
     }
@@ -75,40 +125,61 @@ void PhysicsSystem::PhysicsLoop() {
 
     using Clock = std::chrono::high_resolution_clock;
     auto last_time = Clock::now();
-    const float fixed_step = 1.0f / 70.0f;
+    const float fixed_step = 1.0f / 60.0f;
 
     while (running_) {
         auto current_time = Clock::now();
         std::chrono::duration<float> delta = current_time - last_time;
         last_time = current_time;
 
-        // Simple fixed step loop
-        // In a real engine, we might want to accumulate time or sleep to save CPU
-        // For now, we just step if enough time passed, or sleep briefly
-        
         float dt = delta.count();
-        
-        // Clamp dt to avoid spiral of death
         if (dt > 0.1f) dt = 0.1f;
 
         {
             std::lock_guard<std::mutex> lock(physics_mutex_);
             if (dynamics_world_) {
+                // Process queued add/remove operations before simulation step
+                ProcessPendingCommands();
+                
                 auto start_physics = Clock::now();
-                dynamics_world_->stepSimulation(dt, 20, fixed_step);
+                dynamics_world_->stepSimulation(dt, 4, fixed_step);
                 auto end_physics = Clock::now();
                 std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
                 last_physics_execution_time_ = physics_duration.count();
             }
         }
 
-        // Sleep a bit to target ~60Hz if we are running too fast
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     
     SE_LOG_INFO("Physics Thread Stopped");
 }
 
+void PhysicsSystem::ProcessPendingCommands() {
+    std::lock_guard<std::mutex> lock(command_queue_mutex_);
+    
+    // Process removals first
+    while (!pending_remove_bodies_.empty()) {
+        btRigidBody* body = pending_remove_bodies_.front();
+        pending_remove_bodies_.pop();
+        RemoveBodyInternal(body);
+    }
+    
+    // Process additions
+    while (!pending_add_bodies_.empty()) {
+        auto& pending = pending_add_bodies_.front();
+        
+        // Actually add the body to the dynamics world now (safe, on physics thread)
+        dynamics_world_->addRigidBody(pending.body, pending.collision_group, pending.collision_mask);
+        bodies_.push_back({pending.entity, pending.body});
+        
+        pending_add_bodies_.pop();
+    }
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------
+// Update(float dt) remains unchanged ...
+// -----------------------------------------------------------------------------------------------------------------------------
 void PhysicsSystem::Update(float dt) {
     // Sync Transforms from Physics to ECS
     std::lock_guard<std::mutex> lock(physics_mutex_);
@@ -148,6 +219,9 @@ void PhysicsSystem::Update(float dt) {
         transform_component.MarkDirty();
     }
 }
+
+
+// ... AddRigidBody remains mostly same, returning to RemoveRigidBody ...
 
 btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& data) {
     std::lock_guard<std::mutex> lock(physics_mutex_);
@@ -248,19 +322,31 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
 
     rigid_body->setGravity(btVector3(0.0f, -9.81f * data.gravityScale, 0.0f));
 
-    dynamics_world_->addRigidBody(rigid_body, collision_group, collision_mask);
-    
-    bodies_.push_back({entity, rigid_body});
+    // Queue the body for addition on the physics thread
+    {
+        std::lock_guard<std::mutex> lock(command_queue_mutex_);
+        pending_add_bodies_.push({entity, rigid_body, collision_group, collision_mask});
+    }
 
-    SE_LOG_INFO("Added rigidbody: mass={}, type={}, friction={}", 
+    SE_LOG_INFO("Queued rigidbody for add: mass={}, type={}, friction={}", 
                 mass, static_cast<int>(data.type), data.material.Friction);
 
     return rigid_body;
 }
 
-
+// -----------------------------------------------------------------------------------------------------------------------------
+// [MODIFIED] RemoveRigidBody: Cleanup shapes recursively.
+// -----------------------------------------------------------------------------------------------------------------------------
 void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
-    std::lock_guard<std::mutex> lock(physics_mutex_);
+    if (!body) return;
+    
+    std::lock_guard<std::mutex> lock(command_queue_mutex_);
+    pending_remove_bodies_.push(body);
+    SE_LOG_INFO("Queued rigidbody for removal");
+}
+
+void PhysicsSystem::RemoveBodyInternal(btRigidBody* body) {
+    // Called from physics thread inside ProcessPendingCommands with physics_mutex_ already held
     if (!dynamics_world_ || !body) return;
 
     dynamics_world_->removeRigidBody(body);
@@ -274,7 +360,20 @@ void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
     }
 
     delete body->getMotionState();
-    delete body->getCollisionShape();
+    
+    btCollisionShape* shape = body->getCollisionShape();
+    if (shape) {
+        if (shape->isCompound()) {
+            btCompoundShape* compound = static_cast<btCompoundShape*>(shape);
+            int childCount = compound->getNumChildShapes();
+            for (int i = childCount - 1; i >= 0; i--) {
+                btCollisionShape* child = compound->getChildShape(i);
+                delete child;
+            }
+        }
+        delete shape;
+    }
+
     delete body;
 }
 

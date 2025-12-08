@@ -53,6 +53,8 @@ private:
     
     std::shared_ptr<VertexArray> vertex_array_;
     std::shared_ptr<VertexBuffer> vertex_buffer_;
+    
+    std::mutex mutex_;
 };
 
 } // namespace se
