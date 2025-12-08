@@ -129,6 +129,7 @@ struct NameComponent {
 struct MeshRenderComponent {
     std::shared_ptr<VertexArray> VertexArray;
     std::shared_ptr<Material>    Material;
+    Vector4                      Color{1.0f, 1.0f, 1.0f, 1.0f};  // Per-instance color
     bool                         IsVisible      = true;
     bool                         CastShadows    = true;
     bool                         ReceiveShadows = true;
@@ -137,6 +138,8 @@ struct MeshRenderComponent {
     MeshRenderComponent(const MeshRenderComponent&) = default;
     MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat) 
         : VertexArray(va), Material(mat) {}
+    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat, const Vector4& color) 
+        : VertexArray(va), Material(mat), Color(color) {}
 };
 
 // ==================== Directional Light Component ====================

@@ -9,6 +9,7 @@
 #include "engine/renderer/Material.h"
 #include "engine/renderer/VertexArray.h"
 #include "engine/renderer/OcclusionCuller.h"
+#include "engine/renderer/InstancedMesh.h"
 
 namespace se {
 
@@ -19,6 +20,8 @@ struct RenderStats {
     uint32_t FrustumCulled   = 0;
     uint32_t OcclusionCulled = 0;
     uint32_t VisibleObjects  = 0;
+    uint32_t InstancedBatches = 0;
+    uint32_t InstancedObjects = 0;
 
     void Reset() {
         DrawCalls       = 0;
@@ -27,6 +30,8 @@ struct RenderStats {
         FrustumCulled   = 0;
         OcclusionCulled = 0;
         VisibleObjects  = 0;
+        InstancedBatches = 0;
+        InstancedObjects = 0;
     }
 };
 
@@ -51,6 +56,12 @@ class SceneRenderer {
                 bool castsShadows = true, 
                 bool receiveShadows = true,
                 float boundingRadius = 1.0f);
+
+    // Submit instanced geometry (multiple transforms in a single draw call)
+    void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
+                         const std::shared_ptr<Material>& material,
+                         bool castsShadows = true,
+                         bool receiveShadows = true);
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -105,6 +116,7 @@ class SceneRenderer {
         unsigned int         ShadowFramebuffer  = 0;
         unsigned int         ShadowDepthTexture = 0;
         std::shared_ptr<Shader> ShadowShader;
+        std::shared_ptr<Shader> InstancedShadowShader;
         float                ShadowDistance  = 100.0f;
         float                ShadowOrthoSize = 10.0f;
         float                AmbientStrength = 0.2f;
@@ -113,6 +125,15 @@ class SceneRenderer {
         bool                 ShadowsEnabled  = true;
         std::vector<Submission> Submissions;
     };
+
+    // Instanced submission for batched rendering
+    struct InstancedSubmission {
+        std::shared_ptr<InstancedMesh> instancedMesh;
+        std::shared_ptr<Material> material;
+        bool castsShadows = true;
+        bool receiveShadows = true;
+    };
+    std::vector<InstancedSubmission> instancedSubmissions_;
 
     void InitializeShadowResources();
     void DestroyShadowResources();

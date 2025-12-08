@@ -367,10 +367,11 @@ void ThirdPersonLayer::Shoot() {
     // Spawn position
     glm::vec3 spawnPos = camera_.GetPosition() + forward * 10.0f;
 
-    // Create Entity
+    // Create Entity with red color
     auto box = scene_->CreateEntity("BulletBox");
     auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-    box.AddComponent<MeshRenderComponent>(mesh, material_);
+    glm::vec4 bulletColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
+    box.AddComponent<MeshRenderComponent>(mesh, material_, bulletColor);
     box.AddComponent<BoxCollider>(glm::vec3(1.0f)); 
     
     box.GetComponent<TransformComponent>().SetPosition(spawnPos);

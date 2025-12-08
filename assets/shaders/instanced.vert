@@ -29,8 +29,12 @@ void main() {
     v_Normal = mat3(transpose(inverse(model))) * a_Normal;
     v_ViewPos = inverse(uView)[3].xyz;
     
-    // Blend vertex color with instance color
-    v_Color = a_Color * a_InstanceColor.rgb;
+    // Use instance color if set (not white), otherwise use vertex color
+    if (a_InstanceColor.rgb == vec3(1.0, 1.0, 1.0)) {
+        v_Color = a_Color;
+    } else {
+        v_Color = a_InstanceColor.rgb;
+    }
     
     v_LightSpacePos = uLightSpaceMatrix * world_position;
 

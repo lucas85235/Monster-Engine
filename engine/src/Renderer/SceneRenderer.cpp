@@ -26,6 +26,21 @@ void main() {
     // depth only
 }
 )";
+
+// Instanced shadow shader - reads transform from instance buffer
+constexpr const char* kInstancedShadowVertexSource = R"(#version 330 core
+layout(location = 0) in vec3 a_Position;
+
+// Per-instance data (Mat4 uses locations 3-6)
+layout(location = 3) in mat4 a_InstanceTransform;
+
+uniform mat4 uLightSpaceMatrix;
+
+void main() {
+    vec4 world_pos = a_InstanceTransform * vec4(a_Position, 1.0);
+    gl_Position = uLightSpaceMatrix * world_pos;
+}
+)";
 }  // namespace
 
 namespace se {
@@ -64,6 +79,7 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     sceneData_.ProjectionMatrix       = projection;
     sceneData_.view_projection_matrix = projection * sceneData_.ViewMatrix;
     sceneData_.Submissions.clear();
+    instancedSubmissions_.clear();
 
     // Prepare directional light data and shadow matrix
     if (!sceneData_.directional_light.Active) {
@@ -143,6 +159,22 @@ void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
     sceneData_.Submissions.emplace_back(std::move(submission));
 }
 
+void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
+                                    const std::shared_ptr<Material>& material,
+                                    bool castsShadows, bool receiveShadows) {
+    if (!instancedMesh || !material) {
+        SE_LOG_WARN("SubmitInstanced called with null instancedMesh or material");
+        return;
+    }
+    
+    InstancedSubmission submission;
+    submission.instancedMesh = instancedMesh;
+    submission.material = material;
+    submission.castsShadows = castsShadows;
+    submission.receiveShadows = receiveShadows;
+    instancedSubmissions_.emplace_back(std::move(submission));
+}
+
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
     occlusionCuller_.SetEnabled(enabled);
@@ -217,6 +249,14 @@ void SceneRenderer::InitializeShadowResources() {
         return;
     }
 
+    // Create instanced shadow shader (uses same fragment, different vertex for instance buffer)
+    sceneData_.InstancedShadowShader = std::make_shared<Shader>(kInstancedShadowVertexSource, kShadowFragmentSource);
+    if (!sceneData_.InstancedShadowShader || sceneData_.InstancedShadowShader->getID() == 0) {
+        SE_LOG_ERROR("Failed to create instanced shadow shader");
+        return;
+    }
+    SE_LOG_INFO("Created instanced shadow shader successfully");
+
     glGenFramebuffers(1, &sceneData_.ShadowFramebuffer);
     if (sceneData_.ShadowFramebuffer == 0) {
         SE_LOG_ERROR("Failed to generate shadow framebuffer");
@@ -278,10 +318,11 @@ void SceneRenderer::DestroyShadowResources() {
         sceneData_.ShadowFramebuffer = 0;
     }
     sceneData_.ShadowShader.reset();
+    sceneData_.InstancedShadowShader.reset();
 }
 
 void SceneRenderer::RenderShadowPass() {
-    if (sceneData_.Submissions.empty()) return;
+    if (sceneData_.Submissions.empty() && instancedSubmissions_.empty()) return;
     if (!sceneData_.ShadowShader || !sceneData_.ShadowFramebuffer) return;
 
     GLint previousViewport[4];
@@ -307,6 +348,26 @@ void SceneRenderer::RenderShadowPass() {
 
         sceneData_.ShadowShader->setMat4("uModel", submission.Transform);
         RenderCommand::DrawIndexed(submission.vertex_array.get());
+    }
+
+    // Render shadows for instanced submissions using instanced shadow shader
+    if (!instancedSubmissions_.empty() && sceneData_.InstancedShadowShader) {
+        sceneData_.InstancedShadowShader->bind();
+        sceneData_.InstancedShadowShader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
+        
+        for (const auto& instanced : instancedSubmissions_) {
+            if (!instanced.castsShadows) continue;
+            if (!instanced.instancedMesh) continue;
+            
+            auto va = instanced.instancedMesh->GetVertexArray();
+            if (!va) continue;
+            
+            uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
+            if (instanceCount == 0) continue;
+            
+            // Draw all instances in a single call - shader reads transform from instance buffer
+            RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
+        }
     }
 
     glCullFace(previousCullFaceMode);
@@ -410,6 +471,46 @@ void SceneRenderer::RenderScenePass() {
             }
         }
         renderObject(*submission);
+    }
+
+    // PHASE 4: Render instanced batches (no culling - already handled by RenderSystem)
+    for (const auto& instanced : instancedSubmissions_) {
+        if (!instanced.instancedMesh || !instanced.material) continue;
+        
+        uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
+        if (instanceCount == 0) continue;
+
+        instanced.material->Bind();
+        auto shader = instanced.material->GetShader();
+        if (!shader) continue;
+
+        // Set uniforms (same as normal rendering, but no uModel - that comes from instance buffer)
+        shader->setMat4("uView", sceneData_.ViewMatrix);
+        shader->setMat4("uProj", sceneData_.ProjectionMatrix);
+        shader->setVec3("uLightDirection", -sceneData_.directional_light.Direction);
+        shader->setVec3("uLightColor", sceneData_.directional_light.Color);
+        shader->setFloat("uLightIntensity", sceneData_.directional_light.Active ? 
+                         sceneData_.directional_light.Intensity : 0.0f);
+        shader->setFloat("uAmbientStrength", sceneData_.AmbientStrength);
+        shader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
+        shader->setInt("uShadowMap", 0);
+        shader->setFloat("uReceiveShadows", instanced.receiveShadows ? 1.0f : 0.0f);
+        shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && 
+                         sceneData_.directional_light.Active ? 1.0f : 0.0f);
+        shader->setFloat("uAOStrength", sceneData_.AOStrength);
+        shader->setFloat("uAORadius", sceneData_.AORadius);
+
+        // Single draw call for all instances in this batch
+        instanced.instancedMesh->DrawWithoutMaterial();
+        
+        stats_.InstancedBatches++;
+        stats_.InstancedObjects += instanceCount;
+        stats_.DrawCalls++;
+        
+        const auto& indexBuffer = instanced.instancedMesh->GetVertexArray()->GetIndexBuffer();
+        if (indexBuffer) {
+            stats_.TriangleCount += (indexBuffer->GetCount() / 3) * instanceCount;
+        }
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
