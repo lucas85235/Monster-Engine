@@ -79,6 +79,9 @@ Application::Application(const ApplicationSpecification& specification) {
     event_bus_->AddListener<MouseMovedEvent>([](const MouseMovedEvent& e) {
         InputManager::Get().OnMouseMoved(e.x, e.y);
     });
+    event_bus_->AddListener<MouseScrolledEvent>([](const MouseScrolledEvent& e) {
+        InputManager::Get().OnMouseScrolled(e.yOffset);
+    });
     
     SE_LOG_INFO("Application initialized successfully");
 }

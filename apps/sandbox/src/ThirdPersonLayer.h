@@ -58,6 +58,7 @@ private:
     const float gravity_ = 20.0f;
     const float jumpForce_ = 10.0f;
     const float moveSpeed_ = 5.0f;
+    const float sprintSpeed_ = 12.0f;  // Shift speed
     const float floorHeight_ = 0.0f;
 
     // Camera settings
@@ -69,6 +70,7 @@ private:
     btRigidBody* grabbedBody_ = nullptr;
     float grabDistance_ = 100.0f;
     float grabMaxDistance_ = 30.0f;
+    float grabMinDistance_ = 2.0f;    // Minimum grab distance (scroll wheel)
     glm::vec3 savedGravity_{0.0f};
     
     // Mouse toggle

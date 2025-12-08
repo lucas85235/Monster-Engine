@@ -41,9 +41,11 @@ void ThirdPersonLayer::OnAttach() {
     input.BindAxis("MoveRight", Key::A, -1.0f);
     input.BindAction("Jump", Key::Space);
     input.BindAction("Grab", Key::E);
+    input.BindAction("Sprint", Key::LeftShift);
     input.BindAction("ToggleMouse", Key::Tab);
     input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
     input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
+    input.BindAxis("ScrollWheel", Key::MouseScrollY, 1.0f);
 
     // Capture and hide cursor
     auto& app    = Application::Get();
@@ -320,8 +322,8 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         }
     }
 
-    // Apply movement to desired velocity
-    float speed = 5.0f;
+    // Apply movement to desired velocity - Sprint with Shift
+    float speed = input.IsActionPressed("Sprint") ? sprintSpeed_ : moveSpeed_;
     desiredVelocity.setX(movement.x * speed);
     desiredVelocity.setZ(movement.z * speed);
 
@@ -512,6 +514,14 @@ void ThirdPersonLayer::TryGrabOrRelease() {
 
 void ThirdPersonLayer::UpdateGrabSystem(float ts) {
     if (!grabbedBody_) return;
+
+    // Adjust grab distance with mouse scroll wheel
+    auto& input = InputManager::Get();
+    float scroll = input.GetAxis("ScrollWheel");
+    if (std::abs(scroll) > 0.01f) {
+        grabDistance_ -= scroll * 2.0f;  // Scroll up = closer
+        grabDistance_ = glm::clamp(grabDistance_, grabMinDistance_, grabMaxDistance_);
+    }
 
     // Get camera forward direction
     float yawRad = glm::radians(camera_.GetYaw());
