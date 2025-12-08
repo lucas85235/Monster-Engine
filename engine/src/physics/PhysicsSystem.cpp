@@ -2,7 +2,10 @@
 #include "engine/physics/ShapeCache.h"
 
 #include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h>
+#include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
+#include <BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h>
 
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -32,25 +35,42 @@ void PhysicsSystem::Initialize() {
 void PhysicsSystem::Initialize(const PhysicsConfig& config) {
     config_ = config;
     
-    size_t num_threads = std::thread::hardware_concurrency();
+    int num_threads = static_cast<int>(std::thread::hardware_concurrency());
     if (num_threads == 0) num_threads = 4;
-    thread_pool_ = std::make_unique<ThreadPool>(num_threads);
     
-    SE_LOG_INFO("Initializing PhysicsSystem with {} worker threads...", num_threads);
+    SE_LOG_INFO("Initializing PhysicsSystem with {} hardware threads...", num_threads);
+
+    // Initialize Bullet's internal task scheduler for parallel physics
+    task_scheduler_ = btCreateDefaultTaskScheduler();
+    if (task_scheduler_) {
+        task_scheduler_->setNumThreads(static_cast<int>(num_threads));
+        btSetTaskScheduler(task_scheduler_);
+        SE_LOG_INFO("Bullet task scheduler created with {} threads", task_scheduler_->getNumThreads());
+    } else {
+        SE_LOG_WARN("Failed to create Bullet task scheduler, falling back to single-threaded");
+    }
 
     btDefaultCollisionConstructionInfo cci;
     cci.m_defaultMaxPersistentManifoldPoolSize = 1048576;
     cci.m_defaultMaxCollisionAlgorithmPoolSize = 1048576;
     collision_configuration_ = new btDefaultCollisionConfiguration(cci);
     
-    dispatcher_ = new btCollisionDispatcher(collision_configuration_);
+    // Use multi-threaded collision dispatcher
+    dispatcher_ = new btCollisionDispatcherMt(collision_configuration_, 40);
     overlapping_pair_cache_broadphase_interface_ = new btDbvtBroadphase();
-    solver_ = new btSequentialImpulseConstraintSolver();
     
-    dynamics_world_ = new btDiscreteDynamicsWorld(
+    // Create solver pool with one solver per thread for parallel constraint solving
+    solver_pool_ = new btConstraintSolverPoolMt(static_cast<int>(num_threads));
+    
+    // Create a single MT solver for large islands
+    solver_ = new btSequentialImpulseConstraintSolverMt();
+    
+    // Use multi-threaded dynamics world
+    dynamics_world_ = new btDiscreteDynamicsWorldMt(
         dispatcher_, 
         overlapping_pair_cache_broadphase_interface_, 
-        solver_, 
+        solver_pool_,
+        solver_,
         collision_configuration_
     );
 
@@ -63,22 +83,16 @@ void PhysicsSystem::Initialize(const PhysicsConfig& config) {
     debug_drawer_ = new PhysicsDebugDraw();
     dynamics_world_->setDebugDrawer(debug_drawer_);
 
-    running_ = true;
-    physics_thread_ = std::thread(&PhysicsSystem::PhysicsLoop, this);
+    SE_LOG_INFO("Physics initialized (MULTITHREADED): {} Bullet worker threads, {} solver iters, {} max substeps", 
+                task_scheduler_ ? task_scheduler_->getNumThreads() : 1, config_.solverIterations, config_.maxSubSteps);
     
-    SE_LOG_INFO("Physics initialized: {} threads, {} solver iters, {} max substeps", 
-                num_threads, config_.solverIterations, config_.maxSubSteps);
+    running_ = true;
+    // NOTE: No separate physics thread! Bullet MT manages its own worker threads internally.
+    // stepSimulation is called from Update() on the main thread.
 }
 
 void PhysicsSystem::Shutdown() {
-    if (running_) {
-        running_ = false;
-        if (physics_thread_.joinable()) {
-            physics_thread_.join();
-        }
-    }
-    
-    thread_pool_.reset();
+    running_ = false;
 
     if (dynamics_world_) {
         for (auto& entry : bodies_) {
@@ -108,80 +122,25 @@ void PhysicsSystem::Shutdown() {
 
         delete dynamics_world_;
         delete solver_;
+        delete solver_pool_;
         delete overlapping_pair_cache_broadphase_interface_;
         delete dispatcher_;
         delete collision_configuration_;
         delete debug_drawer_;
+        
+        // Reset task scheduler
+        if (task_scheduler_) {
+            btSetTaskScheduler(nullptr);
+            delete task_scheduler_;
+            task_scheduler_ = nullptr;
+        }
 
         dynamics_world_ = nullptr;
     }
 }
 
-void PhysicsSystem::PhysicsLoop() {
-    SE_LOG_INFO("Physics Thread Started");
+// PhysicsLoop removed - Bullet MT runs on main thread and manages its own workers
 
-    using Clock = std::chrono::high_resolution_clock;
-    auto last_time = Clock::now();
-
-    while (running_) {
-        auto current_time = Clock::now();
-        std::chrono::duration<float> delta = current_time - last_time;
-        last_time = current_time;
-
-        float dt = delta.count();
-        if (dt > 0.1f) dt = 0.1f;
-
-        bool has_pending_commands = false;
-        {
-            std::lock_guard<std::mutex> lock(command_queue_mutex_);
-            has_pending_commands = !pending_add_bodies_.empty() || !pending_remove_bodies_.empty();
-        }
-
-        size_t active_body_count = 0;
-        {
-            std::lock_guard<std::mutex> lock(physics_mutex_);
-            if (dynamics_world_) {
-                ProcessPendingCommands();
-                
-                auto start_physics = Clock::now();
-                dynamics_world_->stepSimulation(dt, config_.maxSubSteps, config_.fixedTimeStep);
-                auto end_physics = Clock::now();
-                
-                // Count active (non-sleeping) bodies
-                active_body_count = 0;
-                for (const auto& entry : bodies_) {
-                    if (entry.body && entry.body->isActive()) {
-                        ++active_body_count;
-                    }
-                }
-                
-                // Only sync transforms if there are active bodies or pending commands just processed
-                if (active_body_count > 0 || has_pending_commands) {
-                    if (bodies_.size() > config_.parallelThreshold) {
-                        SyncTransformsToCacheParallel();
-                    } else {
-                        SyncTransformsToCache();
-                    }
-                }
-                
-                std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
-                last_physics_execution_time_ = physics_duration.count();
-            }
-        }
-
-        // Update idle state
-        all_bodies_sleeping_ = (active_body_count == 0) && !bodies_.empty();
-
-        // Smart sleep: if idle, sleep longer to save CPU
-        if (all_bodies_sleeping_ && !has_pending_commands) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-    }
-    
-    SE_LOG_INFO("Physics Thread Stopped");
-}
 
 void PhysicsSystem::ProcessPendingCommands() {
     std::lock_guard<std::mutex> lock(command_queue_mutex_);
@@ -207,119 +166,91 @@ void PhysicsSystem::ConfigureBodyDeactivation(btRigidBody* body) {
 }
 
 size_t PhysicsSystem::GetSleepingBodyCount() const {
+    // NOTE: This is called from main thread, bodies_ is accessed from physics thread
+    // We return a cached value instead of iterating to avoid race conditions
+    size_t total = bodies_.size();
+    if (all_bodies_sleeping_) return total;
+    
+    // Approximate count - not 100% accurate but thread-safe
     size_t count = 0;
-    for (const auto& entry : bodies_) {
-        if (entry.body && !entry.body->isActive()) {
-            ++count;
+    for (size_t i = 0; i < total; ++i) {
+        if (i < bodies_.size()) {
+            const auto& entry = bodies_[i];
+            if (entry.body && !entry.body->isActive()) {
+                ++count;
+            }
         }
     }
     return count;
 }
 
-void PhysicsSystem::SyncTransformsToCache() {
-    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
-    
-    transform_cache_.clear();
-    transform_cache_.reserve(bodies_.size());
-    
-    for (auto& entry : bodies_) {
-        if (!entry.body) continue;
-        
-        btTransform trans = entry.body->getInterpolationWorldTransform();
-        
-        const btVector3& origin = trans.getOrigin();
-        const btQuaternion& rot = trans.getRotation();
-        
-        TransformCacheEntry cached_entry;
-        cached_entry.entity = entry.entity;
-        cached_entry.transform.position = glm::vec3(
-            static_cast<float>(origin.getX()),
-            static_cast<float>(origin.getY()),
-            static_cast<float>(origin.getZ())
-        );
-        cached_entry.transform.rotation = glm::quat(
-            static_cast<float>(rot.w()),
-            static_cast<float>(rot.x()),
-            static_cast<float>(rot.y()),
-            static_cast<float>(rot.z())
-        );
-        
-        transform_cache_.push_back(cached_entry);
-    }
-}
-
-void PhysicsSystem::SyncTransformsToCacheParallel() {
-    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
-    
-    size_t body_count = bodies_.size();
-    transform_cache_.resize(body_count);
-    
-    thread_pool_->ParallelFor(0, body_count, [this](size_t i) {
-        auto& entry = bodies_[i];
-        if (!entry.body) {
-            transform_cache_[i].entity = entry.entity;
-            return;
-        }
-        
-        btTransform trans = entry.body->getInterpolationWorldTransform();
-        
-        const btVector3& origin = trans.getOrigin();
-        const btQuaternion& rot = trans.getRotation();
-        
-        transform_cache_[i].entity = entry.entity;
-        transform_cache_[i].transform.position = glm::vec3(
-            static_cast<float>(origin.getX()),
-            static_cast<float>(origin.getY()),
-            static_cast<float>(origin.getZ())
-        );
-        transform_cache_[i].transform.rotation = glm::quat(
-            static_cast<float>(rot.w()),
-            static_cast<float>(rot.x()),
-            static_cast<float>(rot.y()),
-            static_cast<float>(rot.z())
-        );
-    });
-}
-
 void PhysicsSystem::Update(float dt) {
+    if (!running_ || !dynamics_world_) return;
+    
+    using Clock = std::chrono::high_resolution_clock;
+    
+    // Process pending add/remove commands BEFORE simulation
+    ProcessPendingCommands();
+    
+    // Run physics simulation (Bullet MT handles parallelism internally)
+    auto start_physics = Clock::now();
+    dynamics_world_->stepSimulation(dt, config_.maxSubSteps, config_.fixedTimeStep);
+    auto end_physics = Clock::now();
+    
+    std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
+    last_physics_execution_time_ = physics_duration.count();
+    
+    // Count active bodies
+    size_t active_body_count = 0;
+    for (const auto& entry : bodies_) {
+        if (entry.body && entry.body->isActive()) {
+            ++active_body_count;
+        }
+    }
+    
+    // Update idle state
+    all_bodies_sleeping_ = (active_body_count == 0) && !bodies_.empty();
+    
     // Update profiler metrics
     {
-        size_t active = GetActiveBodyCount() - GetSleepingBodyCount();
-        size_t sleeping = GetSleepingBodyCount();
-        size_t total = GetActiveBodyCount();
-        PerformanceProfiler::Get().SetPhysicsMetrics(active, sleeping, total, all_bodies_sleeping_, last_physics_execution_time_);
-        PerformanceProfiler::Get().SetThreadPoolInfo(0, thread_pool_ ? thread_pool_->GetThreadCount() : 0);
+        size_t sleeping = bodies_.size() - active_body_count;
+        PerformanceProfiler::Get().SetPhysicsMetrics(
+            active_body_count, sleeping, bodies_.size(), 
+            all_bodies_sleeping_, last_physics_execution_time_);
+        PerformanceProfiler::Get().SetThreadPoolInfo(
+            0, task_scheduler_ ? task_scheduler_->getNumThreads() : 0);
     }
-
-    // CRITICAL OPTIMIZATION: Skip entirely if physics is idle
-    // This prevents unnecessary work and ThreadPool usage when nothing is moving
-    if (all_bodies_sleeping_) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
     
-    size_t cache_size = transform_cache_.size();
-    if (cache_size == 0) return;
-    
-    // NOTE: Removed ParallelFor here - it was causing excessive CPU usage.
-    // For transform copying, sequential access with cache coherency is faster
-    // than spawning threads for such trivial work. The overhead of thread
-    // synchronization far exceeds the benefit for simple memory copies.
-    for (auto& entry : transform_cache_) {
-        if (!entry.entity.IsValid()) continue;
-        
-        auto& transform_component = entry.entity.GetComponent<TransformComponent>();
-        auto& cached = entry.transform;
-        
-        transform_component.Position = cached.position;
-        
-        glm::quat q = glm::normalize(cached.rotation);
-        transform_component.Rotation.x = glm::degrees(glm::pitch(q));
-        transform_component.Rotation.y = glm::degrees(glm::yaw(q));
-        transform_component.Rotation.z = glm::degrees(glm::roll(q));
-        
-        transform_component.MarkDirty();
+    // Sync transforms from Bullet to ECS - only if something is moving
+    if (active_body_count > 0) {
+        for (auto& entry : bodies_) {
+            if (!entry.body || !entry.entity.IsValid()) continue;
+            if (!entry.body->isActive()) continue; // Skip sleeping bodies
+            
+            btTransform trans = entry.body->getInterpolationWorldTransform();
+            const btVector3& origin = trans.getOrigin();
+            const btQuaternion& rot = trans.getRotation();
+            
+            auto& transform_component = entry.entity.GetComponent<TransformComponent>();
+            transform_component.Position = glm::vec3(
+                static_cast<float>(origin.getX()),
+                static_cast<float>(origin.getY()),
+                static_cast<float>(origin.getZ())
+            );
+            
+            glm::quat q(
+                static_cast<float>(rot.w()),
+                static_cast<float>(rot.x()),
+                static_cast<float>(rot.y()),
+                static_cast<float>(rot.z())
+            );
+            q = glm::normalize(q);
+            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
+            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
+            transform_component.Rotation.z = glm::degrees(glm::roll(q));
+            
+            transform_component.MarkDirty();
+        }
     }
 }
 

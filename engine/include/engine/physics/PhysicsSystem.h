@@ -1,19 +1,18 @@
 #pragma once
 
-#include <thread>
 #include <mutex>
-#include <atomic>
 #include <vector>
 #include <queue>
-#include <memory>
 
 #include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h>
 #include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h>
+#include <BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h>
+#include <LinearMath/btThreads.h>
 #include <btBulletCollisionCommon.h>
 
 #include "engine/ecs/Entity.h"
 #include "engine/Camera.h"
-#include "engine/core/ThreadPool.h"
 
 #include <glm.hpp>
 #include <gtc/quaternion.hpp>
@@ -76,7 +75,7 @@ public:
     
     std::mutex& GetMutex() { return physics_mutex_; }
     float GetLastPhysicsExecutionTime() const { return last_physics_execution_time_; }
-    size_t GetThreadPoolSize() const { return thread_pool_ ? thread_pool_->GetThreadCount() : 0; }
+    size_t GetThreadPoolSize() const { return task_scheduler_ ? static_cast<size_t>(task_scheduler_->getNumThreads()) : 0; }
     size_t GetActiveBodyCount() const { return bodies_.size(); }
     size_t GetSleepingBodyCount() const;
     
@@ -84,30 +83,26 @@ public:
     bool IsIdle() const { return all_bodies_sleeping_; }
 
 private:
-    void PhysicsLoop();
     void ProcessPendingCommands();
     void RemoveBodyInternal(btRigidBody* body);
-    void SyncTransformsToCache();
-    void SyncTransformsToCacheParallel();
     void ConfigureBodyDeactivation(btRigidBody* body);
 
     Scene* scene_;
     PhysicsConfig config_;
     
-    std::unique_ptr<ThreadPool> thread_pool_;
-    
     btDiscreteDynamicsWorld*             dynamics_world_ = nullptr;
     btDefaultCollisionConfiguration*     collision_configuration_ = nullptr;
     btCollisionDispatcher*               dispatcher_ = nullptr;
     btBroadphaseInterface*               overlapping_pair_cache_broadphase_interface_ = nullptr;
-    btSequentialImpulseConstraintSolver* solver_ = nullptr;
+    btConstraintSolver*                  solver_ = nullptr;
+    btConstraintSolverPoolMt*            solver_pool_ = nullptr;
+    btITaskScheduler*                    task_scheduler_ = nullptr;
     PhysicsDebugDraw*                    debug_drawer_ = nullptr;
 
-    std::thread         physics_thread_;
     std::mutex          physics_mutex_;
-    std::atomic<bool>   running_ = false;
-    std::atomic<float>  last_physics_execution_time_ = 0.0f;
-    std::atomic<bool>   all_bodies_sleeping_ = false;
+    bool                running_ = false;
+    float               last_physics_execution_time_ = 0.0f;
+    bool                all_bodies_sleeping_ = false;
 
     struct PendingAddBody {
         Entity entity;
