@@ -134,7 +134,8 @@ void main() {
     
     // Final lighting - AO also affects indirect light contribution
     vec3 lighting = ambient + (diffuse + specular) * shadowAttenuation * mix(1.0, ao, 0.3);
-    vec3 result = lighting * vec3(0.4, 0.4, 0.4);
+    // vec3 result = lighting * vec3(0.4, 0.4, 0.4);
+    vec3 result = lighting * objectColor;
 
     color = vec4(result, 1.0);
 }

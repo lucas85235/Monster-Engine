@@ -29,12 +29,31 @@ struct CachedTransform {
     glm::quat rotation;
 };
 
+// Physics configuration for tuning
+struct PhysicsConfig {
+    int maxSubSteps = 2;           // Reduced from 4
+    float fixedTimeStep = 1.0f / 60.0f;
+    float gravity = -9.81f;
+    
+    // Deactivation thresholds
+    float linearSleepThreshold = 0.8f;   // Default is 0.8
+    float angularSleepThreshold = 1.0f;  // Default is 1.0
+    float deactivationTime = 2.0f;       // Seconds before sleeping
+    
+    // Parallel thresholds
+    size_t parallelThreshold = 50;       // Use parallel for N+ bodies
+    
+    // Solver iterations (lower = faster but less accurate)
+    int solverIterations = 4;            // Default is 10
+};
+
 class PhysicsSystem {
 public:
     PhysicsSystem(Scene* scene);
     ~PhysicsSystem();
 
     void Initialize();
+    void Initialize(const PhysicsConfig& config);
     void Shutdown();
 
     void Update(float dt);
@@ -58,6 +77,10 @@ public:
     std::mutex& GetMutex() { return physics_mutex_; }
     float GetLastPhysicsExecutionTime() const { return last_physics_execution_time_; }
     size_t GetThreadPoolSize() const { return thread_pool_ ? thread_pool_->GetThreadCount() : 0; }
+    size_t GetActiveBodyCount() const { return bodies_.size(); }
+    size_t GetSleepingBodyCount() const;
+    
+    const PhysicsConfig& GetConfig() const { return config_; }
 
 private:
     void PhysicsLoop();
@@ -65,13 +88,13 @@ private:
     void RemoveBodyInternal(btRigidBody* body);
     void SyncTransformsToCache();
     void SyncTransformsToCacheParallel();
+    void ConfigureBodyDeactivation(btRigidBody* body);
 
     Scene* scene_;
+    PhysicsConfig config_;
     
-    // Thread pool for parallel physics operations
     std::unique_ptr<ThreadPool> thread_pool_;
     
-    // Bullet Physics
     btDiscreteDynamicsWorld*             dynamics_world_ = nullptr;
     btDefaultCollisionConfiguration*     collision_configuration_ = nullptr;
     btCollisionDispatcher*               dispatcher_ = nullptr;
@@ -79,31 +102,29 @@ private:
     btSequentialImpulseConstraintSolver* solver_ = nullptr;
     PhysicsDebugDraw*                    debug_drawer_ = nullptr;
 
-    // Physics thread
     std::thread         physics_thread_;
     std::mutex          physics_mutex_;
     std::atomic<bool>   running_ = false;
     std::atomic<float>  last_physics_execution_time_ = 0.0f;
 
-    // Deferred body operations
     struct PendingAddBody {
         Entity entity;
         btRigidBody* body;
         uint16_t collision_group;
         uint16_t collision_mask;
+        bool usesCachedShape; // If true, don't delete shape on removal
     };
     std::queue<PendingAddBody> pending_add_bodies_;
     std::queue<btRigidBody*> pending_remove_bodies_;
     std::mutex command_queue_mutex_;
 
-    // Body tracking
     struct BodyEntry {
         Entity entity;
         btRigidBody* body;
+        bool usesCachedShape;
     };
     std::vector<BodyEntry> bodies_;
     
-    // Transform cache - accessed in parallel
     struct TransformCacheEntry {
         Entity entity;
         CachedTransform transform;
