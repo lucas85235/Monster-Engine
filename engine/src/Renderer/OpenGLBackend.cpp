@@ -49,6 +49,23 @@ void OpenGLBackend::DrawIndexed(VertexArray* va) {
     }
 }
 
+void OpenGLBackend::DrawIndexedInstanced(VertexArray* va, uint32_t instanceCount) {
+    if (!va || instanceCount == 0) return;
+
+    va->Bind();
+    auto indexBuffer = va->GetIndexBuffer();
+    if (indexBuffer) {
+        glDrawElementsInstanced(GL_TRIANGLES, indexBuffer->GetCount(), GL_UNSIGNED_INT, nullptr, instanceCount);
+    }
+}
+
+void OpenGLBackend::DrawArraysInstanced(VertexArray* va, uint32_t vertexCount, uint32_t instanceCount) {
+    if (!va || instanceCount == 0) return;
+
+    va->Bind();
+    glDrawArraysInstanced(GL_TRIANGLES, 0, vertexCount, instanceCount);
+}
+
 void OpenGLBackend::EnableDepthTest(bool enable) {
     if (enable)
         glEnable(GL_DEPTH_TEST);

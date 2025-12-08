@@ -29,6 +29,8 @@ public:
 
     // Drawing
     virtual void DrawIndexed(VertexArray* va) = 0;
+    virtual void DrawIndexedInstanced(VertexArray* va, uint32_t instanceCount) = 0;
+    virtual void DrawArraysInstanced(VertexArray* va, uint32_t vertexCount, uint32_t instanceCount) = 0;
 
     // State management
     virtual void EnableDepthTest(bool enable) = 0;

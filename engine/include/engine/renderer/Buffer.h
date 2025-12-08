@@ -14,9 +14,11 @@ struct BufferElement {
     uint32_t       Size;
     uint32_t       Offset;
     bool           Normalized;
+    uint32_t       InstanceDivisor = 0;  // 0 = per-vertex, 1+ = per-N-instances
 
     BufferElement() = default;
     BufferElement(ShaderDataType type, const std::string& name, bool normalized = false);
+    BufferElement(ShaderDataType type, const std::string& name, uint32_t instanceDivisor);
 
     uint32_t GetComponentCount() const;
 };

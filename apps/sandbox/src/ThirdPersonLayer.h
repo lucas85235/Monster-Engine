@@ -6,6 +6,7 @@
 #include <engine/renderer/Material.h>
 #include <engine/ecs/Entity.h>
 #include <glm.hpp>
+#include <vector>
 
 class btRigidBody;
 
@@ -38,6 +39,7 @@ private:
     void Shoot();
     void UpdateGrabSystem(float ts);
     void TryGrabOrRelease();
+    void CleanupBullets();
 
     std::shared_ptr<Scene> scene_;
     std::shared_ptr<Material> material_;
@@ -48,6 +50,7 @@ private:
     Entity cube_entity_;
     Entity floor_entity_;
     std::vector<Entity> walls_;
+    std::vector<Entity> bullets_;  // Track shot cubes for cleanup
     glm::vec3 playerVelocity_{0.0f};
     bool isGrounded_ = false;
     
@@ -55,7 +58,7 @@ private:
     const float gravity_ = 20.0f;
     const float jumpForce_ = 10.0f;
     const float moveSpeed_ = 5.0f;
-    const float floorHeight_ = 0.0f; // Simple floor at y=0
+    const float floorHeight_ = 0.0f;
 
     // Camera settings
     float cameraDistance_ = 10.0f;
@@ -70,4 +73,11 @@ private:
     
     // Mouse toggle
     bool mouseCaptured_ = true;
+
+    // Culling settings (exposed via ImGui)
+    bool enableFrustumCulling_ = true;
+    bool enableOcclusionCulling_ = true;
+    int maxBullets_ = 100;
 };
+
+

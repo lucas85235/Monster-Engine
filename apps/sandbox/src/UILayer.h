@@ -15,6 +15,7 @@ class UILayer : public se::Layer {
         
         // Create a simple button
         auto button = canvas_->CreateElement("button");
+        auto rect = canvas_->CreateElement("rect");
         if (button) {
             button->SetText("Click Me!");
             button->SetProperty("font-family", "Lato");

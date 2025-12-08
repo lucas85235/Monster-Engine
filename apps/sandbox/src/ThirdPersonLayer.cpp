@@ -28,6 +28,11 @@ void ThirdPersonLayer::OnAttach() {
     material_ = Utilities::LoadMaterial();
     CreateScene();
 
+    // Configure scene renderer culling
+    auto& sceneRenderer = Application::Get().GetRenderer().GetSceneRenderer();
+    sceneRenderer.SetFrustumCullingEnabled(enableFrustumCulling_);
+    sceneRenderer.SetOcclusionCullingEnabled(enableOcclusionCulling_);
+
     // Bind input axes and actions
     auto& input = InputManager::Get();
     input.BindAxis("MoveForward", Key::W, 1.0f);
@@ -45,9 +50,13 @@ void ThirdPersonLayer::OnAttach() {
     auto* window = app.GetWindow().GetNativeWindow();
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     mouseCaptured_ = true;
+
+    // physics debug drawing
+    scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_NoDebug);
 }
 
 void ThirdPersonLayer::OnDetach() {
+    bullets_.clear();
     scene_.reset();
 }
 
@@ -158,11 +167,63 @@ void ThirdPersonLayer::CreateScene() {
         RigidbodyData data;
         cube_entity_.AddComponent<RigidbodyComponent>(data, cube_entity_);
     }
+
+    // Create small walls (muretas) for occlusion culling testing
+    {
+        struct WallConfig {
+            glm::vec3 position;
+            glm::vec3 scale;
+            float yRotation;
+        };
+
+        std::vector<WallConfig> smallWalls = {
+            {{10.0f, 1.5f, 0.0f}, {5.0f, 3.0f, 0.5f}, 0.0f},      // Right of spawn
+            {{-10.0f, 1.5f, 5.0f}, {5.0f, 3.0f, 0.5f}, 45.0f},    // Left angled
+            {{0.0f, 1.5f, -12.0f}, {8.0f, 3.0f, 0.5f}, 0.0f},     // Behind spawn
+            {{15.0f, 1.5f, 15.0f}, {6.0f, 3.0f, 0.5f}, 30.0f},    // Far corner
+            {{-8.0f, 1.5f, -8.0f}, {4.0f, 3.0f, 0.5f}, -45.0f},   // Diagonal
+        };
+
+        for (size_t i = 0; i < smallWalls.size(); i++) {
+            const auto& config = smallWalls[i];
+            
+            auto wall = scene_->CreateEntity("SmallWall_" + std::to_string(i));
+            auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+            wall.AddComponent<MeshRenderComponent>(mesh, material_);
+
+            auto& transform = wall.GetComponent<TransformComponent>();
+            transform.SetPosition(config.position);
+            transform.SetScale(config.scale);
+            transform.SetRotation({0.0f, config.yRotation, 0.0f});
+
+            // BoxCollider uses half-extents relative to unit cube
+            wall.AddComponent<BoxCollider>(glm::vec3(1.0f));
+
+            RigidbodyData data;
+            data.mass = 0.0f;  // Static
+            wall.AddComponent<RigidbodyComponent>(data, wall);
+        }
+        
+        SE_LOG_INFO("Created {} small walls for occlusion testing", smallWalls.size());
+    }
+}
+
+void ThirdPersonLayer::CleanupBullets() {
+    // Bullets are not cleaned up - they persist for physics testing
+    // Just remove invalid entity references from tracking
+    if (!scene_) return;
+    
+    bullets_.erase(
+        std::remove_if(bullets_.begin(), bullets_.end(), 
+            [](const Entity& e) { return !e.IsValid(); }),
+        bullets_.end()
+    );
 }
 
 void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
     UpdateGrabSystem(ts);
+    CleanupBullets();  // Only removes invalid references, not actual bullets
     scene_->OnUpdate(ts);
     UpdateCamera();
 }
@@ -321,6 +382,9 @@ void ThirdPersonLayer::Shoot() {
     btVector3 impulse(forward.x, forward.y, forward.z);
     impulse *= 50.0f; // Force
     rb.GetRigidbody()->applyCentralImpulse(impulse);
+
+    // Track bullet for cleanup
+    bullets_.push_back(box);
 }
 
 
@@ -498,11 +562,13 @@ void ThirdPersonLayer::UpdateGrabSystem(float ts) {
 void ThirdPersonLayer::OnRender() {
     auto& window      = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
+    
+    // Render scene (entities with built-in frustum and occlusion culling)
     scene_->OnRender(camera_, aspectRatio);
     
     // Update and render debug drawing
     if (scene_->GetPhysicsSystem()) {
-        scene_->GetPhysicsSystem()->UpdateDebugDraw(1.0f / 60.0f); // Approximate dt
+        scene_->GetPhysicsSystem()->UpdateDebugDraw(1.0f / 60.0f);
         scene_->GetPhysicsSystem()->RenderDebug(camera_);
     }
 }
@@ -517,6 +583,7 @@ void ThirdPersonLayer::OnImGuiRender() {
 
     ImGui::Text("Grounded: %s", isGrounded_ ? "Yes" : "No");
     ImGui::Text("Velocity Y: %.2f", playerVelocity_.y);
+    ImGui::Text("Active Bullets: %zu", bullets_.size());
 
     if (playerEntity_.HasComponent<SpringArmComponent>()) {
         auto& springArm = playerEntity_.GetComponent<SpringArmComponent>();
@@ -531,10 +598,40 @@ void ThirdPersonLayer::OnImGuiRender() {
     ImGui::Text("Target Yaw: %.2f", debugTargetYaw_);
     ImGui::Text("Current Yaw: %.2f", debugCurrentYaw_);
     ImGui::Text("New Yaw: %.2f", debugNewYaw_);
-    ImGui::Text("Physics Yaw: %.2f", debugPhysicsYaw_);
-    ImGui::Text("Physics Pitch: %.2f", debugPitch_);
-    ImGui::Text("Physics Roll: %.2f", debugRoll_);
 
+    ImGui::End();
+
+    // Culling Debug Panel
+    ImGui::Begin("Culling System");
+    
+    auto& sceneRenderer = Application::Get().GetRenderer().GetSceneRenderer();
+    auto stats = sceneRenderer.GetStats();
+    
+    if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling_)) {
+        sceneRenderer.SetFrustumCullingEnabled(enableFrustumCulling_);
+    }
+    if (ImGui::Checkbox("Enable Occlusion Culling", &enableOcclusionCulling_)) {
+        sceneRenderer.SetOcclusionCullingEnabled(enableOcclusionCulling_);
+    }
+    
+    ImGui::Separator();
+    ImGui::Text("Culling Statistics:");
+    ImGui::Text("Total Objects: %u", stats.TotalObjects);
+    ImGui::Text("Frustum Culled: %u", stats.FrustumCulled);
+    ImGui::Text("Occlusion Culled: %u", stats.OcclusionCulled);
+    ImGui::Text("Visible Objects: %u", stats.VisibleObjects);
+    ImGui::Text("Draw Calls: %u", stats.DrawCalls);
+    ImGui::Text("Triangles: %u", stats.TriangleCount);
+    
+    if (stats.TotalObjects > 0) {
+        float cullRatio = static_cast<float>(stats.FrustumCulled + stats.OcclusionCulled) / stats.TotalObjects;
+        ImGui::ProgressBar(cullRatio, ImVec2(-1, 0), "Total Cull Ratio");
+    }
+    
+    ImGui::Separator();
+    ImGui::Text("Bullet Cubes in Scene: %zu", bullets_.size());
+    ImGui::Text("(Bullets persist for physics testing)");
+    
     ImGui::End();
 
     // Performance Stats Panel
@@ -542,7 +639,7 @@ void ThirdPersonLayer::OnImGuiRender() {
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
     const float PAD = 10.0f;
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImVec2 work_pos = viewport->GetWorkPos(); // Use work area to avoid menu-bar/task-bar, if any!
+    ImVec2 work_pos = viewport->GetWorkPos();
     ImVec2 work_size = viewport->GetWorkSize();
     ImVec2 window_pos, window_pos_pivot;
     window_pos.x = work_pos.x + work_size.x - PAD;
@@ -550,7 +647,7 @@ void ThirdPersonLayer::OnImGuiRender() {
     window_pos_pivot.x = 1.0f;
     window_pos_pivot.y = 0.0f;
     ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
-    ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+    ImGui::SetNextWindowBgAlpha(0.35f);
     if (ImGui::Begin("Performance Stats", nullptr, window_flags)) {
         ImGui::Text("FPS: %.1f", io.Framerate);
         ImGui::Text("Frametime: %.3f ms", 1000.0f / io.Framerate);
@@ -559,6 +656,11 @@ void ThirdPersonLayer::OnImGuiRender() {
             float physicsTime = scene_->GetPhysicsSystem()->GetLastPhysicsExecutionTime();
             ImGui::Text("Physics: %.3f ms", physicsTime);
         }
+        
+        ImGui::Separator();
+        ImGui::Text("Visible: %u/%u", stats.VisibleObjects, stats.TotalObjects);
+        ImGui::Text("Bullets: %zu", bullets_.size());
     }
     ImGui::End();
 }
+

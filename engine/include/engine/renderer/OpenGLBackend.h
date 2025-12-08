@@ -24,6 +24,8 @@ public:
 
     // Drawing
     void DrawIndexed(VertexArray* va) override;
+    void DrawIndexedInstanced(VertexArray* va, uint32_t instanceCount) override;
+    void DrawArraysInstanced(VertexArray* va, uint32_t vertexCount, uint32_t instanceCount) override;
 
     // State management
     void EnableDepthTest(bool enable) override;

@@ -46,6 +46,7 @@ void SceneRenderer::Init() {
     
     SE_LOG_INFO("Initializing SceneRenderer");
     InitializeShadowResources();
+    occlusionCuller_.Init();
     initialized_ = true;
 }
 
@@ -53,6 +54,7 @@ void SceneRenderer::Shutdown() {
     if (!initialized_) return;
     
     SE_LOG_INFO("Shutting down SceneRenderer");
+    occlusionCuller_.Shutdown();
     DestroyShadowResources();
     initialized_ = false;
 }
@@ -107,14 +109,43 @@ void SceneRenderer::EndScene() {
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray, 
                            const std::shared_ptr<Material>& material, 
                            const Matrix4& transform,
-                           bool castsShadows, bool receiveShadows) {
+                           bool castsShadows, bool receiveShadows,
+                           float boundingRadius) {
     Submission submission;
     submission.vertex_array   = vertexArray;
     submission.material       = material;
     submission.Transform      = transform;
     submission.CastsShadows   = castsShadows;
     submission.ReceiveShadows = receiveShadows;
+    
+    // Extract position from transform
+    submission.Center = Vector3(transform[3]);
+    
+    // Create stable ObjectId based on position hash (for occlusion query tracking)
+    // This ensures the same object gets the same ID across frames
+    auto hashFloat = [](float f) -> uint32_t {
+        return *reinterpret_cast<uint32_t*>(&f);
+    };
+    submission.ObjectId = hashFloat(submission.Center.x) ^ 
+                          (hashFloat(submission.Center.y) << 8) ^ 
+                          (hashFloat(submission.Center.z) << 16);
+    if (submission.ObjectId == 0) submission.ObjectId = 1;  // 0 is reserved
+    
+    // Calculate bounding radius considering scale
+    float scaleX = glm::length(Vector3(transform[0]));
+    float scaleY = glm::length(Vector3(transform[1]));
+    float scaleZ = glm::length(Vector3(transform[2]));
+    float maxScale = glm::max(glm::max(scaleX, scaleY), scaleZ);
+    
+    // For a unit cube, bounding sphere radius is sqrt(3)/2 ≈ 0.866
+    submission.BoundingRadius = boundingRadius * maxScale;
+    
     sceneData_.Submissions.emplace_back(std::move(submission));
+}
+
+void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
+    occlusionCullingEnabled_ = enabled;
+    occlusionCuller_.SetEnabled(enabled);
 }
 
 void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
@@ -292,12 +323,40 @@ void SceneRenderer::RenderScenePass() {
     else
         glBindTexture(GL_TEXTURE_2D, 0);
 
+    occlusionCuller_.SetViewProjection(sceneData_.view_projection_matrix);
+    occlusionCuller_.BeginFrame();
+    occlusionCuller_.ResetStats();
+
+    // Separate into occluders (large) and occludees (small)
+    std::vector<const Submission*> occluders;
+    std::vector<const Submission*> occludees;
+    const float kOccluderThreshold = 5.0f;
+
     for (const auto& submission : sceneData_.Submissions) {
         if (!submission.vertex_array || !submission.material) continue;
 
+        stats_.TotalObjects++;
+
+        // Frustum culling first
+        if (frustumCullingEnabled_) {
+            if (!occlusionCuller_.IsSphereVisible(submission.Center, submission.BoundingRadius)) {
+                stats_.FrustumCulled++;
+                continue;
+            }
+        }
+
+        if (submission.BoundingRadius > kOccluderThreshold) {
+            occluders.push_back(&submission);
+        } else {
+            occludees.push_back(&submission);
+        }
+    }
+
+    // Lambda to render a single object
+    auto renderObject = [this](const Submission& submission) {
         submission.material->Bind();
         auto shader = submission.material->GetShader();
-        if (!shader) continue;
+        if (!shader) return;
 
         shader->setMat4("uView", sceneData_.ViewMatrix);
         shader->setMat4("uProj", sceneData_.ProjectionMatrix);
@@ -317,8 +376,40 @@ void SceneRenderer::RenderScenePass() {
 
         RenderCommand::DrawIndexed(submission.vertex_array.get());
 
+        stats_.VisibleObjects++;
         stats_.DrawCalls++;
         stats_.TriangleCount += submission.vertex_array->GetIndexBuffer()->GetCount() / 3;
+    };
+
+    // PHASE 1: Render all OCCLUDERS first to fill depth buffer
+    for (const auto* submission : occluders) {
+        renderObject(*submission);
+    }
+
+    // PHASE 2: Test occludee bounding boxes against depth buffer filled by occluders
+    if (occlusionCullingEnabled_ && occlusionCuller_.IsEnabled()) {
+        for (const auto* submission : occludees) {
+            occlusionCuller_.BeginQuery(submission->ObjectId);
+            occlusionCuller_.RenderBoundingBox(
+                submission->Center, 
+                Vector3(submission->BoundingRadius)
+            );
+            occlusionCuller_.EndQuery();
+        }
+        
+        // Collect results immediately (blocking) to use this frame
+        occlusionCuller_.CollectResults();
+    }
+
+    // PHASE 3: Render occludees that passed the visibility test
+    for (const auto* submission : occludees) {
+        if (occlusionCullingEnabled_ && occlusionCuller_.IsEnabled()) {
+            if (!occlusionCuller_.WasVisibleLastFrame(submission->ObjectId)) {
+                stats_.OcclusionCulled++;
+                continue;  // Skip - occluded by occluders
+            }
+        }
+        renderObject(*submission);
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);

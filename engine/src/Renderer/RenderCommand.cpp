@@ -30,9 +30,22 @@ void RenderCommand::DrawIndexed(const VertexArray* vertexArray, uint32_t indexCo
     glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
 }
 
+void RenderCommand::DrawIndexedInstanced(const VertexArray* vertexArray, uint32_t instanceCount, uint32_t indexCount) {
+    if (instanceCount == 0) return;
+    vertexArray->Bind();
+    uint32_t count = indexCount ? indexCount : vertexArray->GetIndexBuffer()->GetCount();
+    glDrawElementsInstanced(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr, instanceCount);
+}
+
 void RenderCommand::DrawArrays(const VertexArray* vertexArray, uint32_t vertexCount) {
     vertexArray->Bind();
     glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+}
+
+void RenderCommand::DrawArraysInstanced(const VertexArray* vertexArray, uint32_t vertexCount, uint32_t instanceCount) {
+    if (instanceCount == 0) return;
+    vertexArray->Bind();
+    glDrawArraysInstanced(GL_TRIANGLES, 0, vertexCount, instanceCount);
 }
 
 void RenderCommand::DrawLines(const VertexArray* vertexArray, uint32_t vertexCount) {

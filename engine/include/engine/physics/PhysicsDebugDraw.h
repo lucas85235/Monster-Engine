@@ -49,7 +49,7 @@ private:
     std::vector<DebugLine> lines_;
     std::vector<TimedDebugLine> timedLines_;
     std::shared_ptr<Shader> shader_;
-    int debug_mode_;
+    int debug_mode_ = 0;
     
     std::shared_ptr<VertexArray> vertex_array_;
     std::shared_ptr<VertexBuffer> vertex_buffer_;
