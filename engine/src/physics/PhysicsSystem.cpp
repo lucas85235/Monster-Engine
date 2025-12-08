@@ -14,6 +14,8 @@
 #include <chrono>
 #include <algorithm>
 
+#include "engine/core/PerformanceProfiler.h"
+
 namespace se {
 
 PhysicsSystem::PhysicsSystem(Scene* scene) : scene_(scene) {
@@ -129,6 +131,13 @@ void PhysicsSystem::PhysicsLoop() {
         float dt = delta.count();
         if (dt > 0.1f) dt = 0.1f;
 
+        bool has_pending_commands = false;
+        {
+            std::lock_guard<std::mutex> lock(command_queue_mutex_);
+            has_pending_commands = !pending_add_bodies_.empty() || !pending_remove_bodies_.empty();
+        }
+
+        size_t active_body_count = 0;
         {
             std::lock_guard<std::mutex> lock(physics_mutex_);
             if (dynamics_world_) {
@@ -138,10 +147,21 @@ void PhysicsSystem::PhysicsLoop() {
                 dynamics_world_->stepSimulation(dt, config_.maxSubSteps, config_.fixedTimeStep);
                 auto end_physics = Clock::now();
                 
-                if (bodies_.size() > config_.parallelThreshold) {
-                    SyncTransformsToCacheParallel();
-                } else {
-                    SyncTransformsToCache();
+                // Count active (non-sleeping) bodies
+                active_body_count = 0;
+                for (const auto& entry : bodies_) {
+                    if (entry.body && entry.body->isActive()) {
+                        ++active_body_count;
+                    }
+                }
+                
+                // Only sync transforms if there are active bodies or pending commands just processed
+                if (active_body_count > 0 || has_pending_commands) {
+                    if (bodies_.size() > config_.parallelThreshold) {
+                        SyncTransformsToCacheParallel();
+                    } else {
+                        SyncTransformsToCache();
+                    }
                 }
                 
                 std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
@@ -149,7 +169,15 @@ void PhysicsSystem::PhysicsLoop() {
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // Update idle state
+        all_bodies_sleeping_ = (active_body_count == 0) && !bodies_.empty();
+
+        // Smart sleep: if idle, sleep longer to save CPU
+        if (all_bodies_sleeping_ && !has_pending_commands) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
     
     SE_LOG_INFO("Physics Thread Stopped");
@@ -254,39 +282,44 @@ void PhysicsSystem::SyncTransformsToCacheParallel() {
 }
 
 void PhysicsSystem::Update(float dt) {
+    // Update profiler metrics
+    {
+        size_t active = GetActiveBodyCount() - GetSleepingBodyCount();
+        size_t sleeping = GetSleepingBodyCount();
+        size_t total = GetActiveBodyCount();
+        PerformanceProfiler::Get().SetPhysicsMetrics(active, sleeping, total, all_bodies_sleeping_, last_physics_execution_time_);
+        PerformanceProfiler::Get().SetThreadPoolInfo(0, thread_pool_ ? thread_pool_->GetThreadCount() : 0);
+    }
+
+    // CRITICAL OPTIMIZATION: Skip entirely if physics is idle
+    // This prevents unnecessary work and ThreadPool usage when nothing is moving
+    if (all_bodies_sleeping_) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(transform_cache_mutex_);
     
     size_t cache_size = transform_cache_.size();
+    if (cache_size == 0) return;
     
-    if (cache_size > config_.parallelThreshold && thread_pool_) {
-        thread_pool_->ParallelFor(0, cache_size, [this](size_t i) {
-            auto& entry = transform_cache_[i];
-            auto& transform_component = entry.entity.GetComponent<TransformComponent>();
-            auto& cached = entry.transform;
-            
-            transform_component.Position = cached.position;
-            
-            glm::quat q = glm::normalize(cached.rotation);
-            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
-            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
-            transform_component.Rotation.z = glm::degrees(glm::roll(q));
-            
-            transform_component.MarkDirty();
-        });
-    } else {
-        for (auto& entry : transform_cache_) {
-            auto& transform_component = entry.entity.GetComponent<TransformComponent>();
-            auto& cached = entry.transform;
-            
-            transform_component.Position = cached.position;
-            
-            glm::quat q = glm::normalize(cached.rotation);
-            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
-            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
-            transform_component.Rotation.z = glm::degrees(glm::roll(q));
-            
-            transform_component.MarkDirty();
-        }
+    // NOTE: Removed ParallelFor here - it was causing excessive CPU usage.
+    // For transform copying, sequential access with cache coherency is faster
+    // than spawning threads for such trivial work. The overhead of thread
+    // synchronization far exceeds the benefit for simple memory copies.
+    for (auto& entry : transform_cache_) {
+        if (!entry.entity.IsValid()) continue;
+        
+        auto& transform_component = entry.entity.GetComponent<TransformComponent>();
+        auto& cached = entry.transform;
+        
+        transform_component.Position = cached.position;
+        
+        glm::quat q = glm::normalize(cached.rotation);
+        transform_component.Rotation.x = glm::degrees(glm::pitch(q));
+        transform_component.Rotation.y = glm::degrees(glm::yaw(q));
+        transform_component.Rotation.z = glm::degrees(glm::roll(q));
+        
+        transform_component.MarkDirty();
     }
 }
 

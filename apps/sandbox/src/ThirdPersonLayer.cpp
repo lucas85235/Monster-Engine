@@ -662,13 +662,36 @@ void ThirdPersonLayer::OnImGuiRender() {
         ImGui::Text("FPS: %.1f", io.Framerate);
         ImGui::Text("Frametime: %.3f ms", 1000.0f / io.Framerate);
         
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "-- Physics --");
+        
         if (scene_ && scene_->GetPhysicsSystem()) {
-            float physicsTime = scene_->GetPhysicsSystem()->GetLastPhysicsExecutionTime();
-            ImGui::Text("Physics: %.3f ms", physicsTime);
+            auto* physics = scene_->GetPhysicsSystem();
+            float physicsTime = physics->GetLastPhysicsExecutionTime();
+            size_t totalBodies = physics->GetActiveBodyCount();
+            size_t sleepingBodies = physics->GetSleepingBodyCount();
+            size_t activeBodies = totalBodies - sleepingBodies;
+            bool isIdle = physics->IsIdle();
+            
+            ImGui::Text("Simulation: %.3f ms", physicsTime);
+            ImGui::Text("Bodies: %zu total", totalBodies);
+            ImGui::Text("  Active: %zu", activeBodies);
+            ImGui::Text("  Sleeping: %zu", sleepingBodies);
+            
+            if (isIdle) {
+                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Status: IDLE (low CPU)");
+            } else {
+                ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "Status: ACTIVE");
+            }
+            
+            ImGui::Text("Threads: %zu", physics->GetThreadPoolSize());
         }
         
         ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "-- Rendering --");
         ImGui::Text("Visible: %u/%u", stats.VisibleObjects, stats.TotalObjects);
+        ImGui::Text("Draw Calls: %u", stats.DrawCalls);
+        ImGui::Text("Triangles: %u", stats.TriangleCount);
         ImGui::Text("Bullets: %zu", bullets_.size());
     }
     ImGui::End();

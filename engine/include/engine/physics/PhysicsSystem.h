@@ -81,6 +81,7 @@ public:
     size_t GetSleepingBodyCount() const;
     
     const PhysicsConfig& GetConfig() const { return config_; }
+    bool IsIdle() const { return all_bodies_sleeping_; }
 
 private:
     void PhysicsLoop();
@@ -106,6 +107,7 @@ private:
     std::mutex          physics_mutex_;
     std::atomic<bool>   running_ = false;
     std::atomic<float>  last_physics_execution_time_ = 0.0f;
+    std::atomic<bool>   all_bodies_sleeping_ = false;
 
     struct PendingAddBody {
         Entity entity;
