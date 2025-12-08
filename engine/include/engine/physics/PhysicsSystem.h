@@ -5,7 +5,6 @@
 #include <atomic>
 #include <vector>
 #include <queue>
-#include <functional>
 #include <memory>
 
 #include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h>
@@ -14,15 +13,21 @@
 
 #include "engine/ecs/Entity.h"
 #include "engine/Camera.h"
+#include "engine/core/ThreadPool.h"
 
-class btConstraintSolverPoolMt;
-class btITaskScheduler;
+#include <glm.hpp>
+#include <gtc/quaternion.hpp>
 
 namespace se {
 
 class Scene;
 class PhysicsDebugDraw;
 struct RigidbodyData;
+
+struct CachedTransform {
+    glm::vec3 position;
+    glm::quat rotation;
+};
 
 class PhysicsSystem {
 public:
@@ -32,64 +37,55 @@ public:
     void Initialize();
     void Shutdown();
 
-    // Called from Main Thread
     void Update(float dt);
     
-    // Called from Main Thread (usually via RigidbodyComponent)
     btRigidBody* AddRigidBody(Entity entity, const RigidbodyData& data);
     void RemoveRigidBody(btRigidBody* body);
 
     void RenderDebug(const Camera& camera);
 
-    // Raycast
     bool Raycast(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody = nullptr);
-    
-    // Raycast that also returns the hit rigidbody (for grabbing objects)
     btRigidBody* RaycastHitBody(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody = nullptr);
+
+    bool RaycastSync(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody = nullptr);
+    btRigidBody* RaycastHitBodySync(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody = nullptr);
 
     btDiscreteDynamicsWorld* GetDynamicsWorld() { return dynamics_world_; }
     PhysicsDebugDraw* GetDebugDrawer() { return debug_drawer_; }
     
-    // Update debug drawing (call from main thread after Update)
     void UpdateDebugDraw(float dt);
     
-    // Thread-safe access to lock the world if needed manually
     std::mutex& GetMutex() { return physics_mutex_; }
+    float GetLastPhysicsExecutionTime() const { return last_physics_execution_time_; }
+    size_t GetThreadPoolSize() const { return thread_pool_ ? thread_pool_->GetThreadCount() : 0; }
 
 private:
     void PhysicsLoop();
+    void ProcessPendingCommands();
+    void RemoveBodyInternal(btRigidBody* body);
+    void SyncTransformsToCache();
+    void SyncTransformsToCacheParallel();
 
     Scene* scene_;
     
+    // Thread pool for parallel physics operations
+    std::unique_ptr<ThreadPool> thread_pool_;
+    
     // Bullet Physics
-    // Using btDiscreteDynamicsWorldMt for multithreading
     btDiscreteDynamicsWorld*             dynamics_world_ = nullptr;
     btDefaultCollisionConfiguration*     collision_configuration_ = nullptr;
     btCollisionDispatcher*               dispatcher_ = nullptr;
     btBroadphaseInterface*               overlapping_pair_cache_broadphase_interface_ = nullptr;
     btSequentialImpulseConstraintSolver* solver_ = nullptr;
-    
-    // MT specific
-    btConstraintSolverPoolMt*            solver_pool_ = nullptr;
-    btITaskScheduler*                    task_scheduler_ = nullptr;
-
     PhysicsDebugDraw*                    debug_drawer_ = nullptr;
 
-    // Threading
+    // Physics thread
     std::thread         physics_thread_;
     std::mutex          physics_mutex_;
     std::atomic<bool>   running_ = false;
-    std::atomic<float>  accumulated_time_ = 0.0f;
     std::atomic<float>  last_physics_execution_time_ = 0.0f;
 
-public:
-    float GetLastPhysicsExecutionTime() const { return last_physics_execution_time_; }
-
-private:
-    void ProcessPendingCommands();
-    void RemoveBodyInternal(btRigidBody* body);
-
-    // Deferred command queue for thread-safe body operations
+    // Deferred body operations
     struct PendingAddBody {
         Entity entity;
         btRigidBody* body;
@@ -100,11 +96,20 @@ private:
     std::queue<btRigidBody*> pending_remove_bodies_;
     std::mutex command_queue_mutex_;
 
+    // Body tracking
     struct BodyEntry {
         Entity entity;
         btRigidBody* body;
     };
     std::vector<BodyEntry> bodies_;
+    
+    // Transform cache - accessed in parallel
+    struct TransformCacheEntry {
+        Entity entity;
+        CachedTransform transform;
+    };
+    std::vector<TransformCacheEntry> transform_cache_;
+    std::mutex transform_cache_mutex_;
 };
 
 } // namespace se

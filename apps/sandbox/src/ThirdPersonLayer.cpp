@@ -350,7 +350,7 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
 void ThirdPersonLayer::Shoot() {
     float time = (float)glfwGetTime();
-    if (time - lastShootTime_ < 0.0f) return; // 0.2s cooldown
+    if (time - lastShootTime_ < 0.001f) return; // 0.2s cooldown
     lastShootTime_ = time;
 
     // Get camera forward

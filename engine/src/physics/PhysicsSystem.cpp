@@ -1,9 +1,7 @@
 #include "engine/physics/PhysicsSystem.h"
 
-#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h>
-#include <BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h>
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
-#include <LinearMath/btThreads.h>
 
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -26,34 +24,28 @@ PhysicsSystem::~PhysicsSystem() {
 
 
 void PhysicsSystem::Initialize() {
-    SE_LOG_INFO("Initializing PhysicsSystem (Multi-Threaded)...");
+    // Create thread pool with hardware concurrency
+    size_t num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0) num_threads = 4;
+    thread_pool_ = std::make_unique<ThreadPool>(num_threads);
+    
+    SE_LOG_INFO("Initializing PhysicsSystem with {} worker threads...", num_threads);
 
-    // Init Task Scheduler
-    task_scheduler_ = btCreateDefaultTaskScheduler();
-    btSetTaskScheduler(task_scheduler_);
-
-    // Bullet Init
+    // Bullet Init with large pool sizes for many objects
     btDefaultCollisionConstructionInfo cci;
-    // [FIX] Increased pool sizes significantly to 1,048,576 (1M) to handle very high object counts
     cci.m_defaultMaxPersistentManifoldPoolSize = 1048576;
     cci.m_defaultMaxCollisionAlgorithmPoolSize = 1048576;
     collision_configuration_ = new btDefaultCollisionConfiguration(cci);
     
-    // Use MT Dispatcher
-    dispatcher_ = new btCollisionDispatcherMt(collision_configuration_);
+    dispatcher_ = new btCollisionDispatcher(collision_configuration_);
     overlapping_pair_cache_broadphase_interface_ = new btDbvtBroadphase();
+    solver_ = new btSequentialImpulseConstraintSolver();
     
-    // Create Solver Pool
-    solver_pool_ = new btConstraintSolverPoolMt(task_scheduler_->getMaxNumThreads());
-    
-    // Create MT World
-    // Pass nullptr for the single-threaded fallback solver to avoid race conditions
-    dynamics_world_ = new btDiscreteDynamicsWorldMt(
-        (btDispatcher*)dispatcher_, 
+    dynamics_world_ = new btDiscreteDynamicsWorld(
+        dispatcher_, 
         overlapping_pair_cache_broadphase_interface_, 
-        solver_pool_, 
-        (btConstraintSolver*)nullptr, 
-        (btCollisionConfiguration*)collision_configuration_
+        solver_, 
+        collision_configuration_
     );
 
     dynamics_world_->setGravity(btVector3(0.0f, -9.81f, 0.0f));
@@ -61,14 +53,13 @@ void PhysicsSystem::Initialize() {
     debug_drawer_ = new PhysicsDebugDraw();
     dynamics_world_->setDebugDrawer(debug_drawer_);
 
-    // Start Thread
+    // Start dedicated physics thread
     running_ = true;
     physics_thread_ = std::thread(&PhysicsSystem::PhysicsLoop, this);
+    
+    SE_LOG_INFO("Physics system initialized: 1 physics thread + {} worker threads for parallel operations", num_threads);
 }
 
-// -----------------------------------------------------------------------------------------------------------------------------
-// [MODIFIED] Shutdown: Clean up solver and recursively delete shapes.
-// -----------------------------------------------------------------------------------------------------------------------------
 void PhysicsSystem::Shutdown() {
     if (running_) {
         running_ = false;
@@ -76,16 +67,16 @@ void PhysicsSystem::Shutdown() {
             physics_thread_.join();
         }
     }
+    
+    // Destroy thread pool
+    thread_pool_.reset();
 
-    // Cleanup Bullet
     if (dynamics_world_) {
-        // Remove bodies
         for (auto& entry : bodies_) {
             if (entry.body) {
                 dynamics_world_->removeRigidBody(entry.body);
                 delete entry.body->getMotionState();
                 
-                // [FIX] Recursively delete shapes to avoid memory leaks
                 btCollisionShape* shape = entry.body->getCollisionShape();
                 if (shape) {
                     if (shape->isCompound()) {
@@ -105,16 +96,11 @@ void PhysicsSystem::Shutdown() {
         bodies_.clear();
 
         delete dynamics_world_;
-        // solver_ is nullptr in MT setup, delete the pool instead
-        delete solver_pool_;
+        delete solver_;
         delete overlapping_pair_cache_broadphase_interface_;
         delete dispatcher_;
         delete collision_configuration_;
         delete debug_drawer_;
-        
-        // Cleanup Scheduler
-        btSetTaskScheduler(nullptr);
-        delete task_scheduler_;
 
         dynamics_world_ = nullptr;
     }
@@ -138,12 +124,19 @@ void PhysicsSystem::PhysicsLoop() {
         {
             std::lock_guard<std::mutex> lock(physics_mutex_);
             if (dynamics_world_) {
-                // Process queued add/remove operations before simulation step
                 ProcessPendingCommands();
                 
                 auto start_physics = Clock::now();
                 dynamics_world_->stepSimulation(dt, 4, fixed_step);
                 auto end_physics = Clock::now();
+                
+                // Use parallel transform sync for large numbers of bodies
+                if (bodies_.size() > 100) {
+                    SyncTransformsToCacheParallel();
+                } else {
+                    SyncTransformsToCache();
+                }
+                
                 std::chrono::duration<float, std::milli> physics_duration = end_physics - start_physics;
                 last_physics_execution_time_ = physics_duration.count();
             }
@@ -158,75 +151,127 @@ void PhysicsSystem::PhysicsLoop() {
 void PhysicsSystem::ProcessPendingCommands() {
     std::lock_guard<std::mutex> lock(command_queue_mutex_);
     
-    // Process removals first
     while (!pending_remove_bodies_.empty()) {
         btRigidBody* body = pending_remove_bodies_.front();
         pending_remove_bodies_.pop();
         RemoveBodyInternal(body);
     }
     
-    // Process additions
     while (!pending_add_bodies_.empty()) {
         auto& pending = pending_add_bodies_.front();
-        
-        // Actually add the body to the dynamics world now (safe, on physics thread)
         dynamics_world_->addRigidBody(pending.body, pending.collision_group, pending.collision_mask);
         bodies_.push_back({pending.entity, pending.body});
-        
         pending_add_bodies_.pop();
     }
 }
 
-// -----------------------------------------------------------------------------------------------------------------------------
-// Update(float dt) remains unchanged ...
-// -----------------------------------------------------------------------------------------------------------------------------
-void PhysicsSystem::Update(float dt) {
-    // Sync Transforms from Physics to ECS
-    std::lock_guard<std::mutex> lock(physics_mutex_);
-
+void PhysicsSystem::SyncTransformsToCache() {
+    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
+    
+    transform_cache_.clear();
+    transform_cache_.reserve(bodies_.size());
+    
     for (auto& entry : bodies_) {
         if (!entry.body) continue;
         
-        // Check if entity still valid/alive? 
-        // For now assume yes.
-
-        auto& transform_component = entry.entity.GetComponent<TransformComponent>();
+        btTransform trans = entry.body->getInterpolationWorldTransform();
         
-        btTransform trans;
-
-        if (entry.body) {
-            trans = entry.body->getInterpolationWorldTransform();
-        }
-
         const btVector3& origin = trans.getOrigin();
-        transform_component.Position.x = static_cast<float>(origin.getX());
-        transform_component.Position.y = static_cast<float>(origin.getY());
-        transform_component.Position.z = static_cast<float>(origin.getZ());
-
         const btQuaternion& rot = trans.getRotation();
-        glm::quat q(static_cast<float>(rot.w()), static_cast<float>(rot.x()), static_cast<float>(rot.y()), static_cast<float>(rot.z()));
-        q = glm::normalize(q);
-
-        float pitch = glm::pitch(q);
-        float yaw   = glm::yaw(q);
-        float roll  = glm::roll(q);
-
-        transform_component.Rotation.x = glm::degrees(pitch);
-        transform_component.Rotation.y = glm::degrees(yaw);
-        transform_component.Rotation.z = glm::degrees(roll);
         
-        // Invalidate cached transform matrix after physics update
-        transform_component.MarkDirty();
+        TransformCacheEntry cached_entry;
+        cached_entry.entity = entry.entity;
+        cached_entry.transform.position = glm::vec3(
+            static_cast<float>(origin.getX()),
+            static_cast<float>(origin.getY()),
+            static_cast<float>(origin.getZ())
+        );
+        cached_entry.transform.rotation = glm::quat(
+            static_cast<float>(rot.w()),
+            static_cast<float>(rot.x()),
+            static_cast<float>(rot.y()),
+            static_cast<float>(rot.z())
+        );
+        
+        transform_cache_.push_back(cached_entry);
     }
 }
 
+void PhysicsSystem::SyncTransformsToCacheParallel() {
+    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
+    
+    size_t body_count = bodies_.size();
+    transform_cache_.resize(body_count);
+    
+    // Parallel extraction of transforms from Bullet bodies
+    // Note: Reading from btRigidBody is thread-safe as long as no writes occur
+    thread_pool_->ParallelFor(0, body_count, [this](size_t i) {
+        auto& entry = bodies_[i];
+        if (!entry.body) {
+            transform_cache_[i].entity = entry.entity;
+            return;
+        }
+        
+        btTransform trans = entry.body->getInterpolationWorldTransform();
+        
+        const btVector3& origin = trans.getOrigin();
+        const btQuaternion& rot = trans.getRotation();
+        
+        transform_cache_[i].entity = entry.entity;
+        transform_cache_[i].transform.position = glm::vec3(
+            static_cast<float>(origin.getX()),
+            static_cast<float>(origin.getY()),
+            static_cast<float>(origin.getZ())
+        );
+        transform_cache_[i].transform.rotation = glm::quat(
+            static_cast<float>(rot.w()),
+            static_cast<float>(rot.x()),
+            static_cast<float>(rot.y()),
+            static_cast<float>(rot.z())
+        );
+    });
+}
 
-// ... AddRigidBody remains mostly same, returning to RemoveRigidBody ...
+void PhysicsSystem::Update(float dt) {
+    std::lock_guard<std::mutex> lock(transform_cache_mutex_);
+    
+    size_t cache_size = transform_cache_.size();
+    
+    // Use parallel update for large numbers of entities
+    if (cache_size > 100 && thread_pool_) {
+        thread_pool_->ParallelFor(0, cache_size, [this](size_t i) {
+            auto& entry = transform_cache_[i];
+            auto& transform_component = entry.entity.GetComponent<TransformComponent>();
+            auto& cached = entry.transform;
+            
+            transform_component.Position = cached.position;
+            
+            glm::quat q = glm::normalize(cached.rotation);
+            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
+            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
+            transform_component.Rotation.z = glm::degrees(glm::roll(q));
+            
+            transform_component.MarkDirty();
+        });
+    } else {
+        for (auto& entry : transform_cache_) {
+            auto& transform_component = entry.entity.GetComponent<TransformComponent>();
+            auto& cached = entry.transform;
+            
+            transform_component.Position = cached.position;
+            
+            glm::quat q = glm::normalize(cached.rotation);
+            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
+            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
+            transform_component.Rotation.z = glm::degrees(glm::roll(q));
+            
+            transform_component.MarkDirty();
+        }
+    }
+}
 
 btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& data) {
-    std::lock_guard<std::mutex> lock(physics_mutex_);
-
-    if (!dynamics_world_) return nullptr;
+    if (!running_) return nullptr;
 
     auto& transform_component = entity.GetComponent<TransformComponent>();
     btVector3 scale(transform_component.Scale.x, transform_component.Scale.y, transform_component.Scale.z);
@@ -319,10 +364,8 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
         data.freezeRotationZ ? 0.0f : 1.0f
     );
     rigid_body->setAngularFactor(angular_factor);
-
     rigid_body->setGravity(btVector3(0.0f, -9.81f * data.gravityScale, 0.0f));
 
-    // Queue the body for addition on the physics thread
     {
         std::lock_guard<std::mutex> lock(command_queue_mutex_);
         pending_add_bodies_.push({entity, rigid_body, collision_group, collision_mask});
@@ -334,24 +377,17 @@ btRigidBody* PhysicsSystem::AddRigidBody(Entity entity, const RigidbodyData& dat
     return rigid_body;
 }
 
-// -----------------------------------------------------------------------------------------------------------------------------
-// [MODIFIED] RemoveRigidBody: Cleanup shapes recursively.
-// -----------------------------------------------------------------------------------------------------------------------------
 void PhysicsSystem::RemoveRigidBody(btRigidBody* body) {
     if (!body) return;
-    
     std::lock_guard<std::mutex> lock(command_queue_mutex_);
     pending_remove_bodies_.push(body);
-    SE_LOG_INFO("Queued rigidbody for removal");
 }
 
 void PhysicsSystem::RemoveBodyInternal(btRigidBody* body) {
-    // Called from physics thread inside ProcessPendingCommands with physics_mutex_ already held
     if (!dynamics_world_ || !body) return;
 
     dynamics_world_->removeRigidBody(body);
     
-    // Remove from bodies_ list
     for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {
         if (it->body == body) {
             bodies_.erase(it);
@@ -377,71 +413,79 @@ void PhysicsSystem::RemoveBodyInternal(btRigidBody* body) {
     delete body;
 }
 
-    void PhysicsSystem::RenderDebug(const Camera& camera) {
-        std::lock_guard<std::mutex> lock(physics_mutex_);
-        if (dynamics_world_ && debug_drawer_) {
-            dynamics_world_->debugDrawWorld();
-            debug_drawer_->Flush(camera);
+void PhysicsSystem::RenderDebug(const Camera& camera) {
+    std::lock_guard<std::mutex> lock(physics_mutex_);
+    if (dynamics_world_ && debug_drawer_) {
+        dynamics_world_->debugDrawWorld();
+        debug_drawer_->Flush(camera);
+    }
+}
+
+void PhysicsSystem::UpdateDebugDraw(float dt) {
+    if (debug_drawer_) {
+        debug_drawer_->UpdateTimedElements(dt);
+    }
+}
+
+struct RaycastCallback : public btCollisionWorld::ClosestRayResultCallback {
+    btCollisionObject* m_ignoredBody;
+
+    RaycastCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld, btCollisionObject* ignoredBody)
+        : btCollisionWorld::ClosestRayResultCallback(rayFromWorld, rayToWorld), m_ignoredBody(ignoredBody) {}
+
+    virtual bool needsCollision(btBroadphaseProxy* proxy0) const override {
+        if (proxy0->m_clientObject == m_ignoredBody) return false;
+        return btCollisionWorld::ClosestRayResultCallback::needsCollision(proxy0);
+    }
+};
+
+bool PhysicsSystem::Raycast(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody) {
+    std::lock_guard<std::mutex> lock(physics_mutex_);
+    if (!dynamics_world_) return false;
+
+    btVector3 btStart(start.x, start.y, start.z);
+    btVector3 btEnd(end.x, end.y, end.z);
+
+    RaycastCallback rayCallback(btStart, btEnd, ignoredBody);
+    dynamics_world_->rayTest(btStart, btEnd, rayCallback);
+
+    if (rayCallback.hasHit()) {
+        hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(), rayCallback.m_hitPointWorld.y(), rayCallback.m_hitPointWorld.z());
+        hitNormal = glm::vec3(rayCallback.m_hitNormalWorld.x(), rayCallback.m_hitNormalWorld.y(), rayCallback.m_hitNormalWorld.z());
+        return true;
+    }
+
+    return false;
+}
+
+btRigidBody* PhysicsSystem::RaycastHitBody(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody) {
+    std::lock_guard<std::mutex> lock(physics_mutex_);
+    if (!dynamics_world_) return nullptr;
+
+    btVector3 btStart(start.x, start.y, start.z);
+    btVector3 btEnd(end.x, end.y, end.z);
+
+    RaycastCallback rayCallback(btStart, btEnd, ignoredBody);
+    dynamics_world_->rayTest(btStart, btEnd, rayCallback);
+
+    if (rayCallback.hasHit()) {
+        hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(), rayCallback.m_hitPointWorld.y(), rayCallback.m_hitPointWorld.z());
+        
+        const btCollisionObject* hitObj = rayCallback.m_collisionObject;
+        if (hitObj) {
+            return const_cast<btRigidBody*>(btRigidBody::upcast(hitObj));
         }
     }
 
-    void PhysicsSystem::UpdateDebugDraw(float dt) {
-        if (debug_drawer_) {
-            debug_drawer_->UpdateTimedElements(dt);
-        }
-    }
+    return nullptr;
+}
 
-    struct RaycastCallback : public btCollisionWorld::ClosestRayResultCallback {
-        btCollisionObject* m_ignoredBody;
+bool PhysicsSystem::RaycastSync(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody) {
+    return Raycast(start, end, hitPoint, hitNormal, ignoredBody);
+}
 
-        RaycastCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld, btCollisionObject* ignoredBody)
-            : btCollisionWorld::ClosestRayResultCallback(rayFromWorld, rayToWorld), m_ignoredBody(ignoredBody) {}
-
-        virtual bool needsCollision(btBroadphaseProxy* proxy0) const override {
-            if (proxy0->m_clientObject == m_ignoredBody) return false;
-            return btCollisionWorld::ClosestRayResultCallback::needsCollision(proxy0);
-        }
-    };
-
-    bool PhysicsSystem::Raycast(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, btRigidBody* ignoredBody) {
-        std::lock_guard<std::mutex> lock(physics_mutex_);
-        if (!dynamics_world_) return false;
-
-        btVector3 btStart(start.x, start.y, start.z);
-        btVector3 btEnd(end.x, end.y, end.z);
-
-        RaycastCallback rayCallback(btStart, btEnd, ignoredBody);
-        dynamics_world_->rayTest(btStart, btEnd, rayCallback);
-
-        if (rayCallback.hasHit()) {
-            hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(), rayCallback.m_hitPointWorld.y(), rayCallback.m_hitPointWorld.z());
-            hitNormal = glm::vec3(rayCallback.m_hitNormalWorld.x(), rayCallback.m_hitNormalWorld.y(), rayCallback.m_hitNormalWorld.z());
-            return true;
-        }
-
-        return false;
-    }
-
-    btRigidBody* PhysicsSystem::RaycastHitBody(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody) {
-        std::lock_guard<std::mutex> lock(physics_mutex_);
-        if (!dynamics_world_) return nullptr;
-
-        btVector3 btStart(start.x, start.y, start.z);
-        btVector3 btEnd(end.x, end.y, end.z);
-
-        RaycastCallback rayCallback(btStart, btEnd, ignoredBody);
-        dynamics_world_->rayTest(btStart, btEnd, rayCallback);
-
-        if (rayCallback.hasHit()) {
-            hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(), rayCallback.m_hitPointWorld.y(), rayCallback.m_hitPointWorld.z());
-            
-            const btCollisionObject* hitObj = rayCallback.m_collisionObject;
-            if (hitObj) {
-                return const_cast<btRigidBody*>(btRigidBody::upcast(hitObj));
-            }
-        }
-
-        return nullptr;
-    }
+btRigidBody* PhysicsSystem::RaycastHitBodySync(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, btRigidBody* ignoredBody) {
+    return RaycastHitBody(start, end, hitPoint, ignoredBody);
+}
 
 } // namespace se
