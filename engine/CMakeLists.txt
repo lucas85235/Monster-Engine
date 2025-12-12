@@ -12,6 +12,16 @@ set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
 set(BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BUILD_BULLET3 ON CACHE BOOL "" FORCE)
 
+# llama.cpp
+set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+set(LLAMA_HTTPLIB ON CACHE BOOL "" FORCE)
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                   COMPILATION RELATED                   ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -44,6 +54,7 @@ set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
 set(rmlui_DIR ${third_party_dir}/RmlUi)
 set(bullet_DIR ${third_party_dir}/bullet)
+set(llama_DIR ${third_party_dir}/llama)
 
 
 add_library(stb STATIC
@@ -62,6 +73,12 @@ add_subdirectory(${glad_DIR})
 add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
 add_subdirectory(${bullet_DIR})
+
+# llama.cpp requires C++17 (uses u8 literals incompatible with C++20/23 char8_t)
+set(CMAKE_CXX_STANDARD_SAVE ${CMAKE_CXX_STANDARD})
+set(CMAKE_CXX_STANDARD 17)
+add_subdirectory(${llama_DIR})
+set(CMAKE_CXX_STANDARD ${CMAKE_CXX_STANDARD_SAVE})
 
 
 
@@ -93,6 +110,9 @@ target_include_directories(simple_engine PUBLIC
         ${entt_DIR}
         ${rmlui_DIR}/Include
         ${bullet_DIR}/src
+        ${llama_DIR}/include
+        ${llama_DIR}/common
+        ${llama_DIR}/ggml/include
 )
 
 # --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
@@ -113,6 +133,8 @@ target_link_libraries(simple_engine PUBLIC
         BulletDynamics
         BulletCollision
         LinearMath
+        llama
+        common
 )
 
 # Adiciona definições de compilação necessárias
