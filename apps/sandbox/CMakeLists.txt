@@ -11,6 +11,10 @@ add_executable(sandbox
         src/event_sample/events/Events.h
         src/physics_sample/PhysicsSampleLayer.h
         src/physics_sample/PhysicsSampleLayer.cpp
+        src/narrator_demo/AIChatLayer.h
+        src/narrator_demo/AIChatLayer.cpp
+        src/narrator_demo/NarratorLayer.h
+        src/narrator_demo/NarratorLayer.cpp
         src/SampleUtilities.h
         src/main.cpp)
 

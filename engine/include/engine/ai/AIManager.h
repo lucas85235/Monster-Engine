@@ -8,11 +8,21 @@
 namespace se {
 
 struct AIConfig {
-    std::string hf_repo    = "Qwen/Qwen3-4B-GGUF";
-    std::string hf_file    = "";
-    int         n_ctx      = 2048;
+    std::string model_path = "";  // Local path to model file (takes priority)
+    std::string hf_repo    = "";  // HuggingFace repo (fallback)
+    std::string hf_file    = "";  // HuggingFace file
+    int         n_ctx      = 4096;
     int         n_threads  = 4;
     int         n_gpu_layers = 0;
+    
+    // Sampling parameters
+    float       temperature    = 0.7f;
+    float       top_p          = 0.8f;
+    int         top_k          = 20;
+    float       min_p          = 0.0f;
+    float       penalty_repeat = 1.05f;
+    int         penalty_last_n = 64;
+    float       dry_multiplier = 0.0f;
 };
 
 struct AIRequest {

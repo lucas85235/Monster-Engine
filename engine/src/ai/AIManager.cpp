@@ -102,7 +102,14 @@ std::string AIManager::Impl::RunInference(const AIRequest& request) {
 
     const llama_vocab* vocab = llama_model_get_vocab(model);
 
-    std::vector<llama_token> tokens = common_tokenize(ctx, request.prompt, true, true);
+    // Format prompt with Qwen3 chat template (non-thinking mode)
+    std::string formatted_prompt = 
+        "<|im_start|>system\n"
+        "You are a helpful AI assistant. Respond directly and concisely without internal reasoning. /no_think<|im_end|>\n"
+        "<|im_start|>user\n" + request.prompt + "<|im_end|>\n"
+        "<|im_start|>assistant\n";
+
+    std::vector<llama_token> tokens = common_tokenize(ctx, formatted_prompt, true, true);
 
     if (tokens.empty()) {
         throw std::runtime_error("Empty prompt after tokenization");
@@ -118,7 +125,8 @@ std::string AIManager::Impl::RunInference(const AIRequest& request) {
     llama_batch batch = llama_batch_init(static_cast<int>(tokens.size()), 0, 1);
 
     for (size_t i = 0; i < tokens.size(); ++i) {
-        common_batch_add(batch, tokens[i], static_cast<llama_pos>(i), {0}, false);
+        std::vector<llama_seq_id> seq_ids = {0};
+        common_batch_add(batch, tokens[i], static_cast<llama_pos>(i), seq_ids, false);
     }
 
     if (batch.n_tokens > 0) {
@@ -137,7 +145,15 @@ std::string AIManager::Impl::RunInference(const AIRequest& request) {
     }
 
     common_params_sampling sparams;
-    sparams.temp = request.temperature;
+    sparams.temp = config.temperature;
+    sparams.top_p = config.top_p;
+    sparams.top_k = config.top_k;
+    sparams.min_p = config.min_p;
+    sparams.penalty_repeat = config.penalty_repeat;
+    sparams.penalty_last_n = config.penalty_last_n;
+    sparams.dry_multiplier = config.dry_multiplier;
+    sparams.dry_base = 1.75f;
+    sparams.dry_allowed_length = 2;
     sampler = common_sampler_init(model, sparams);
 
     std::string result;
@@ -156,7 +172,8 @@ std::string AIManager::Impl::RunInference(const AIRequest& request) {
         result += piece;
 
         llama_batch single = llama_batch_init(1, 0, 1);
-        common_batch_add(single, new_token, n_cur, {0}, true);
+        std::vector<llama_seq_id> seq_ids = {0};
+        common_batch_add(single, new_token, n_cur, seq_ids, true);
 
         if (llama_decode(ctx, single) != 0) {
             llama_batch_free(single);
@@ -166,6 +183,46 @@ std::string AIManager::Impl::RunInference(const AIRequest& request) {
 
         llama_batch_free(single);
         n_cur++;
+    }
+
+    // Filter out <think> tags if present (Qwen3 thinking mode artifacts)
+    size_t think_start = result.find("<think>");
+    while (think_start != std::string::npos) {
+        size_t think_end = result.find("</think>", think_start);
+        if (think_end != std::string::npos) {
+            result.erase(think_start, think_end - think_start + 8);
+        } else {
+            result.erase(think_start);
+            break;
+        }
+        think_start = result.find("<think>");
+    }
+    
+    // Normalize Unicode quotes/apostrophes to ASCII (fixes ? display issues)
+    // UTF-8 sequences for common smart quotes
+    const std::vector<std::pair<std::string, std::string>> replacements = {
+        {"\xe2\x80\x99", "'"},  // ' RIGHT SINGLE QUOTATION MARK
+        {"\xe2\x80\x98", "'"},  // ' LEFT SINGLE QUOTATION MARK
+        {"\xe2\x80\x9c", "\""},  // " LEFT DOUBLE QUOTATION MARK
+        {"\xe2\x80\x9d", "\""},  // " RIGHT DOUBLE QUOTATION MARK
+        {"\xe2\x80\x94", "-"},   // — EM DASH
+        {"\xe2\x80\x93", "-"},   // – EN DASH
+        {"\xe2\x80\xa6", "..."}  // … ELLIPSIS
+    };
+    
+    for (const auto& [from, to] : replacements) {
+        size_t pos = 0;
+        while ((pos = result.find(from, pos)) != std::string::npos) {
+            result.replace(pos, from.length(), to);
+            pos += to.length();
+        }
+    }
+    
+    // Trim leading/trailing whitespace
+    size_t start = result.find_first_not_of(" \n\r\t");
+    size_t end = result.find_last_not_of(" \n\r\t");
+    if (start != std::string::npos && end != std::string::npos) {
+        result = result.substr(start, end - start + 1);
     }
 
     SE_LOG_DEBUG("[AI] Generated {} characters", result.size());
@@ -195,12 +252,22 @@ bool AIManager::Initialize(const AIConfig& config) {
     SE_LOG_INFO("[AI] Initializing llama.cpp backend...");
     llama_backend_init();
 
-    SE_LOG_INFO("[AI] Loading model from HF: {} / {}", config.hf_repo, 
-        config.hf_file.empty() ? "auto" : config.hf_file);
-
     common_params params;
-    params.model.hf_repo = config.hf_repo;
-    params.model.hf_file = config.hf_file;
+    
+    if (!config.model_path.empty()) {
+        SE_LOG_INFO("[AI] Loading model from local path: {}", config.model_path);
+        params.model.path = config.model_path;
+    } else if (!config.hf_repo.empty()) {
+        SE_LOG_INFO("[AI] Loading model from HF: {} / {}", config.hf_repo, 
+            config.hf_file.empty() ? "auto" : config.hf_file);
+        params.model.hf_repo = config.hf_repo;
+        params.model.hf_file = config.hf_file;
+    } else {
+        SE_LOG_ERROR("[AI] No model path or HuggingFace repo specified");
+        m_impl->loading.store(false);
+        return false;
+    }
+    
     params.n_ctx         = config.n_ctx;
     params.cpuparams.n_threads = config.n_threads;
     params.n_gpu_layers  = config.n_gpu_layers;
