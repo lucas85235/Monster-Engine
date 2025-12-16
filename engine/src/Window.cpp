@@ -3,9 +3,9 @@
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 
-#include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/input/InputManager.h"
+#include "engine/events/Events.h"
+#include "engine/core/ServiceLocator.h"
 #include "engine/renderer/GraphicsContext.h"
 
 namespace se {
@@ -16,7 +16,7 @@ static void GLFWErrorCallback(int error, const char* description) {
     SE_LOG_ERROR("GLFW Error ({}): {}", error, description);
 }
 
-Window::Window(const WindowSpec& spec) : spec_(spec), window_data_() {}
+Window::Window(const WindowSpec& spec) : spec_(spec) {}
 
 Window::~Window() {
     Shutdown();
@@ -34,9 +34,10 @@ void Window::SetVSync(bool enabled) {
 
     vsync_ = enabled;
 }
+
 void Window::SetTitle(const std::string& title) {
-    window_data_.Title = title;
-    glfwSetWindowTitle(window_handle_, window_data_.Title.c_str());
+    spec_.Title = title;
+    glfwSetWindowTitle(window_handle_, spec_.Title.c_str());
 }
 
 bool Window::ShouldClose() const {
@@ -44,7 +45,9 @@ bool Window::ShouldClose() const {
 }
 
 void Window::RequestClose() const {
-    event_bus_->Invoke<NewWindowCloseEvent>();
+    if (event_bus_) {
+        event_bus_->Invoke<WindowCloseEvent>();
+    }
     glfwSetWindowShouldClose(window_handle_, GLFW_TRUE);
 }
 
@@ -57,10 +60,7 @@ Window* Window::Create(const WindowSpec& specification) {
 }
 
 void Window::Init() {
-    window_data_.Title  = spec_.Title;
-    window_data_.Width  = spec_.Width;
-    window_data_.Height = spec_.Height;
-    event_bus_          = spec_.EventBus;
+    event_bus_ = spec_.EventBus;
 
     if (!s_GLFWInitialized) {
         int success = glfwInit();
@@ -90,47 +90,58 @@ void Window::Init() {
     context_ = std::make_unique<GraphicsContext>(window_handle_);
     context_->Init();
 
-    glfwSetWindowUserPointer(window_handle_, &window_data_);
+    glfwSetWindowUserPointer(window_handle_, this);
 
     // Set callbacks
     glfwSetFramebufferSizeCallback(window_handle_, FramebufferSizeCallback);
 
     glfwSetKeyCallback(window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
-        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+        if (!event_bus_) return;
 
         switch (action) {
             case GLFW_PRESS: {
-                InputManager::Get().OnKeyPressed(static_cast<KeyCode>(key));
+                event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 0);
                 break;
             }
             case GLFW_RELEASE: {
-                InputManager::Get().OnKeyReleased(static_cast<KeyCode>(key));
+                event_bus_->Invoke<KeyReleasedEvent>(static_cast<KeyCode>(key));
                 break;
             }
             case GLFW_REPEAT: {
-                // InputManager::Get().OnKeyRepeated(static_cast<KeyCode>(key));
+                event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 1);
                 break;
             }
         }
     });
 
     glfwSetMouseButtonCallback(window_handle_, [](WindowHandle window, int button, int action, int mods) {
-        // auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+        if (!event_bus_) return;
 
         switch (action) {
             case GLFW_PRESS: {
-                InputManager::Get().OnMouseButtonPressed(static_cast<MouseButton>(button));
+                event_bus_->Invoke<MouseButtonPressedEvent>(static_cast<MouseButton>(button));
                 break;
             }
             case GLFW_RELEASE: {
-                InputManager::Get().OnMouseButtonReleased(static_cast<MouseButton>(button));
+                event_bus_->Invoke<MouseButtonReleasedEvent>(static_cast<MouseButton>(button));
                 break;
             }
         }
     });
 
     glfwSetCursorPosCallback(window_handle_, [](WindowHandle window, double xpos, double ypos) {
-        InputManager::Get().OnMouseMoved(static_cast<float>(xpos), static_cast<float>(ypos));
+        if (!event_bus_) return;
+        event_bus_->Invoke<MouseMovedEvent>(static_cast<float>(xpos), static_cast<float>(ypos));
+    });
+
+    glfwSetScrollCallback(window_handle_, [](WindowHandle window, double xoffset, double yoffset) {
+        if (!event_bus_) return;
+        event_bus_->Invoke<MouseScrolledEvent>(static_cast<float>(xoffset), static_cast<float>(yoffset));
+    });
+
+    glfwSetWindowFocusCallback(window_handle_, [](WindowHandle window, int focused) {
+        if (!event_bus_) return;
+        event_bus_->Invoke<WindowFocusEvent>(focused == GLFW_TRUE);
     });
 
     // Set initial viewport
@@ -150,10 +161,11 @@ void Window::FramebufferSizeCallback(WindowHandle window, int width, int height)
     int h = std::max(1, height);
     int w = std::max(1, width);
 
-
-    // verify later if this logic is correct
-    event_bus_->Invoke<NewWindowResizeEvent>(h,w);
+    if (event_bus_) {
+        event_bus_->Invoke<WindowResizeEvent>(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+    }
 
     glViewport(0, 0, w, h);
 }
+
 }  // namespace se

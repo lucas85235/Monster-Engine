@@ -8,29 +8,24 @@
 
 namespace se {
 
-Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(name), owns_physics_(false) {
+Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(name) {
     SE_LOG_INFO("Scene '{}' created", name_);
     
     if (settings.EnablePhysics) {
-        physics_system_ = new PhysicsSystem(this);
+        physics_system_ = std::make_unique<PhysicsSystem>(this);
         physics_system_->Initialize();
-        owns_physics_ = true;
         SE_LOG_INFO("Scene '{}' physics enabled", name_);
     }
 }
 
-Scene::Scene(const std::string& name, PhysicsSystem* externalPhysics) 
-    : name_(name), physics_system_(externalPhysics), owns_physics_(false) {
-    SE_LOG_INFO("Scene '{}' created with external physics", name_);
-}
-
 Scene::~Scene() {
     Clear();
-    if (owns_physics_ && physics_system_) {
+    
+    if (physics_system_) {
         physics_system_->Shutdown();
-        delete physics_system_;
-        physics_system_ = nullptr;
+        SE_LOG_INFO("Scene '{}' physics shutdown", name_);
     }
+    
     SE_LOG_INFO("Scene '{}' destroyed", name_);
 }
 
@@ -77,6 +72,7 @@ void Scene::OnUpdate(float deltaTime) {
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {
     RenderSystem::Render(*this, camera, aspectRatio);
+    
     if (physics_system_) {
         physics_system_->RenderDebug(camera);
     }

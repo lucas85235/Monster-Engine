@@ -1,0 +1,135 @@
+﻿
+[96m========================================
+   SIMPLE ENGINE - BUILD SCRIPT
+========================================[0m
+
+[94m[STEP 1/4][0m [93mGenerating CMake project...[0m
+-- Build spdlog: 1.15.3
+-- Build type: 
+-- Including Win32 support
+.\scripts\generate_visual_studio_files_and_build.
+bat : CMake Deprecation Warning at 
+engine/third_party/bullet/CMakeLists.txt:1 
+(cmake_minimum_required):
+No linha:1 caractere:1
++ .\scripts\generate_visual_studio_files_and_buil
+d.bat 2>&1 | Out-File  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (CMa 
+   ke Deprecati...imum_required)::String) [], R  
+  emoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Compatibility with CMake < 3.10 will be 
+removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, 
+use the <min>...<max> syntax
+  to tell CMake that the project requires at 
+least <min> but has been updated
+  to work with policies introduced by <max> or 
+earlier.
+
+
+CMAKE_EXE_LINKER_FLAGS_DEBUG=/INCREMENTAL:NO 
+/debug /INCREMENTAL
+OPENGL FOUND
+opengl32glu32
+CMake Deprecation Warning at 
+apps/sandbox/CMakeLists.txt:1 
+(cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be 
+removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, 
+use the <min>...<max> syntax
+  to tell CMake that the project requires at 
+least <min> but has been updated
+  to work with policies introduced by <max> or 
+earlier.
+
+
+CMake Warning (dev) at 
+apps/sandbox/CMakeLists.txt:35 
+(add_custom_command):
+  Exactly one of PRE_BUILD, PRE_LINK, or 
+POST_BUILD must be given.  Assuming
+  POST_BUILD to preserve backward compatibility.
+
+  Policy CMP0175 is not set: 
+add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy 
+details.  Use the cmake_policy
+  command to set the policy and suppress this 
+warning.
+This warning is for project developers.  Use 
+-Wno-dev to suppress it.
+
+-- Configuring done (0.1s)
+-- Generating done (0.6s)
+-- Build files have been written to: C:/Users/rapha/_PROJECTS/SimpleEngine/build
+[92m[OK] CMake project generated successfully[0m
+
+[94m[STEP 2/4][0m [93mSetting up Visual Studio 2022 environment...[0m
+[92m[OK] Environment configured successfully[0m
+
+[94m[STEP 3/4][0m [93mBuilding project (Debug x64)...[0m
+
+
+  Checking File Globs
+  BulletSoftBody.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletSoftBody_Debug.lib
+  BulletInverseDynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletInverseDynamics_Debug.lib
+  Bullet3Geometry.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Geometry_Debug.lib
+  Bullet3Dynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Dynamics_Debug.lib
+  Bullet3Common.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Common_Debug.lib
+  Bullet3Collision.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Collision_Debug.lib
+  stb.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\stb_Debug.lib
+  spdlog.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\spdlogd.lib
+  glad.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\glad_Debug.lib
+  LinearMath.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\LinearMath_Debug.lib
+  Copying assets directory
+  glfw.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\glfw3_Debug.lib
+  BulletDynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletDynamics_Debug.lib
+  Assets changed, copying to binary dir...
+  rmlui_core.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Debug\rmlui_Debug.lib
+  BulletCollision.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletCollision_Debug.lib
+  ImGui.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\ImGui_Debug.lib
+  rmlui_debugger.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Debug\rmlui_debugger_Debug.lib
+  imnodes.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\imnodes_Debug.lib
+  ImGuizmo.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\ImGuizmo_Debug.lib
+  Application.cpp
+  Renderer.cpp
+  SceneRenderer.cpp
+  RenderSystem.cpp
+  Scene.cpp
+  Canvas.cpp
+  RmlUiInterfaces.cpp
+  RmlUiLayer.cpp
+  Input.cpp
+  InputManager.cpp
+  PhysicsDebugDraw.cpp
+  RigidbodyComponent.cpp
+  simple_engine.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\simple_engine_Debug.lib
+  AppLayer.cpp
+  ThirdPersonLayer.cpp
+  EventSampleLayer.cpp
+  InputSampleLayer.cpp
+  main.cpp
+  PhysicsSampleLayer.cpp
+  sandbox.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\apps\sandbox\Debug\sandbox.exe
+
+[92m[OK] Build completed successfully[0m
+
+[94m[STEP 4/4][0m [93mLooking for executable...[0m
+[92m[OK] Found: [96mC:\Users\rapha\_PROJECTS\SimpleEngine\build\apps\sandbox\Debug\sandbox.exe[0m
+
+[95m========================================
+   LAUNCHING SIMPLE ENGINE
+========================================[0m
+
+[92m[SUCCESS] Program started successfully[0m
+
+Press any key to close this window...

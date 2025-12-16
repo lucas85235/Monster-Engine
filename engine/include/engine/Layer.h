@@ -2,9 +2,9 @@
 
 #include <string>
 
-#include "engine/events/LegacyEvent.h"
-
 namespace se {
+
+class EventBus;
 
 class Layer {
    public:
@@ -16,11 +16,8 @@ class Layer {
     virtual void OnUpdate(float ts) {}
     virtual void OnRender() {}
     virtual void OnImGuiRender() {}
-    virtual void OnEvent(Event& event) {}
 
-    const std::string& GetName() const {
-        return debugName_;
-    }
+    const std::string& GetName() const { return debugName_; }
 
    protected:
     std::string debugName_;

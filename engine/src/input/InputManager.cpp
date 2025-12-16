@@ -23,6 +23,7 @@ void InputManager::Update() {
     }
 
     mouseDelta_ = {0.0f, 0.0f};
+    scrollDelta_ = 0.0f;  // Reset scroll each frame
 }
 
 void InputManager::SetCursorMode(CursorMode mode) {
@@ -98,6 +99,8 @@ float InputManager::GetAxis(const std::string& name) const {
                 value += mouseDelta_.x * binding.Scale;
             } else if (binding.Key == Key::MouseY) {
                 value += mouseDelta_.y * binding.Scale;
+            } else if (binding.Key == Key::MouseScrollY) {
+                value += scrollDelta_ * binding.Scale;
             } else if (IsKeyDown(binding.Key)) {
                 value += binding.Scale;
             }
@@ -176,6 +179,10 @@ void InputManager::OnMouseMoved(float x, float y) {
     // deltaY = lastY - currentY.
     // My implementation: currentY - lastY. So positive delta means moving down.
     // I will leave it as is (standard delta) and let CameraController flip it.
+}
+
+void InputManager::OnMouseScrolled(float yOffset) {
+    scrollDelta_ += yOffset;
 }
 
 } // namespace se

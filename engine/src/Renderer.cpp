@@ -4,6 +4,7 @@
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
+#include "engine/core/ServiceLocator.h"
 
 namespace se {
 
@@ -23,7 +24,10 @@ void Renderer::Init() {
 
     // Initialize low-level rendering systems
     RenderCommand::Init();
-    SceneRenderer::Init();
+    sceneRenderer_.Init();
+
+    // Register SceneRenderer with ServiceLocator
+    ServiceLocator::Get().ProvideSceneRenderer(&sceneRenderer_);
 
     // Initialize resource managers
     MeshManager::Init();
@@ -44,7 +48,7 @@ void Renderer::Shutdown() {
     RenderSystem::Shutdown();
     MaterialManager::Shutdown();
     MeshManager::Shutdown();
-    SceneRenderer::Shutdown();
+    sceneRenderer_.Shutdown();
 
     initialized_ = false;
 }
@@ -67,11 +71,11 @@ void Renderer::SetClearColor(float r, float g, float b, float a) {
 
 void Renderer::BeginScene(const Camera& camera, float aspectRatio) {
     Matrix4 projection = camera.getProjectionMatrix(aspectRatio);
-    SceneRenderer::BeginScene(camera, projection);
+    sceneRenderer_.BeginScene(camera, projection);
 }
 
 void Renderer::EndScene() {
-    SceneRenderer::EndScene();
+    sceneRenderer_.EndScene();
 }
 
 }  // namespace se

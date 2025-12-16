@@ -2,6 +2,7 @@
 
 #include <entt.hpp>
 #include <string>
+#include <memory>
 
 #include "engine/Camera.h"
 #include "engine/Log.h"
@@ -18,44 +19,40 @@ struct SceneSettings {
 class Scene {
    public:
     Scene(const std::string& name = "Untitled Scene", const SceneSettings& settings = {});
-    Scene(const std::string& name, PhysicsSystem* externalPhysics);
     ~Scene();
 
-    // Create a new entity
-    Entity CreateEntity(const std::string& name = "Entity");
+    // Disable copy
+    Scene(const Scene&) = delete;
+    Scene& operator=(const Scene&) = delete;
 
-    // Destroy an entity
+    // Allow move
+    Scene(Scene&&) = default;
+    Scene& operator=(Scene&&) = default;
+
+    Entity CreateEntity(const std::string& name = "Entity");
     void DestroyEntity(Entity entity);
 
-    // Get all entities with specific components
     template <typename... Components>
     auto GetAllEntitiesWith() {
         return registry_.view<Components...>();
     }
 
-    // Find entity by name
     Entity FindEntityByName(const std::string& name);
 
-    // Get scene name
-    const std::string& GetName() const {
-        return name_;
-    }
+    const std::string& GetName() const { return name_; }
 
-    // Update scene (can be used for systems)
     void OnUpdate(float deltaTime);
-
-    // Render scene (automatically renders all MeshRenderComponents)
     void OnRender(const Camera& camera, float aspectRatio);
 
-    // Clear all entities
     void Clear();
 
-    // Get entity count
     size_t GetEntityCount() const {
         return registry_.storage<entt::entity>()->size();
     }
 
-    PhysicsSystem* GetPhysicsSystem() { return physics_system_; }
+    // Physics access - returns nullptr if physics not enabled
+    PhysicsSystem* GetPhysicsSystem() { return physics_system_.get(); }
+    const PhysicsSystem* GetPhysicsSystem() const { return physics_system_.get(); }
     bool HasPhysics() const { return physics_system_ != nullptr; }
 
     entt::registry& GetRegistry() { return registry_; }
@@ -65,8 +62,8 @@ class Scene {
     std::string    name_;
     entt::registry registry_;
     
-    PhysicsSystem* physics_system_ = nullptr;
-    bool owns_physics_ = false;
+    // Physics is optional and owned by Scene via unique_ptr
+    std::unique_ptr<PhysicsSystem> physics_system_;
 
     friend class Entity;
     friend class RenderSystem;

@@ -2,9 +2,12 @@
 
 #include "engine/Layer.h"
 #include "engine/ui/RmlUiInterfaces.h"
+#include "engine/events/Events.h"
 #include <RmlUi/Core.h>
 
 namespace se {
+
+class EventBus;
 
 class RmlUiLayer : public Layer {
    public:
@@ -15,7 +18,6 @@ class RmlUiLayer : public Layer {
     void OnDetach() override;
     void OnUpdate(float ts) override;
     void OnRender() override;
-    void OnEvent(Event& event) override;
 
     Rml::Context* GetContext() const { return context_; }
 
@@ -24,15 +26,16 @@ class RmlUiLayer : public Layer {
     RmlUiRenderInterface*     render_interface_ = nullptr;
     RmlUiFontEngineInterface* font_interface_   = nullptr;
     Rml::Context*             context_          = nullptr;
+    EventBus*                 event_bus_        = nullptr;
     
-    bool OnWindowResize(class WindowResizeEvent& e);
-    bool OnMouseMove(class MouseMovedEvent& e);
-    bool OnMouseButtonPressed(class MouseButtonPressedEvent& e);
-    bool OnMouseButtonReleased(class MouseButtonReleasedEvent& e);
-    bool OnMouseScrolled(class MouseScrolledEvent& e);
-    bool OnKeyPressed(class KeyPressedEvent& e);
-    bool OnKeyReleased(class KeyReleasedEvent& e);
-    bool OnKeyTyped(class KeyTypedEvent& e);
+    void OnWindowResize(const WindowResizeEvent& e);
+    void OnMouseMove(const MouseMovedEvent& e);
+    void OnMouseButtonPressed(const MouseButtonPressedEvent& e);
+    void OnMouseButtonReleased(const MouseButtonReleasedEvent& e);
+    void OnMouseScrolled(const MouseScrolledEvent& e);
+    void OnKeyPressed(const KeyPressedEvent& e);
+    void OnKeyReleased(const KeyReleasedEvent& e);
+    void OnKeyTyped(const KeyTypedEvent& e);
 };
 
 }  // namespace se

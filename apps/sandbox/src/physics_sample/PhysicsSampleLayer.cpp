@@ -12,21 +12,15 @@
 
 PhysicsSampleLayer::~PhysicsSampleLayer() {}
 
-void PhysicsSampleLayer::OnDetach() {
-    Layer::OnDetach();
-}
+void PhysicsSampleLayer::OnDetach() {}
 
 void PhysicsSampleLayer::OnAttach() {
-    Layer::OnAttach();
-
     scene_ = CreateScope<Scene>();
     material_ = Utilities::LoadMaterial();
 
     // Camera setup
     camera_ = Camera(Vector3(0.0f, 5.0f, 15.0f));
     camera_.SetPitch(-20.0f);
-
-    // Application::Get().GetPhysicsManager().SetScene(*scene_);
 
     // Floor
     {
@@ -73,7 +67,7 @@ void PhysicsSampleLayer::OnAttach() {
         transform.SetPosition({0.0f, 12.0f, 0.0f});
 
         SphereCollider collider;
-        collider.Radius = 0.5f; // Default sphere primitive radius is usually 0.5 or 1.0, need to check. Assuming 0.5 radius (1.0 diameter)
+        collider.Radius = 0.5f;
         sphere.AddComponent<SphereCollider>(collider);
 
         RigidbodyData data = RigidbodyData{.mass = 1.0f};
@@ -111,28 +105,18 @@ void PhysicsSampleLayer::OnAttach() {
 }
 
 void PhysicsSampleLayer::OnUpdate(float ts) {
-    Layer::OnUpdate(ts);
     scene_->OnUpdate(ts);
 }
 
 void PhysicsSampleLayer::OnRender() {
-    Layer::OnRender();
-    
     auto& window = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
     
     scene_->OnRender(camera_, aspectRatio);
-    
-    // Application::Get().GetPhysicsManager().RenderDebug(camera_);
 }
 
 void PhysicsSampleLayer::OnImGuiRender() {
-    Layer::OnImGuiRender();
     ImGui::Begin("Physics Debug");
     ImGui::Text("Press 'R' to reset scene (not implemented yet)");
     ImGui::End();
-}
-
-void PhysicsSampleLayer::OnEvent(Event& event) {
-    Layer::OnEvent(event);
 }

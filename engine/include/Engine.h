@@ -7,7 +7,6 @@ struct GLFWmonitor;
 struct GLFWcursor;
 
 namespace se {
-class Event;
 
 // Math Types
 using Vector2    = glm::vec2;
@@ -28,10 +27,9 @@ using WindowHandle  = GLFWwindow*;
 using MonitorHandle = GLFWmonitor*;
 using CursorHandle  = GLFWcursor*;
 
-using EventCallbackFn = std::function<void(Event&)>;
-using EventTypeId     = std::size_t;
+// Event system types
+using EventTypeId = std::size_t;
 
-// corresponds to the new event system
 namespace detail {
 inline EventTypeId GenerateTypeId() {
     static EventTypeId counter = 0;
@@ -45,6 +43,7 @@ EventTypeId GetTypeId() {
 }
 }  // namespace detail
 
+// Smart pointer aliases
 template <typename T>
 using Scope = std::unique_ptr<T>;
 
@@ -61,10 +60,10 @@ constexpr Ref<T> CreateRef(Args&&... args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
 }
 
+// Utility macros
 #define BIT(x)               (1 << x)
 #define SE_BIND_EVENT_FN(fn) [this](auto&&... args) -> decltype(auto) { return this->fn(std::forward<decltype(args)>(args)...); }
 
-// just for debug :)
 #define DEBUG
 
 }  // namespace se

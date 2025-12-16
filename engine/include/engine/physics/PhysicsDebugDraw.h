@@ -23,6 +23,14 @@ public:
     int getDebugMode() const override;
 
     void Flush(const Camera& camera);
+    
+    // Timed debug drawing
+    void DrawDebugLine(const Vector3& from, const Vector3& to, const Vector3& color, float duration);
+    void DrawDebugSphere(const Vector3& center, float radius, const Vector3& color, float duration, int segments = 16);
+    void DrawDebugPoint(const Vector3& point, float size, const Vector3& color, float duration);
+    
+    // Update timed elements (call every frame)
+    void UpdateTimedElements(float deltaTime);
 
 private:
     struct DebugLine {
@@ -31,12 +39,22 @@ private:
         Vector3 Color;
     };
 
+    struct TimedDebugLine {
+        Vector3 From;
+        Vector3 To;
+        Vector3 Color;
+        float RemainingTime;
+    };
+
     std::vector<DebugLine> lines_;
+    std::vector<TimedDebugLine> timedLines_;
     std::shared_ptr<Shader> shader_;
-    int debug_mode_;
+    int debug_mode_ = 0;
     
     std::shared_ptr<VertexArray> vertex_array_;
     std::shared_ptr<VertexBuffer> vertex_buffer_;
+    
+    std::mutex mutex_;
 };
 
 } // namespace se

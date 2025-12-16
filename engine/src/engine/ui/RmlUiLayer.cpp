@@ -3,9 +3,8 @@
 
 #include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/events/ApplicationEvent.h"
-#include "engine/events/KeyEvent.h"
-#include "engine/events/MouseEvent.h"
+#include "engine/events/EventBus.h"
+#include "engine/events/Events.h"
 
 #include <GLFW/glfw3.h>
 
@@ -43,8 +42,16 @@ void RmlUiLayer::OnAttach() {
 
     Rml::Debugger::Initialise(context_);
     
-    // Load fonts?
-    // Rml::LoadFontFace("assets/fonts/Lato-Regular.ttf");
+    // Subscribe to events via EventBus
+    event_bus_ = &Application::Get().GetEventBus();
+    event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
+    event_bus_->AddListener<MouseMovedEvent>(SE_BIND_EVENT_FN(OnMouseMove));
+    event_bus_->AddListener<MouseButtonPressedEvent>(SE_BIND_EVENT_FN(OnMouseButtonPressed));
+    event_bus_->AddListener<MouseButtonReleasedEvent>(SE_BIND_EVENT_FN(OnMouseButtonReleased));
+    event_bus_->AddListener<MouseScrolledEvent>(SE_BIND_EVENT_FN(OnMouseScrolled));
+    event_bus_->AddListener<KeyPressedEvent>(SE_BIND_EVENT_FN(OnKeyPressed));
+    event_bus_->AddListener<KeyReleasedEvent>(SE_BIND_EVENT_FN(OnKeyReleased));
+    event_bus_->AddListener<KeyTypedEvent>(SE_BIND_EVENT_FN(OnKeyTyped));
 }
 
 void RmlUiLayer::OnDetach() {
@@ -73,75 +80,50 @@ void RmlUiLayer::OnRender() {
     }
 }
 
-void RmlUiLayer::OnEvent(Event& event) {
-    EventDispatcher dispatcher(event);
-    
-    dispatcher.Dispatch<WindowResizeEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnWindowResize));
-    dispatcher.Dispatch<MouseMovedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnMouseMove));
-    dispatcher.Dispatch<MouseButtonPressedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnMouseButtonPressed));
-    dispatcher.Dispatch<MouseButtonReleasedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnMouseButtonReleased));
-    dispatcher.Dispatch<MouseScrolledEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnMouseScrolled));
-    dispatcher.Dispatch<KeyPressedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnKeyPressed));
-    dispatcher.Dispatch<KeyReleasedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnKeyReleased));
-    dispatcher.Dispatch<KeyTypedEvent>(SE_BIND_EVENT_FN(RmlUiLayer::OnKeyTyped));
-}
-
-bool RmlUiLayer::OnWindowResize(WindowResizeEvent& e) {
+void RmlUiLayer::OnWindowResize(const WindowResizeEvent& e) {
     if (context_) {
-        context_->SetDimensions(Rml::Vector2i(e.GetWidth(), e.GetHeight()));
-        render_interface_->SetViewport(e.GetWidth(), e.GetHeight());
+        context_->SetDimensions(Rml::Vector2i(e.width, e.height));
+        render_interface_->SetViewport(e.width, e.height);
     }
-    return false;
 }
 
-bool RmlUiLayer::OnMouseMove(MouseMovedEvent& e) {
+void RmlUiLayer::OnMouseMove(const MouseMovedEvent& e) {
     if (context_)
-        context_->ProcessMouseMove(e.GetX(), e.GetY(), 0); // Modifiers?
-    return false; // Should we block? Maybe if hovering UI.
+        context_->ProcessMouseMove(static_cast<int>(e.x), static_cast<int>(e.y), 0);
 }
 
-bool RmlUiLayer::OnMouseButtonPressed(MouseButtonPressedEvent& e) {
+void RmlUiLayer::OnMouseButtonPressed(const MouseButtonPressedEvent& e) {
     if (context_)
-        context_->ProcessMouseButtonDown(e.GetMouseButton(), 0);
-    return false;
+        context_->ProcessMouseButtonDown(e.button, 0);
 }
 
-bool RmlUiLayer::OnMouseButtonReleased(MouseButtonReleasedEvent& e) {
+void RmlUiLayer::OnMouseButtonReleased(const MouseButtonReleasedEvent& e) {
     if (context_)
-        context_->ProcessMouseButtonUp(e.GetMouseButton(), 0);
-    return false;
+        context_->ProcessMouseButtonUp(e.button, 0);
 }
 
-bool RmlUiLayer::OnMouseScrolled(MouseScrolledEvent& e) {
+void RmlUiLayer::OnMouseScrolled(const MouseScrolledEvent& e) {
     if (context_)
-        context_->ProcessMouseWheel(-e.GetYOffset(), 0); // RmlUi expects negative for up? Check docs.
-    return false;
+        context_->ProcessMouseWheel(-e.yOffset, 0);
 }
 
-bool RmlUiLayer::OnKeyPressed(KeyPressedEvent& e) {
+void RmlUiLayer::OnKeyPressed(const KeyPressedEvent& e) {
     if (context_) {
-        // Map GLFW keys to RmlUi keys
-        // This is tedious, need a mapper.
-        // For now, pass raw if possible or minimal mapping.
-        // Rml::Input::KeyIdentifier key = ConvertKey(e.GetKeyCode());
-        // context_->ProcessKeyDown(key, 0);
+        // Map GLFW keys to RmlUi keys (minimal for now)
     }
-    return false;
 }
 
-bool RmlUiLayer::OnKeyReleased(KeyReleasedEvent& e) {
+void RmlUiLayer::OnKeyReleased(const KeyReleasedEvent& e) {
     if (context_) {
         // context_->ProcessKeyUp(key, 0);
     }
-    return false;
 }
 
-bool RmlUiLayer::OnKeyTyped(KeyTypedEvent& e) {
+void RmlUiLayer::OnKeyTyped(const KeyTypedEvent& e) {
     if (context_) {
-        if (e.GetKeyCode() >= 32) // Printable
-            context_->ProcessTextInput((Rml::Character)e.GetKeyCode());
+        if (e.keyCode >= 32) // Printable
+            context_->ProcessTextInput((Rml::Character)e.keyCode);
     }
-    return false;
 }
 
 }  // namespace se

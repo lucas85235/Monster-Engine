@@ -63,11 +63,6 @@ void ImGuiLayer::OnRender() {
     // Rendering is handled by Begin/End
 }
 
-void ImGuiLayer::OnEvent(Event& event) {
-    // You can block events here if ImGui wants to capture them
-    // For now, we let them pass through
-}
-
 void ImGuiLayer::Begin() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();

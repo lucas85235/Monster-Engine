@@ -156,7 +156,8 @@ namespace se
 
             // Mouse Axes
             MouseX              = 500,
-            MouseY              = 501
+            MouseY              = 501,
+            MouseScrollY        = 502
 
 		};
 	}

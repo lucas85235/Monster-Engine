@@ -56,6 +56,7 @@ public:
     void OnMouseButtonPressed(MouseButton button);
     void OnMouseButtonReleased(MouseButton button);
     void OnMouseMoved(float x, float y);
+    void OnMouseScrolled(float yOffset);
 
 private:
     InputManager() = default;
@@ -76,6 +77,7 @@ private:
     Vector2 lastMousePosition_{0.0f};
     Vector2 mouseDelta_{0.0f};
     bool firstMouse_ = true;
+    float scrollDelta_ = 0.0f;
 };
 
 } // namespace se
