@@ -1,11 +1,12 @@
 #include "engine/Window.h"
 
 #include <GLFW/glfw3.h>
+
 #include <stdexcept>
 
 #include "engine/Log.h"
-#include "engine/events/Events.h"
 #include "engine/core/ServiceLocator.h"
+#include "engine/events/Events.h"
 #include "engine/renderer/GraphicsContext.h"
 
 namespace se {
@@ -45,9 +46,7 @@ bool Window::ShouldClose() const {
 }
 
 void Window::RequestClose() const {
-    if (event_bus_) {
-        event_bus_->Invoke<WindowCloseEvent>();
-    }
+    if (event_bus_) { event_bus_->Invoke<WindowCloseEvent>(); }
     glfwSetWindowShouldClose(window_handle_, GLFW_TRUE);
 }
 
@@ -73,6 +72,8 @@ void Window::Init() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_DECORATED, spec_.Decorated);
+    glfwWindowHint(GLFW_RESIZABLE, spec_.Resizable);
 
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -80,7 +81,23 @@ void Window::Init() {
 
     SE_LOG_INFO("Creating window {} ({}, {})", spec_.Title, spec_.Width, spec_.Height);
 
-    window_handle_ = glfwCreateWindow(static_cast<int>(spec_.Width), static_cast<int>(spec_.Height), spec_.Title.c_str(), nullptr, nullptr);
+    if (spec_.Fullscreen) {
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
+
+        int width, height;
+        glfwGetMonitorWorkarea(primary_monitor, nullptr, nullptr, &width, &height);
+
+        window_handle_ =
+            glfwCreateWindow(width, height, spec_.Title.c_str(), primary_monitor, nullptr);
+    }
+
+    else {
+        window_handle_ =
+            glfwCreateWindow(static_cast<int>(spec_.Width), static_cast<int>(spec_.Height),
+                             spec_.Title.c_str(), nullptr, nullptr);
+    }
+
     if (!window_handle_) {
         glfwTerminate();
         throw std::runtime_error("Failed to create GLFW window");
@@ -95,39 +112,41 @@ void Window::Init() {
     // Set callbacks
     glfwSetFramebufferSizeCallback(window_handle_, FramebufferSizeCallback);
 
-    glfwSetKeyCallback(window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
-        if (!event_bus_) return;
+    glfwSetKeyCallback(
+        window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
+            if (!event_bus_) return;
 
-        switch (action) {
-            case GLFW_PRESS: {
-                event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 0);
-                break;
+            switch (action) {
+                case GLFW_PRESS: {
+                    event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 0);
+                    break;
+                }
+                case GLFW_RELEASE: {
+                    event_bus_->Invoke<KeyReleasedEvent>(static_cast<KeyCode>(key));
+                    break;
+                }
+                case GLFW_REPEAT: {
+                    event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 1);
+                    break;
+                }
             }
-            case GLFW_RELEASE: {
-                event_bus_->Invoke<KeyReleasedEvent>(static_cast<KeyCode>(key));
-                break;
-            }
-            case GLFW_REPEAT: {
-                event_bus_->Invoke<KeyPressedEvent>(static_cast<KeyCode>(key), 1);
-                break;
-            }
-        }
-    });
+        });
 
-    glfwSetMouseButtonCallback(window_handle_, [](WindowHandle window, int button, int action, int mods) {
-        if (!event_bus_) return;
+    glfwSetMouseButtonCallback(
+        window_handle_, [](WindowHandle window, int button, int action, int mods) {
+            if (!event_bus_) return;
 
-        switch (action) {
-            case GLFW_PRESS: {
-                event_bus_->Invoke<MouseButtonPressedEvent>(static_cast<MouseButton>(button));
-                break;
+            switch (action) {
+                case GLFW_PRESS: {
+                    event_bus_->Invoke<MouseButtonPressedEvent>(static_cast<MouseButton>(button));
+                    break;
+                }
+                case GLFW_RELEASE: {
+                    event_bus_->Invoke<MouseButtonReleasedEvent>(static_cast<MouseButton>(button));
+                    break;
+                }
             }
-            case GLFW_RELEASE: {
-                event_bus_->Invoke<MouseButtonReleasedEvent>(static_cast<MouseButton>(button));
-                break;
-            }
-        }
-    });
+        });
 
     glfwSetCursorPosCallback(window_handle_, [](WindowHandle window, double xpos, double ypos) {
         if (!event_bus_) return;
@@ -136,7 +155,8 @@ void Window::Init() {
 
     glfwSetScrollCallback(window_handle_, [](WindowHandle window, double xoffset, double yoffset) {
         if (!event_bus_) return;
-        event_bus_->Invoke<MouseScrolledEvent>(static_cast<float>(xoffset), static_cast<float>(yoffset));
+        event_bus_->Invoke<MouseScrolledEvent>(static_cast<float>(xoffset),
+                                               static_cast<float>(yoffset));
     });
 
     glfwSetWindowFocusCallback(window_handle_, [](WindowHandle window, int focused) {

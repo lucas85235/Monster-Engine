@@ -34,6 +34,7 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.Decorated  = specification.WindowDecorated;
     windowSpec.Fullscreen = specification.Fullscreen;
     windowSpec.VSync      = specification.VSync;
+    windowSpec.Resizable  = specification.Resizable;
     windowSpec.IconPath   = specification.IconPath;
     windowSpec.EventBus   = event_bus_.get();
 
