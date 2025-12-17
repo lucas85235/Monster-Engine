@@ -9,7 +9,7 @@ int main() {
                                       .Name            = "First-Game",
                                       .Resizable       = true,
                                       .WindowDecorated = true,
-                                      .Fullscreen      = true,
+                                      .Fullscreen      = false,
                                       .WindowWidth     = 800,
                                       .WindowHeight    = 600};
 

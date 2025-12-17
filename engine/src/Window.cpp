@@ -94,15 +94,15 @@ void Window::Init() {
 
     else {
         window_handle_ =
-            glfwCreateWindow(static_cast<int>(spec_.Width), static_cast<int>(spec_.Height),
-                             spec_.Title.c_str(), nullptr, nullptr);
+            glfwCreateWindow(spec_.Width, spec_.Height, spec_.Title.c_str(), nullptr, nullptr);
 
-        int width, height;
+        int          width, height;
         GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
         glfwGetMonitorWorkarea(primary_monitor, nullptr, nullptr, &width, &height);
 
         // to open in the center of screen
-        glfwSetWindowPos(window_handle_, width/2 - spec_.Width/2, height/2 - spec_.Height/2);
+        glfwSetWindowPos(window_handle_, width / 2 - spec_.Width / 2,
+                         height / 2 - spec_.Height / 2);
     }
 
     if (!window_handle_) {
