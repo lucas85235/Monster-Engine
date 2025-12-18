@@ -1,3 +1,6 @@
+
+<img width="256" height="256" alt="monster-engine-logo" src="https://github.com/user-attachments/assets/3a69a114-9cda-4435-a4f4-d361b343986b" />
+
 # MonsterEngine
 
 A lightweight, modular 3D game engine written in C++ with a focus on simplicity and architecture.
