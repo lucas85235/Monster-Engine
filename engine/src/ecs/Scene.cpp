@@ -1,16 +1,16 @@
 #include "engine/ecs/Scene.h"
 
-#include "engine/core/Log.h"
-#include "engine/ecs/SimpleComponents.h"
-#include "engine/ecs/RenderSystem.h"
 #include "engine/core/Application.h"
+#include "engine/core/Log.h"
+#include "engine/ecs/RenderSystem.h"
+#include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
 
 namespace se {
 
 Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(name) {
     SE_LOG_INFO("Scene '{}' created", name_);
-    
+
     if (settings.EnablePhysics) {
         physics_system_ = std::make_unique<PhysicsSystem>(this);
         physics_system_->Initialize();
@@ -20,12 +20,12 @@ Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(nam
 
 Scene::~Scene() {
     Clear();
-    
+
     if (physics_system_) {
         physics_system_->Shutdown();
         SE_LOG_INFO("Scene '{}' physics shutdown", name_);
     }
-    
+
     SE_LOG_INFO("Scene '{}' destroyed", name_);
 }
 
@@ -35,7 +35,7 @@ Entity Scene::CreateEntity(const std::string& name) {
     entity.AddComponent<TransformComponent>();
     entity.AddComponent<NameComponent>(name.empty() ? "Entity" : name);
 
-    SE_LOG_INFO("Entity '{}' created with ID: {}", name, entity.GetID());
+    // SE_LOG_INFO("Entity '{}' created with ID: {}", name, entity.GetID());
 
     return entity;
 }
@@ -47,8 +47,8 @@ void Scene::DestroyEntity(Entity entity) {
     }
 
     auto& nameComp = entity.GetComponent<NameComponent>();
-    SE_LOG_INFO("Entity '{}' destroyed", nameComp.Name);
-    
+    // SE_LOG_INFO("Entity '{}' destroyed", nameComp.Name);
+
     registry_.destroy(entity.GetHandle());
 }
 
@@ -65,17 +65,13 @@ Entity Scene::FindEntityByName(const std::string& name) {
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    if (physics_system_) {
-        physics_system_->Update(deltaTime);
-    }
+    if (physics_system_) { physics_system_->Update(deltaTime); }
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {
     RenderSystem::Render(*this, camera, aspectRatio);
-    
-    if (physics_system_) {
-        physics_system_->RenderDebug(camera);
-    }
+
+    if (physics_system_) { physics_system_->RenderDebug(camera); }
 }
 
 void Scene::Clear() {

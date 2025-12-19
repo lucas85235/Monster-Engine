@@ -232,7 +232,7 @@ void AppLayer::HandleInput(float deltaTime) {
 // ==================== Entity Creation Helpers ====================
 
 void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& position, const glm::vec3& scale) {
-    SE_LOG_INFO("Creating cube entity: {}", name);
+    // SE_LOG_INFO("Creating cube entity: {}", name);
 
     auto entity = scene_->CreateEntity(name);
 
@@ -251,7 +251,7 @@ void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& positi
     transform.SetPosition(position);
     transform.SetScale(scale);
 
-    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y, position.z);
+    // SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y, position.z);
 }
 
 void AppLayer::AddDirectionalLight() {
@@ -270,7 +270,7 @@ void AppLayer::AddDirectionalLight() {
 }
 
 void AppLayer::CreateSphereEntity(const std::string& name, const glm::vec3& position) {
-    SE_LOG_INFO("Creating sphere entity: {}", name);
+    // SE_LOG_INFO("Creating sphere entity: {}", name);
 
     auto entity = scene_->CreateEntity(name);
 
@@ -281,11 +281,11 @@ void AppLayer::CreateSphereEntity(const std::string& name, const glm::vec3& posi
     auto& transform = entity.GetComponent<TransformComponent>();
     transform.SetPosition(position);
 
-    SE_LOG_INFO("Sphere entity created successfully");
+    // SE_LOG_INFO("Sphere entity created successfully");
 }
 
 void AppLayer::CreateCapsuleEntity(const std::string& name, const glm::vec3& position) {
-    SE_LOG_INFO("Creating capsule entity: {}", name);
+    // SE_LOG_INFO("Creating capsule entity: {}", name);
 
     auto entity = scene_->CreateEntity(name);
 
@@ -297,5 +297,5 @@ void AppLayer::CreateCapsuleEntity(const std::string& name, const glm::vec3& pos
     transform.SetPosition(position);
     transform.SetScale({0.5f, 0.5f, 0.5f});
 
-    SE_LOG_INFO("Capsule entity created successfully");
+    // SE_LOG_INFO("Capsule entity created successfully");
 }

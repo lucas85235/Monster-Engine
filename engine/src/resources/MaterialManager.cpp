@@ -74,7 +74,7 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name, cons
     // Check cache
     auto it = shaderCache_.find(name);
     if (it != shaderCache_.end()) {
-        SE_LOG_INFO("Shader '{}' found in cache", name);
+        // SE_LOG_INFO("Shader '{}' found in cache", name);
         return it->second;
     }
 
@@ -82,7 +82,7 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name, cons
     try {
         auto shader        = Shader::CreateFromFiles(vertPath, fragPath);
         shaderCache_[name] = shader;
-        SE_LOG_INFO("Loaded and cached shader: {}", name);
+        // SE_LOG_INFO("Loaded and cached shader: {}", name);
         return shader;
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Failed to load shader '{}': {}", name, e.what());

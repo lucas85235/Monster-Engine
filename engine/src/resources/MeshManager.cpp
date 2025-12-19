@@ -1,8 +1,8 @@
 #include "engine/resources/MeshManager.h"
 
 #include "engine/core/Log.h"
-#include "engine/renderer/MeshFactory.h"
 #include "engine/renderer/Buffer.h"
+#include "engine/renderer/MeshFactory.h"
 
 namespace se {
 std::unordered_map<PrimitiveMeshType, std::shared_ptr<VertexArray>> MeshManager::primitiveCache_;
@@ -44,7 +44,7 @@ std::shared_ptr<VertexArray> MeshManager::CreateVertexArrayFromMesh(const Mesh& 
     vertexArray->AddVertexBuffer(vertexBuffer);
     vertexArray->SetIndexBuffer(indexBuffer);
 
-    SE_LOG_INFO("VertexArray created successfully");
+    // SE_LOG_INFO("VertexArray created successfully");
     return vertexArray;
 }
 
@@ -57,12 +57,12 @@ std::shared_ptr<VertexArray> MeshManager::GetPrimitive(PrimitiveMeshType type) {
     // Check cache
     auto it = primitiveCache_.find(type);
     if (it != primitiveCache_.end()) {
-        SE_LOG_INFO("Primitive mesh found in cache");
+        // SE_LOG_INFO("Primitive mesh found in cache");
         return it->second;
     }
 
     // Create and cache
-    SE_LOG_INFO("Creating new primitive mesh");
+    // SE_LOG_INFO("Creating new primitive mesh");
     auto primitive = CreatePrimitive(type);
 
     if (!primitive) {

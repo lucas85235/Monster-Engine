@@ -207,12 +207,12 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     lastBatchCount_       = batchCount;
     lastInstancedObjects_ = instancedObjects;
 
-    // Log stats periodically
-    static int frameCount = 0;
-    if (frameCount < 10 || frameCount % 300 == 0) {
-        SE_LOG_INFO("RenderSystem: {} batches, {} instanced objects, {} skipped", batchCount, instancedObjects, skippedCount);
-    }
-    frameCount++;
+    // Log stats periodically (disabled for cleaner output)
+    // static int frameCount = 0;
+    // if (frameCount < 10 || frameCount % 300 == 0) {
+    //     SE_LOG_INFO("RenderSystem: {} batches, {} instanced objects, {} skipped", batchCount, instancedObjects, skippedCount);
+    // }
+    // frameCount++;
 
     sceneRenderer.EndScene();
 }
