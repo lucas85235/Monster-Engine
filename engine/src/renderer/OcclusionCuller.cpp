@@ -1,12 +1,15 @@
 #include "engine/renderer/OcclusionCuller.h"
 
 #include <glad/glad.h>
+
 #include <gtc/matrix_transform.hpp>
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
-#include "engine/renderer/Shader.h"
 #include "engine/renderer/Buffer.h"
+#include "engine/renderer/GraphicsContext.h"
 #include "engine/renderer/RenderCommand.h"
+#include "engine/renderer/Shader.h"
 
 namespace {
 
@@ -29,14 +32,8 @@ void main() {
 
 // Unit cube vertices (-0.5 to 0.5)
 const float kCubeVertices[] = {
-    -0.5f, -0.5f,  0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
-    -0.5f,  0.5f,  0.5f,
-    -0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
-    -0.5f,  0.5f, -0.5f,
+    -0.5f, -0.5f, 0.5f,  0.5f, -0.5f, 0.5f,  0.5f, 0.5f, 0.5f,  -0.5f, 0.5f, 0.5f,
+    -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f,
 };
 
 const uint32_t kCubeIndices[] = {
@@ -52,12 +49,16 @@ const uint32_t kCubeIndices[] = {
 
 namespace se {
 
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    return context ? context->GetDevice() : nullptr;
+}
+
 OcclusionCuller::OcclusionCuller() {}
 
 OcclusionCuller::~OcclusionCuller() {
-    if (initialized_) {
-        Shutdown();
-    }
+    if (initialized_) { Shutdown(); }
 }
 
 void OcclusionCuller::Init() {
@@ -70,7 +71,7 @@ void OcclusionCuller::Init() {
 
     // Create bounding box VAO
     boundingBoxVA_ = std::make_shared<VertexArray>();
-    auto vb = std::make_shared<VertexBuffer>(kCubeVertices, sizeof(kCubeVertices));
+    auto vb        = std::make_shared<VertexBuffer>(kCubeVertices, sizeof(kCubeVertices));
     vb->SetLayout({{ShaderDataType::Float3, "a_Position"}});
     boundingBoxVA_->AddVertexBuffer(vb);
     auto ib = std::make_shared<IndexBuffer>(kCubeIndices, sizeof(kCubeIndices) / sizeof(uint32_t));
@@ -78,9 +79,35 @@ void OcclusionCuller::Init() {
 
     // Create occlusion test shader
     occlusionShader_ = std::make_shared<Shader>(kOcclusionVertexShader, kOcclusionFragmentShader);
-    if (!occlusionShader_ || occlusionShader_->getID() == 0) {
+    if (!occlusionShader_ || !RHI::IsValid(occlusionShader_->GetHandle())) {
         SE_LOG_ERROR("Failed to create occlusion shader");
         return;
+    }
+
+    if (auto* device = GetDevice()) {
+        RHI::PipelineDescriptor desc{};
+        desc.depthStencil.depthTestEnable  = true;
+        desc.depthStencil.depthWriteEnable = false;  // We check against existing depth
+        desc.depthStencil.depthCompareOp   = RHI::CompareOp::LessOrEqual;
+        desc.rasterizer.cullMode           = RHI::CullMode::Back;  // Or none? Box is convex.
+        desc.topology                      = RHI::PrimitiveTopology::TriangleList;
+
+        // Need vertex layout from boundingBoxVA_
+        if (!boundingBoxVA_->GetVertexBuffers().empty()) {
+            const auto& layout = boundingBoxVA_->GetVertexBuffers()[0]->GetLayout();
+            // Need to convert se::BufferLayout to RHI::VertexLayout
+            // Can use Material::GetPipeline logic duplicaton or helper?
+            // Duplicating simplified logic for float3 position only
+            RHI::VertexLayout vertexLayout;
+            vertexLayout.stride = layout.GetStride();
+            RHI::VertexAttribute attr;
+            attr.location = 0;
+            attr.type     = RHI::VertexAttributeType::Float3;
+            attr.offset   = 0;
+            vertexLayout.attributes.push_back(attr);
+
+            occlusionPipeline_ = device->CreatePipeline(desc, occlusionShader_->GetHandle(), vertexLayout);
+        }
     }
 
     initialized_ = true;
@@ -91,7 +118,7 @@ void OcclusionCuller::Shutdown() {
     if (!initialized_) return;
 
     SE_LOG_INFO("Shutting down OcclusionCuller");
-    
+
     activeQueries_.clear();
     previousFrameVisibility_.clear();
     boundingBoxVA_.reset();
@@ -116,9 +143,7 @@ bool OcclusionCuller::IsAABBVisible(const Vector3& min, const Vector3& max) cons
 
 bool OcclusionCuller::WasVisibleLastFrame(uint32_t objectId) const {
     auto it = previousFrameVisibility_.find(objectId);
-    if (it != previousFrameVisibility_.end()) {
-        return it->second;
-    }
+    if (it != previousFrameVisibility_.end()) { return it->second; }
     return true;  // Assume visible if no previous data
 }
 
@@ -129,7 +154,7 @@ void OcclusionCuller::BeginQuery(uint32_t objectId) {
     if (query) {
         query->Begin();
         activeQueries_[objectId] = query;
-        currentQueryObjectId_ = objectId;
+        currentQueryObjectId_    = objectId;
         queriesIssued_++;
     }
 }
@@ -139,10 +164,15 @@ void OcclusionCuller::RenderBoundingBox(const Vector3& center, const Vector3& ha
 
     // Create model matrix for the bounding box
     Matrix4 model = glm::translate(Matrix4(1.0f), center);
-    model = glm::scale(model, halfExtents * 2.0f);
-    Matrix4 mvp = viewProj_ * model;
+    model         = glm::scale(model, halfExtents * 2.0f);
+    Matrix4 mvp   = viewProj_ * model;
 
-    occlusionShader_->bind();
+    // Use pipeline
+    if (auto* device = GetDevice()) {
+        if (RHI::IsValid(occlusionPipeline_)) { device->BindPipeline(occlusionPipeline_); }
+    }
+    // occlusionShader_->bind() is no-op.
+    // Set uniforms via shader wrapper (uses RHI)
     occlusionShader_->setMat4("uMVP", mvp);
 
     // Disable color and depth writes - we only want to test against existing depth
@@ -160,17 +190,13 @@ void OcclusionCuller::EndQuery() {
     if (!enabled_ || !initialized_) return;
 
     auto it = activeQueries_.find(currentQueryObjectId_);
-    if (it != activeQueries_.end() && it->second) {
-        it->second->End();
-    }
+    if (it != activeQueries_.end() && it->second) { it->second->End(); }
 }
 
 void OcclusionCuller::BeginFrame() {
     // Release all queries back to pool (but keep previousFrameVisibility_ intact!)
     for (auto& [id, query] : activeQueries_) {
-        if (query) {
-            queryPool_->Release(query);
-        }
+        if (query) { queryPool_->Release(query); }
     }
     activeQueries_.clear();
 }
@@ -184,12 +210,10 @@ void OcclusionCuller::CollectResults() {
     for (auto& [objectId, query] : activeQueries_) {
         if (query) {
             // For best accuracy, wait for result (blocking but correct)
-            bool visible = query->GetResultBlocking() > 0;
+            bool visible            = query->GetResultBlocking() > 0;
             newVisibility[objectId] = visible;
-            
-            if (!visible) {
-                occludedCount_++;
-            }
+
+            if (!visible) { occludedCount_++; }
         }
     }
 

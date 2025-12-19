@@ -3,6 +3,7 @@
 
 #include <glm.hpp>
 
+#include "engine/rhi/rhi_types.h"
 #include "se_pch.h"
 
 namespace se {
@@ -32,21 +33,12 @@ class Shader {
     void setVec4(const char* name, const Vector4& value) const;
     void setMat4(const char* name, const Matrix4& value) const;
 
-    unsigned int getID() const {
-        return program_;
-    }
-    unsigned int release() {
-        unsigned int id = program_;
-        program_        = 0;
-        return id;
+    RHI::ShaderHandle GetHandle() const {
+        return handle_;
     }
 
    private:
-    unsigned int program_ = 0;
-
-    static unsigned int compileStage(unsigned int type, const char* src);
-    static void         checkCompile(unsigned int id, bool isProgram);
-    int                 uniformLocation(const char* name) const;
+    RHI::ShaderHandle handle_ = {0};
 };
 
 }  // namespace se

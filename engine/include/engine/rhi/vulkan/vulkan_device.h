@@ -74,8 +74,9 @@ struct VulkanPipeline {
 };
 
 struct VulkanVertexArray {
-    BufferHandle vertexBuffer;
-    BufferHandle indexBuffer;
+    std::vector<BufferHandle> vertexBuffers;
+    std::vector<uint32_t>     strides;  // Store stride per binding
+    BufferHandle              indexBuffer;
 };
 
 struct VulkanFramebuffer {
@@ -295,7 +296,7 @@ class VulkanDevice : public IDevice {
     PipelineHandle CreatePipeline(const PipelineDescriptor& desc, ShaderHandle shader, const VertexLayout& layout) override;
     void           DestroyPipeline(PipelineHandle pipeline) override;
 
-    VertexArrayHandle CreateVertexArray(BufferHandle vertexBuffer, BufferHandle indexBuffer, const VertexLayout& layout) override;
+    VertexArrayHandle CreateVertexArray(const VertexArrayDescriptor& desc) override;
     void              DestroyVertexArray(VertexArrayHandle vao) override;
 
     FramebufferHandle CreateFramebuffer(const FramebufferDescriptor& desc) override;

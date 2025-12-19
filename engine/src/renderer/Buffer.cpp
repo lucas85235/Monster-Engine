@@ -1,10 +1,19 @@
 #include "engine/renderer/Buffer.h"
 
-#include <glad/glad.h>
-
 #include <stdexcept>
 
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
+
 namespace se {
+
+// Helper to access device
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    return context ? context->GetDevice() : nullptr;
+}
 
 // ========== BufferElement ==========
 
@@ -91,54 +100,88 @@ void BufferLayout::CalculateOffsetsAndStride() {
 // ========== VertexBuffer ==========
 
 VertexBuffer::VertexBuffer(const void* vertices, uint32_t size) {
-    glGenBuffers(1, &rendererId_);
-    glBindBuffer(GL_ARRAY_BUFFER, rendererId_);
-    glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
+    auto* device = GetDevice();
+    if (!device) {
+        SE_LOG_ERROR("Failed to get RHI device in VertexBuffer constructor");
+        return;
+    }
+
+    RHI::BufferDescriptor desc{};
+    desc.type  = RHI::BufferType::Vertex;
+    desc.usage = RHI::BufferUsage::Static;
+    desc.size  = size;
+    desc.data  = vertices;
+
+    handle_ = device->CreateBuffer(desc);
 }
 
 VertexBuffer::VertexBuffer(uint32_t size) {
-    glGenBuffers(1, &rendererId_);
-    glBindBuffer(GL_ARRAY_BUFFER, rendererId_);
-    glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    auto* device = GetDevice();
+    if (!device) {
+        SE_LOG_ERROR("Failed to get RHI device in VertexBuffer constructor");
+        return;
+    }
+
+    RHI::BufferDescriptor desc{};
+    desc.type  = RHI::BufferType::Vertex;
+    desc.usage = RHI::BufferUsage::Dynamic;
+    desc.size  = size;
+    desc.data  = nullptr;
+
+    handle_ = device->CreateBuffer(desc);
 }
 
 VertexBuffer::~VertexBuffer() {
-    glDeleteBuffers(1, &rendererId_);
+    auto* device = GetDevice();
+    if (device && RHI::IsValid(handle_)) { device->DestroyBuffer(handle_); }
 }
 
 void VertexBuffer::Bind() const {
-    glBindBuffer(GL_ARRAY_BUFFER, rendererId_);
+    // RHI binding is handled via VertexArray/Pipeline.
+    // Keeping this method for interface compatibility but it may be a no-op.
+    // However, if we are in transition, some legacy GL calls might expect binding.
+    // But since we removed GL includes, we can't do GL calls here.
+    // So this is effectively a no-op implementation.
 }
 
 void VertexBuffer::Unbind() const {
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    // No-op
 }
 
 void VertexBuffer::SetData(const void* data, uint32_t size) {
-    glBindBuffer(GL_ARRAY_BUFFER, rendererId_);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+    auto* device = GetDevice();
+    if (device && RHI::IsValid(handle_)) { device->UpdateBuffer(handle_, data, size, 0); }
 }
 
 // ========== IndexBuffer ==========
 
 IndexBuffer::IndexBuffer(const uint32_t* indices, uint32_t count) : count_(count) {
-    glGenBuffers(1, &rendererId_);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rendererId_);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    auto* device = GetDevice();
+    if (!device) {
+        SE_LOG_ERROR("Failed to get RHI device in IndexBuffer constructor");
+        return;
+    }
+
+    RHI::BufferDescriptor desc{};
+    desc.type  = RHI::BufferType::Index;
+    desc.usage = RHI::BufferUsage::Static;
+    desc.size  = count * sizeof(uint32_t);
+    desc.data  = indices;
+
+    handle_ = device->CreateBuffer(desc);
 }
 
 IndexBuffer::~IndexBuffer() {
-    glDeleteBuffers(1, &rendererId_);
+    auto* device = GetDevice();
+    if (device && RHI::IsValid(handle_)) { device->DestroyBuffer(handle_); }
 }
 
 void IndexBuffer::Bind() const {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rendererId_);
+    // No-op
 }
 
 void IndexBuffer::Unbind() const {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    // No-op
 }
 
 }  // namespace se

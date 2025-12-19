@@ -1965,10 +1965,13 @@ void VulkanDevice::DestroyPipeline(PipelineHandle pipeline) {
     }
 }
 
-VertexArrayHandle VulkanDevice::CreateVertexArray(BufferHandle vertexBuffer, BufferHandle indexBuffer, const VertexLayout& layout) {
+VertexArrayHandle VulkanDevice::CreateVertexArray(const VertexArrayDescriptor& desc) {
     VulkanVertexArray vao;
-    vao.vertexBuffer = vertexBuffer;
-    vao.indexBuffer  = indexBuffer;
+    for (const auto& binding : desc.bindings) {
+        vao.vertexBuffers.push_back(binding.buffer);
+        vao.strides.push_back(binding.layout.stride);
+    }
+    vao.indexBuffer = desc.indexBuffer;
 
     VertexArrayHandle handle{nextId++};
     vertexArrays[handle.id] = vao;
@@ -2485,17 +2488,23 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
 void VulkanDevice::Draw(const DrawCommand& cmd) {
     auto vaoIt = vertexArrays.find(currentVAO.id);
     if (vaoIt != vertexArrays.end()) {
-        auto vbIt = buffers.find(vaoIt->second.vertexBuffer.id);
-        if (vbIt != buffers.end()) {
-            auto pipeIt = pipelines.find(currentPipeline.id);
-            if (pipeIt != pipelines.end()) {
-                vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeIt->second.layout, 0, 1,
-                                        &descriptorSets[currentFrame], 0, nullptr);
-            }
-            VkBuffer     vbs[]     = {vbIt->second.buffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vbs, offsets);
+        auto pipeIt = pipelines.find(currentPipeline.id);
+        if (pipeIt != pipelines.end()) {
+            vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeIt->second.layout, 0, 1,
+                                    &descriptorSets[currentFrame], 0, nullptr);
         }
+
+        std::vector<VkBuffer>     vbs;
+        std::vector<VkDeviceSize> offsets;
+        for (const auto& h : vaoIt->second.vertexBuffers) {
+            auto vbIt = buffers.find(h.id);
+            if (vbIt != buffers.end()) {
+                vbs.push_back(vbIt->second.buffer);
+                offsets.push_back(0);
+            }
+        }
+
+        if (!vbs.empty()) { vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); }
     }
 
     vkCmdDraw(commandBuffers[currentFrame], cmd.vertexCount, cmd.instanceCount, cmd.firstVertex, cmd.firstInstance);
@@ -2510,12 +2519,17 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
                                     &descriptorSets[currentFrame], 0, nullptr);
         }
 
-        auto vbIt = buffers.find(vaoIt->second.vertexBuffer.id);
-        if (vbIt != buffers.end()) {
-            VkBuffer     vbs[]     = {vbIt->second.buffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vbs, offsets);
+        std::vector<VkBuffer>     vbs;
+        std::vector<VkDeviceSize> offsets;
+        for (const auto& h : vaoIt->second.vertexBuffers) {
+            auto vbIt = buffers.find(h.id);
+            if (vbIt != buffers.end()) {
+                vbs.push_back(vbIt->second.buffer);
+                offsets.push_back(0);
+            }
         }
+
+        if (!vbs.empty()) { vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); }
 
         auto ibIt = buffers.find(vaoIt->second.indexBuffer.id);
         if (ibIt != buffers.end()) {

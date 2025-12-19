@@ -173,12 +173,10 @@ class IDevice {
 
     /**
      * @brief Cria um Vertex Array Object
-     * @param vertexBuffer Buffer de vértices
-     * @param indexBuffer Buffer de índices (opcional)
-     * @param layout Layout dos atributos
+     * @param desc Descritor do VAO (contendo bindings de buffers e layout)
      * @return Handle para o VAO criado
      */
-    virtual VertexArrayHandle CreateVertexArray(BufferHandle vertexBuffer, BufferHandle indexBuffer, const VertexLayout& layout) = 0;
+    virtual VertexArrayHandle CreateVertexArray(const VertexArrayDescriptor& desc) = 0;
 
     /**
      * @brief Destrói um VAO

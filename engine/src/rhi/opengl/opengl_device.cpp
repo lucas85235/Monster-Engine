@@ -758,37 +758,47 @@ void OpenGLDevice::DestroyPipeline(PipelineHandle pipeline) {
     pipelines.erase(pipeline.id);
 }
 
-VertexArrayHandle OpenGLDevice::CreateVertexArray(BufferHandle vertexBuffer, BufferHandle indexBuffer, const VertexLayout& layout) {
-    auto vbIt = buffers.find(vertexBuffer.id);
-    if (vbIt == buffers.end()) return VertexArrayHandle{0};
+VertexArrayHandle OpenGLDevice::CreateVertexArray(const VertexArrayDescriptor& desc) {
+    VertexArrayObject vaoObj;
+    glGenVertexArrays(1, &vaoObj.vao);
+    glBindVertexArray(vaoObj.vao);
 
-    VertexArrayObject vao;
-    glGenVertexArrays(1, &vao.vao);
-    glBindVertexArray(vao.vao);
+    for (const auto& binding : desc.bindings) {
+        if (!IsValid(binding.buffer)) continue;
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbIt->second.id);
+        auto vbIt = buffers.find(binding.buffer.id);
+        if (vbIt == buffers.end()) {
+            // SE_LOG_ERROR("CreateVertexArray: Buffer {} not found", binding.buffer.id);
+            continue;
+        }
 
-    for (const auto& attr : layout.attributes) {
-        glEnableVertexAttribArray(attr.location);
-        glVertexAttribPointer(attr.location, GetAttributeSize(attr.type), GetAttributeType(attr.type), attr.normalized ? GL_TRUE : GL_FALSE,
-                              layout.stride, (void*)(uintptr_t)attr.offset);
+        glBindBuffer(GL_ARRAY_BUFFER, vbIt->second.id);
+
+        for (const auto& attr : binding.layout.attributes) {
+            glEnableVertexAttribArray(attr.location);
+            glVertexAttribPointer(attr.location, GetAttributeSize(attr.type), GetAttributeType(attr.type), attr.normalized ? GL_TRUE : GL_FALSE,
+                                  binding.layout.stride, (void*)(uintptr_t)attr.offset);
+
+            if (binding.divisor > 0) { glVertexAttribDivisor(attr.location, binding.divisor); }
+        }
+
+        vaoObj.vertexBuffers.push_back(binding.buffer);
     }
 
-    if (IsValid(indexBuffer)) {
-        auto ibIt = buffers.find(indexBuffer.id);
+    if (IsValid(desc.indexBuffer)) {
+        auto ibIt = buffers.find(desc.indexBuffer.id);
         if (ibIt != buffers.end()) {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibIt->second.id);
-            vao.indexBuffer = indexBuffer;
+            vaoObj.indexBuffer = desc.indexBuffer;
         }
     }
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    vao.vertexBuffer = vertexBuffer;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     VertexArrayHandle handle{nextId++};
-    vertexArrays[handle.id] = vao;
+    vertexArrays[handle.id] = vaoObj;
 
     return handle;
 }

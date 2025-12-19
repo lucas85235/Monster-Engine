@@ -103,6 +103,7 @@ class OcclusionCuller {
     // Bounding box for occlusion tests
     std::shared_ptr<VertexArray> boundingBoxVA_;
     std::shared_ptr<Shader>      occlusionShader_;
+    RHI::PipelineHandle          occlusionPipeline_ = {0};
 
     // Previous frame visibility results
     std::unordered_map<uint32_t, bool> previousFrameVisibility_;

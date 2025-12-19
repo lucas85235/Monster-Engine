@@ -1,194 +1,104 @@
-#include <engine/renderer/Shader.h>
+#include "engine/renderer/Shader.h"
 
+#include <fstream>
 #include <iostream>
 #include <sstream>
-#include <stdexcept>
-#include <string>
 #include <vector>
 
-// GLAD must be included before any GL headers usage
-#include <glad/glad.h>
-
-#include <gtc/type_ptr.hpp>
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
-// helper to produce a short textual stage name
-static const char* stageName(unsigned int type) {
-    switch (type) {
-        case GL_VERTEX_SHADER:
-            return "VERTEX";
-        case GL_FRAGMENT_SHADER:
-            return "FRAGMENT";
-        case GL_GEOMETRY_SHADER:
-            return "GEOMETRY";
-        default:
-            return "UNKNOWN";
-    }
-}
 
-static std::string numberedSource(const char* src) {
-    if (!src) return "<null>";
-    std::istringstream iss(src);
-    std::string        line;
-    int                ln = 1;
-    std::ostringstream out;
-    while (std::getline(iss, line)) {
-        out << ln << ": " << line << '\n';
-        ++ln;
-    }
-    return out.str();
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    return context ? context->GetDevice() : nullptr;
 }
 
 Shader::Shader(const std::string& vertSrc, const std::string& fragSrc) {
-    if (vertSrc.empty()) throw std::invalid_argument("Vertex shader source is null");
-    if (fragSrc.empty()) throw std::invalid_argument("Fragment shader source is null");
-
-    unsigned int vs = 0;
-    unsigned int fs = 0;
-    program_        = 0;
-
-    // compile stages first
-    vs = compileStage(GL_VERTEX_SHADER, vertSrc.c_str());
-    fs = compileStage(GL_FRAGMENT_SHADER, fragSrc.c_str());
-
-    // create program and attach
-    program_ = glCreateProgram();
-    if (program_ == 0) {
-        // cleanup compiled shaders
-        if (vs) glDeleteShader(vs);
-        if (fs) glDeleteShader(fs);
-        throw std::runtime_error("glCreateProgram returned 0");
+    auto* device = GetDevice();
+    if (!device) {
+        SE_LOG_ERROR("Failed to get RHI device for shader creation");
+        return;
     }
 
-    glAttachShader(program_, vs);
-    glAttachShader(program_, fs);
+    std::vector<RHI::ShaderDescriptor> stages;
 
-    glLinkProgram(program_);
-    try {
-        checkCompile(program_, /*isProgram=*/true);
-    } catch (...) {
-        // ensure shaders are deleted even on error
-        glDetachShader(program_, vs);
-        glDetachShader(program_, fs);
-        glDeleteShader(vs);
-        glDeleteShader(fs);
-        // delete program also
-        glDeleteProgram(program_);
-        program_ = 0;
-        throw;  // rethrow original exception
+    RHI::ShaderDescriptor vertDesc;
+    vertDesc.stage  = RHI::ShaderStage::Vertex;
+    vertDesc.source = vertSrc;
+    stages.push_back(vertDesc);
+
+    RHI::ShaderDescriptor fragDesc;
+    fragDesc.stage  = RHI::ShaderStage::Fragment;
+    fragDesc.source = fragSrc;
+    stages.push_back(fragDesc);
+
+    handle_ = device->CreateShader(stages);
+
+    if (RHI::IsValid(handle_)) {
+        // SE_LOG_INFO("Shader created successfully via RHI");
+    } else {
+        SE_LOG_ERROR("Failed to create shader via RHI");
     }
-
-    // On success, delete shader objects (they are no longer needed after linking)
-    glDetachShader(program_, vs);
-    glDetachShader(program_, fs);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
 }
 
 Shader::~Shader() {
-    if (program_) glDeleteProgram(program_);
+    auto* device = GetDevice();
+    if (device && RHI::IsValid(handle_)) { device->DestroyShader(handle_); }
 }
 
 void Shader::bind() const {
-    if (program_) glUseProgram(program_);
+    // No-op. In RHI, binding is done via Pipelines.
+    // Legacy code calling this expects GL state change, but we moved to Pipeline model.
+    // Warning: If caller relies on this setting program for loose uniform setting or draw calls without pipeline, it will fail.
 }
 
 void Shader::unbind() const {
-    glUseProgram(0);
+    // No-op.
 }
 
 void Shader::setFloat(const char* name, float value) const {
-    int loc = uniformLocation(name);
-    if (loc >= 0) glUniform1f(loc, value);
+    if (auto* dev = GetDevice()) dev->SetUniform(handle_, name, value);
 }
 
 void Shader::setInt(const char* name, int value) const {
-    int loc = uniformLocation(name);
-    if (loc >= 0) glUniform1i(loc, value);
+    if (auto* dev = GetDevice()) dev->SetUniform(handle_, name, value);
 }
 
 void Shader::setVec3(const char* name, const Vector3& value) const {
-    int loc = uniformLocation(name);
-    if (loc >= 0) glUniform3fv(loc, 1, glm::value_ptr(value));
+    if (auto* dev = GetDevice()) dev->SetUniform(handle_, name, &value[0], 3);
 }
 
 void Shader::setVec4(const char* name, const Vector4& value) const {
-    int loc = uniformLocation(name);
-    if (loc >= 0) glUniform4fv(loc, 1, glm::value_ptr(value));
+    if (auto* dev = GetDevice()) dev->SetUniform(handle_, name, &value[0], 4);
 }
 
 void Shader::setMat4(const char* name, const Matrix4& value) const {
-    int loc = uniformLocation(name);
-    if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(value));
-}
-
-unsigned int Shader::compileStage(unsigned int type, const char* src) {
-    if (!src) throw std::invalid_argument("Shader source is null");
-
-    unsigned int id = glCreateShader(type);
-    if (!id) throw std::runtime_error(std::string("glCreateShader failed for ") + stageName(type));
-
-    glShaderSource(id, 1, &src, nullptr);
-    glCompileShader(id);
-
-    try {
-        checkCompile(id, /*isProgram=*/false);
-    } catch (const std::exception& e) {
-        // include source with line numbers to help debugging
-        std::string msg = std::string(e.what()) + "\n---- Shader Source (" + stageName(type) + ") ----\n" + numberedSource(src);
-        // cleanup shader before rethrowing
-        glDeleteShader(id);
-        throw std::runtime_error(msg);
-    }
-
-    return id;
+    if (auto* dev = GetDevice()) dev->SetUniformMatrix4(handle_, name, &value[0][0]);
 }
 
 std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath, const std::filesystem::path& fragPath) {
-    // Read files
-    std::ifstream vsFile(vertPath);
-    std::ifstream fsFile(fragPath);
+    // Read files helper
+    auto loadFile = [](const std::filesystem::path& path) -> std::string {
+        std::ifstream file(path);
+        if (!file.is_open()) return "";
+        std::stringstream ss;
+        ss << file.rdbuf();
+        return ss.str();
+    };
 
-    if (!vsFile.is_open() || !fsFile.is_open()) {
-        throw std::runtime_error("Failed to open shader files: " + vertPath.string() + ", " + fragPath.string());
+    std::string vertSrc = loadFile(vertPath);
+    std::string fragSrc = loadFile(fragPath);
+
+    if (vertSrc.empty() || fragSrc.empty()) {
+        SE_LOG_ERROR("Failed to load shader files: {} / {}", vertPath.string(), fragPath.string());
+        return nullptr;
     }
 
-    std::stringstream vsStream, fsStream;
-    vsStream << vsFile.rdbuf();
-    fsStream << fsFile.rdbuf();
-
-    std::string vertexSource   = vsStream.str();
-    std::string fragmentSource = fsStream.str();
-
-    // Create and return shared_ptr
-    return std::make_shared<Shader>(vertexSource, fragmentSource);
+    return std::make_shared<Shader>(vertSrc, fragSrc);
 }
 
-void Shader::checkCompile(unsigned int id, bool isProgram) {
-    GLint success = 0;
-    if (isProgram) {
-        glGetProgramiv(id, GL_LINK_STATUS, &success);
-        if (!success) {
-            GLint len = 0;
-            glGetProgramiv(id, GL_INFO_LOG_LENGTH, &len);
-            std::vector<char> log((len > 0) ? (len + 1) : 1);
-            glGetProgramInfoLog(id, (GLsizei)log.size(), nullptr, log.data());
-            throw std::runtime_error(std::string("Program link error:\n") + log.data());
-        }
-    } else {
-        glGetShaderiv(id, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            GLint len = 0;
-            glGetShaderiv(id, GL_INFO_LOG_LENGTH, &len);
-            std::vector<char> log((len > 0) ? (len + 1) : 1);
-            glGetShaderInfoLog(id, (GLsizei)log.size(), nullptr, log.data());
-            throw std::runtime_error(std::string("Shader compile error:\n") + log.data());
-        }
-    }
-}
-
-int Shader::uniformLocation(const char* name) const {
-    if (!program_) return -1;
-    return glGetUniformLocation(program_, name);
-}
 }  // namespace se

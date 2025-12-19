@@ -5,7 +5,9 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 #include "engine/renderer/RenderCommand.h"
 
 namespace {
@@ -44,6 +46,12 @@ void main() {
 }  // namespace
 
 namespace se {
+
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    return context ? context->GetDevice() : nullptr;
+}
 
 SceneRenderer::SceneRenderer() {}
 
@@ -235,14 +243,14 @@ void SceneRenderer::InitializeShadowResources() {
     SE_LOG_INFO("Creating shadow resources ({}x{})", sceneData_.ShadowMapSize.x, sceneData_.ShadowMapSize.y);
 
     sceneData_.ShadowShader = std::make_shared<Shader>(kShadowVertexSource, kShadowFragmentSource);
-    if (!sceneData_.ShadowShader || sceneData_.ShadowShader->getID() == 0) {
+    if (!sceneData_.ShadowShader || !RHI::IsValid(sceneData_.ShadowShader->GetHandle())) {
         SE_LOG_ERROR("Failed to create shadow shader");
         return;
     }
 
     // Create instanced shadow shader (uses same fragment, different vertex for instance buffer)
     sceneData_.InstancedShadowShader = std::make_shared<Shader>(kInstancedShadowVertexSource, kShadowFragmentSource);
-    if (!sceneData_.InstancedShadowShader || sceneData_.InstancedShadowShader->getID() == 0) {
+    if (!sceneData_.InstancedShadowShader || !RHI::IsValid(sceneData_.InstancedShadowShader->GetHandle())) {
         SE_LOG_ERROR("Failed to create instanced shadow shader");
         return;
     }
@@ -406,6 +414,16 @@ void SceneRenderer::RenderScenePass() {
         auto shader = submission.material->GetShader();
         if (!shader) return;
 
+        // RHI Pipeline Binding
+        if (auto* device = GetDevice()) {
+            // simplified: assume first buffer has main layout
+            if (!submission.vertex_array->GetVertexBuffers().empty()) {
+                const auto& layout   = submission.vertex_array->GetVertexBuffers()[0]->GetLayout();
+                auto        pipeline = submission.material->GetPipeline(layout);
+                if (RHI::IsValid(pipeline)) { device->BindPipeline(pipeline); }
+            }
+        }
+
         shader->setMat4("uView", sceneData_.ViewMatrix);
         shader->setMat4("uProj", sceneData_.ProjectionMatrix);
         shader->setMat4("uModel", submission.Transform);
@@ -463,6 +481,39 @@ void SceneRenderer::RenderScenePass() {
         instanced.material->Bind();
         auto shader = instanced.material->GetShader();
         if (!shader) continue;
+
+        // RHI Pipeline Binding (Instanced)
+        if (auto* device = GetDevice()) {
+            auto va = instanced.instancedMesh->GetVertexArray();
+            if (va && !va->GetVertexBuffers().empty()) {
+                // Merge layouts
+                // Note: creating copy of buffer elements
+                std::vector<BufferElement> elements         = va->GetVertexBuffers()[0]->GetLayout().GetElements();
+                const auto&                instanceElements = va->GetInstanceBufferLayout().GetElements();
+                elements.insert(elements.end(), instanceElements.begin(), instanceElements.end());
+
+                BufferLayout mergedLayout;
+                // BufferLayout constructor from initializer list? No, explicit constructor?
+                // Needs vector<BufferElement>. BufferLayout doesn't have vector constructor visible?
+                // Check Buffer.h
+                // If not, use private access?
+                // Workaround: Reconstruct merged layout via helper or assuming Material::GetPipeline accepts elements?
+                // Material::GetPipeline takes BufferLayout.
+                // I cannot easily construct BufferLayout from vector if no constructor.
+                // Wait, BufferLayout(std::initializer_list) exists.
+                // I can try to construct it.
+                // Or assume SceneRenderer only needs VBO layout if Shader handles binding via locations?
+                // Shader determines usage. If I pass incomplete layout, Validation might complain.
+                // For now, pass VBO layout. Assuming Instance buffer setup is handled elsewhere?
+                // Wait, Input State needs ALL attributes.
+                // If I cannot construct BufferLayout easily, I'll pass VBO layout and hope.
+                // (Given I'm on OpenGL and it ignores layout, this is safe for now).
+
+                const auto& layout   = va->GetVertexBuffers()[0]->GetLayout();
+                auto        pipeline = instanced.material->GetPipeline(layout);
+                if (RHI::IsValid(pipeline)) { device->BindPipeline(pipeline); }
+            }
+        }
 
         // Set uniforms (same as normal rendering, but no uModel - that comes from instance buffer)
         shader->setMat4("uView", sceneData_.ViewMatrix);

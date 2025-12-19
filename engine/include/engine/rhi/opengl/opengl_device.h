@@ -45,9 +45,9 @@ class OpenGLDevice : public IDevice {
     };
 
     struct VertexArrayObject {
-        GLuint       vao;
-        BufferHandle vertexBuffer;
-        BufferHandle indexBuffer;
+        GLuint                    vao;
+        std::vector<BufferHandle> vertexBuffers;
+        BufferHandle              indexBuffer;
     };
 
     struct FramebufferObject {
@@ -135,7 +135,7 @@ class OpenGLDevice : public IDevice {
     PipelineHandle CreatePipeline(const PipelineDescriptor& desc, ShaderHandle shader, const VertexLayout& layout) override;
     void           DestroyPipeline(PipelineHandle pipeline) override;
 
-    VertexArrayHandle CreateVertexArray(BufferHandle vertexBuffer, BufferHandle indexBuffer, const VertexLayout& layout) override;
+    VertexArrayHandle CreateVertexArray(const VertexArrayDescriptor& desc) override;
     void              DestroyVertexArray(VertexArrayHandle vao) override;
 
     FramebufferHandle CreateFramebuffer(const FramebufferDescriptor& desc) override;

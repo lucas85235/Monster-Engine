@@ -126,7 +126,7 @@ void MaterialManager::CreateDefaultShader() {
 
     try {
         defaultShader_ = std::make_shared<Shader>(vertexSrc, fragmentSrc);
-        SE_LOG_INFO("Default shader created successfully (ID: {})", defaultShader_->getID());
+        SE_LOG_INFO("Default shader created successfully (ID: {})", defaultShader_->GetHandle().id);
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Failed to create default shader: {}", e.what());
         throw;
