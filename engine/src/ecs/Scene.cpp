@@ -1,9 +1,9 @@
 #include "engine/ecs/Scene.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/RenderSystem.h"
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 #include "engine/physics/PhysicsSystem.h"
 
 namespace se {

@@ -1,6 +1,6 @@
 #include "engine/physics/RigidbodyComponent.h"
 
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 #include "engine/ecs/Scene.h"
 #include "engine/physics/PhysicsSystem.h"
 

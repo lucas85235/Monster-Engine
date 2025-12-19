@@ -1,11 +1,11 @@
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 
 #include <GLFW/glfw3.h>
 
 #include <glm.hpp>
 
 #include "Engine.h"
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"

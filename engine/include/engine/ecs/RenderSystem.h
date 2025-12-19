@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 #include "engine/renderer/InstancedMesh.h"
 
 namespace se {

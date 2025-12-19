@@ -1,6 +1,6 @@
 #include "engine/ui/Canvas.h"
 #include "engine/ui/RmlUiLayer.h"
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 
 namespace se {
 

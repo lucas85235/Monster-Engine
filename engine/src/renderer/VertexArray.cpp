@@ -2,7 +2,7 @@
 
 #include <glad/glad.h>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/renderer/IInstanceBuffer.h"
 
 namespace se {

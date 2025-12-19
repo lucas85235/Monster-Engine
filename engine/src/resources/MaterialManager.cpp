@@ -1,6 +1,6 @@
 #include "engine/resources/MaterialManager.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 namespace se {
 std::shared_ptr<Material>                                MaterialManager::defaultMaterial_;

@@ -1,9 +1,9 @@
-#include "engine/ImGuiLayer.h"
+#include "engine/core/ImGuiLayer.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "examples/imgui_impl_glfw.h"
 #include "examples/imgui_impl_opengl3.h"
 

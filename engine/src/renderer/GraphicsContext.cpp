@@ -5,7 +5,7 @@
 
 #include <stdexcept>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/utils/GLUtils.h"
 
 namespace se {

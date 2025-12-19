@@ -1,9 +1,9 @@
 #pragma once
 
-#include <engine/Layer.h>
+#include <engine/core/Layer.h>
 #include <engine/ui/Canvas.h>
 #include <engine/ui/RmlUiLayer.h>
-#include <engine/Application.h>
+#include <engine/core/Application.h>
 
 class UILayer : public se::Layer {
    public:

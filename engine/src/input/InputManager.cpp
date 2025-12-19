@@ -1,6 +1,6 @@
 #include "engine/input/InputManager.h"
-#include "engine/Log.h"
-#include "engine/Application.h"
+#include "engine/core/Log.h"
+#include "engine/core/Application.h"
 #include <algorithm>
 #include <GLFW/glfw3.h> // For raw input queries if needed, but we try to rely on events
 

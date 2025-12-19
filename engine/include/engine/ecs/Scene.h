@@ -4,8 +4,8 @@
 #include <memory>
 #include <string>
 
-#include "engine/Camera.h"
-#include "engine/Log.h"
+#include "engine/renderer/Camera.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/Entity.h"
 
 namespace se {

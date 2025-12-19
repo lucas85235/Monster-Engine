@@ -1,8 +1,8 @@
 #pragma once
 
-#include <engine/Camera.h>
+#include <engine/renderer/Camera.h>
 #include <engine/renderer/CameraController.h>
-#include <engine/Layer.h>
+#include <engine/core/Layer.h>
 #include <engine/ecs/Scene.h>
 #include <engine/resources/MaterialManager.h>
 #include <engine/resources/MeshManager.h>

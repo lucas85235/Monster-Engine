@@ -1,7 +1,7 @@
 #include "engine/resources/MeshManager.h"
 
-#include "engine/Log.h"
-#include "engine/MeshFactory.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/MeshFactory.h"
 #include "engine/renderer/Buffer.h"
 
 namespace se {

@@ -4,8 +4,8 @@
 #include <memory>
 #include <vector>
 
-#include "engine/Camera.h"
-#include "engine/Shader.h"
+#include "engine/renderer/Camera.h"
+#include "engine/renderer/Shader.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/VertexArray.h"
 #include "engine/renderer/OcclusionCuller.h"

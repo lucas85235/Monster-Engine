@@ -1,4 +1,4 @@
-#include "engine/MeshFactory.h"
+#include "engine/renderer/MeshFactory.h"
 
 #include <array>
 #include <cmath>

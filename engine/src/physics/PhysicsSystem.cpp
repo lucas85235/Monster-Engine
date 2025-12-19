@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <chrono>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/PerformanceProfiler.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 #include "engine/input/InputManager.h"
 #include <glm.hpp>
 

@@ -5,7 +5,7 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/renderer/RenderCommand.h"
 
 namespace {

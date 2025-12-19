@@ -1,10 +1,10 @@
-#include "engine/Window.h"
+#include "engine/core/Window.h"
 
 #include <GLFW/glfw3.h>
 
 #include <stdexcept>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/events/Events.h"
 #include "engine/renderer/GraphicsContext.h"

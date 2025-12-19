@@ -3,8 +3,8 @@
 #include <glad/glad.h>
 #include <gtc/matrix_transform.hpp>
 
-#include "engine/Log.h"
-#include "engine/Shader.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/Shader.h"
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/RenderCommand.h"
 

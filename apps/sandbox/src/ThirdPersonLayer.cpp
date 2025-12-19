@@ -1,7 +1,7 @@
 #include "ThirdPersonLayer.h"
 
-#include <engine/Application.h>
-#include <engine/Log.h>
+#include <engine/core/Application.h>
+#include <engine/core/Log.h>
 #include <engine/ecs/SimpleComponents.h>
 #include <engine/input/InputManager.h>
 #include <engine/resources/MeshManager.h>

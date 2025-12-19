@@ -1,8 +1,8 @@
 #include "AppLayer.h"
 
 #include <GLFW/glfw3.h>
-#include <engine/Application.h>
-#include <engine/Log.h>
+#include <engine/core/Application.h>
+#include <engine/core/Log.h>
 #include <engine/ecs/SimpleComponents.h>
 #include <imgui.h>
 

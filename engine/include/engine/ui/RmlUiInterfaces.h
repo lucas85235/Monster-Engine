@@ -2,7 +2,7 @@
 
 #include <RmlUi/Core.h>
 
-#include "engine/Renderer.h"
+#include "engine/renderer/Renderer.h"
 
 namespace se {
 

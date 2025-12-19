@@ -4,10 +4,10 @@
 #include <vector>
 
 #include "Engine.h"
-#include "engine/ImGuiLayer.h"
-#include "engine/Layer.h"
-#include "engine/Renderer.h"
-#include "engine/Window.h"
+#include "engine/core/ImGuiLayer.h"
+#include "engine/core/Layer.h"
+#include "engine/renderer/Renderer.h"
+#include "engine/core/Window.h"
 #include "engine/events/EventBus.h"
 #include "engine/events/Events.h"
 

@@ -114,7 +114,7 @@ The engine uses a **Layer Stack** pattern. The `Application` class maintains lay
 
 **Creating a new layer:**
 ```cpp
-#include "engine/Layer.h"
+#include "engine/core/Layer.h"
 
 class MyGameLayer : public se::Layer {
 public:

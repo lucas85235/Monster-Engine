@@ -12,7 +12,7 @@
 #include <btBulletCollisionCommon.h>
 
 #include "engine/ecs/Entity.h"
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 
 #include <glm.hpp>
 #include <gtc/quaternion.hpp>

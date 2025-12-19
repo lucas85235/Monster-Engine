@@ -1,4 +1,4 @@
-#include "engine/Mesh.h"
+#include "engine/renderer/Mesh.h"
 
 Mesh::Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) : vertices_(vertices), indices_(indices) {
     setupMesh();

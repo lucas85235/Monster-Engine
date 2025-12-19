@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "engine/Shader.h"
+#include "engine/renderer/Shader.h"
 #include "engine/renderer/Material.h"
 
 namespace se {

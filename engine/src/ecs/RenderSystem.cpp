@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"

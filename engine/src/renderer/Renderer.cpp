@@ -1,6 +1,6 @@
-#include "engine/Renderer.h"
+#include "engine/renderer/Renderer.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
