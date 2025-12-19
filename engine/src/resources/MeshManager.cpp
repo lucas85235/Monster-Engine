@@ -28,21 +28,16 @@ void MeshManager::Shutdown() {
 }
 
 std::shared_ptr<VertexArray> MeshManager::CreateVertexArrayFromMesh(const Mesh& mesh) {
-    // COPIE os dados para garantir que eles persistem
-    std::vector<float>        vertices = mesh.getVertices();
-    std::vector<unsigned int> indices  = mesh.getIndices();
-
-    SE_LOG_INFO("Creating VertexArray from mesh: {} vertices, {} indices", vertices.size() / 9, indices.size());
-
-    // Create vertex buffer - os dados agora estão em variáveis locais
-    auto vertexBuffer = std::make_shared<VertexBuffer>(vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(float)));
+    // Copy data to ensure persistence locally (if getVertices returns by value, this is a move/copy)
+    // Create vertex buffer - use data directly from mesh
+    auto vertexBuffer = std::make_shared<VertexBuffer>(mesh.getVertices().data(), static_cast<uint32_t>(mesh.getVertices().size() * sizeof(float)));
 
     // Layout: position (3) + color (3) + normal (3)
     vertexBuffer->SetLayout(
         BufferLayout({{ShaderDataType::Float3, "a_Position"}, {ShaderDataType::Float3, "a_Color"}, {ShaderDataType::Float3, "a_Normal"}}));
 
     // Create index buffer
-    auto indexBuffer = std::make_shared<IndexBuffer>(indices.data(), static_cast<uint32_t>(indices.size()));
+    auto indexBuffer = std::make_shared<IndexBuffer>(mesh.getIndices().data(), static_cast<uint32_t>(mesh.getIndices().size()));
 
     // Create and setup vertex array
     auto vertexArray = std::make_shared<VertexArray>();

@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include "engine/Log.h"
+#include "engine/utils/GLUtils.h"
 
 namespace se {
 
@@ -25,6 +26,9 @@ void GraphicsContext::Init() {
     SE_LOG_INFO("  Vendor: {}", (const char*)glGetString(GL_VENDOR));
     SE_LOG_INFO("  Renderer: {}", (const char*)glGetString(GL_RENDERER));
     SE_LOG_INFO("  Version: {}", (const char*)glGetString(GL_VERSION));
+
+    // Initialize OpenGL Debug Output
+    Renderer::Utils::InitOpenGLDebugMessageCallback();
 }
 
 void GraphicsContext::SwapBuffers() {

@@ -1,4 +1,4 @@
-#include "GLUtils.h"
+#include "engine/utils/GLUtils.h"
 
 namespace Renderer::Utils {
 
