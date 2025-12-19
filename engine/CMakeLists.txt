@@ -149,6 +149,7 @@ target_compile_definitions(simple_engine PUBLIC
         GLFW_INCLUDE_VULKAN
         GLM_ENABLE_EXPERIMENTAL
         BT_THREADSAFE=1
+        STBI_NO_SIMD
 )
 
 if(HAS_SPIRV_CROSS)
