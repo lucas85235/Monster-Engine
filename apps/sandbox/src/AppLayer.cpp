@@ -9,9 +9,8 @@
 #include <gtc/type_ptr.hpp>
 
 #include "SampleUtilities.h"
-
-#include "engine/renderer/CameraController.h"
 #include "engine/input/InputManager.h"
+#include "engine/renderer/CameraController.h"
 
 AppLayer::AppLayer() : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), cameraController_(camera_) {}
 
@@ -40,7 +39,7 @@ void AppLayer::OnAttach() {
     auto* window = app.GetWindow().GetNativeWindow();
 
     if (window) {
-        // inputHandler_.initialize(window); 
+        // inputHandler_.initialize(window);
         // CameraController doesn't need window initialization anymore
     }
 
@@ -53,21 +52,20 @@ void AppLayer::OnAttach() {
     input.BindAxis("MoveUp", Key::Space, 1.0f);
     input.BindAxis("MoveUp", Key::LeftControl, -1.0f);
     input.BindAxis("LookX", Key::MouseX, 1.0f);
-    input.BindAxis("LookY", Key::MouseY, -1.0f); // Inverted Y
+    input.BindAxis("LookY", Key::MouseY, -1.0f);  // Inverted Y
     input.BindAction("ToggleCamera", Key::Tab);
     input.BindAction("ToggleCursor", Key::LeftAlt);
 
     // InputHandler::setCursorModeFromString(window, "normal");
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // Default to captured for camera
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  // Default to captured for camera
 
-    RenderCommand::SetClearColor({0.3f, 0.3f, 0.3f, 1.0f});
+    Application::Get().GetRenderer().SetClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 }
 
 void AppLayer::OnDetach() {
     SE_LOG_INFO("AppLayer detached");
     scene_.reset();
 }
-
 
 void AppLayer::OnUpdate(float ts) {
     animationTime_ += ts;
@@ -107,7 +105,7 @@ void AppLayer::OnUpdate(float ts) {
 
     if (InputManager::Get().IsActionJustPressed("ToggleCursor")) {
         static bool cursorLocked = true;
-        cursorLocked = !cursorLocked;
+        cursorLocked             = !cursorLocked;
         InputManager::Get().SetCursorMode(cursorLocked ? CursorMode::Locked : CursorMode::Normal);
     }
 }

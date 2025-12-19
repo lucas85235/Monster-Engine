@@ -1,11 +1,11 @@
 #include "engine/physics/PhysicsDebugDraw.h"
 
-#include <glad/glad.h>
-
-#include <iostream>
+#include <algorithm>  // Used in UpdateTimedElements
+#include <vector>
 
 #include "engine/core/Application.h"
 #include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
 
@@ -114,7 +114,15 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         shader_->setMat4("u_ViewProjection", viewProjection);
     }
 
-    RenderCommand::DrawLines(vao_.get(), lines_.size() * 2);
+    auto& window = Application::Get().GetWindow();
+    if (auto* context = window.GetContext()) {
+        if (auto* device = context->GetDevice()) {
+            RHI::DrawCommand cmd{};
+            cmd.vertexCount   = lines_.size() * 2;
+            cmd.instanceCount = 1;
+            device->Draw(cmd);
+        }
+    }
 
     if (shader_) { shader_->unbind(); }
     lines_.clear();

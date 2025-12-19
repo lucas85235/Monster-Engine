@@ -6,7 +6,7 @@
 #include "engine/core/Application.h"
 #include "engine/core/Log.h"
 #include "engine/renderer/GraphicsContext.h"
-#include "engine/renderer/RenderCommand.h"
+// #include "engine/renderer/RenderCommand.h" - Removed
 
 namespace {
 constexpr const char* kShadowVertexSource = R"(#version 330 core
@@ -388,7 +388,10 @@ void SceneRenderer::RenderShadowPass() {
                 if (RHI::IsValid(pipeline)) {
                     device->BindPipeline(pipeline);
                     sceneData_.ShadowShader->setMat4("uModel", submission.Transform);
-                    RenderCommand::DrawIndexed(submission.vertex_array.get());
+                    RHI::DrawIndexedCommand cmd{};
+                    cmd.indexCount    = submission.vertex_array->GetIndexBuffer()->GetCount();
+                    cmd.instanceCount = 1;
+                    device->DrawIndexed(cmd);
                     device->DestroyPipeline(pipeline);
                 }
             }
@@ -480,7 +483,12 @@ void SceneRenderer::RenderScenePass() {
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
 
-        RenderCommand::DrawIndexed(submission.vertex_array.get());
+        if (auto* device = GetDevice()) {
+            RHI::DrawIndexedCommand cmd{};
+            cmd.indexCount    = submission.vertex_array->GetIndexBuffer()->GetCount();
+            cmd.instanceCount = 1;
+            device->DrawIndexed(cmd);
+        }
 
         stats_.VisibleObjects++;
         stats_.DrawCalls++;

@@ -1,12 +1,22 @@
 #include "engine/renderer/Renderer.h"
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
+#include "engine/core/ServiceLocator.h"
 #include "engine/ecs/RenderSystem.h"
+#include "engine/renderer/GraphicsContext.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
-#include "engine/core/ServiceLocator.h"
 
 namespace se {
+
+// Helper to get device
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto& window  = app.GetWindow();
+    auto* context = window.GetContext();
+    return context ? context->GetDevice() : nullptr;
+}
 
 Renderer::Renderer() {}
 
@@ -23,7 +33,7 @@ void Renderer::Init() {
     SE_LOG_INFO("Initializing Renderer");
 
     // Initialize low-level rendering systems
-    RenderCommand::Init();
+    // RenderCommand::Init() removed as RHI init is handled by Window/GraphicsContext
     sceneRenderer_.Init();
 
     // Register SceneRenderer with ServiceLocator
@@ -54,19 +64,25 @@ void Renderer::Shutdown() {
 }
 
 void Renderer::BeginFrame() {
-    // Any per-frame setup can go here
+    // RHI BeginFrame is typically called by Application/Window before this, or managed there.
+    // However, if we need explicit RHI BeginFrame here:
+    // if (auto* device = GetDevice()) device->BeginFrame();
+    // Current Application.cpp architecture calls BeginFrame/EndFrame on Renderer.
+    // Let's defer to Application.cpp loop which calls Renderer::BeginFrame.
+    // But currently Application.cpp doesn't seem to call RHI BeginFrame directly?
+    // Checking Application.cpp: Window::OnUpdate happens.
+    // Let's assume RHI frame logic is handled at Window/Context level or needs to be added here if RenderCommand did meaningful things.
+    // RenderCommand::BeginFrame didn't exist.
 }
 
-void Renderer::EndFrame() {
-    // Any per-frame cleanup can go here
-}
+void Renderer::EndFrame() {}
 
 void Renderer::Clear() {
-    RenderCommand::Clear();
+    if (auto* device = GetDevice()) { device->Clear(true, true, false); }
 }
 
 void Renderer::SetClearColor(float r, float g, float b, float a) {
-    RenderCommand::SetClearColor({r, g, b, a});
+    if (auto* device = GetDevice()) { device->SetClearColor({r, g, b, a}); }
 }
 
 void Renderer::BeginScene(const Camera& camera, float aspectRatio) {

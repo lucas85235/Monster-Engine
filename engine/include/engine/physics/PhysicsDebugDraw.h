@@ -7,7 +7,7 @@
 
 #include "engine/renderer/Camera.h"
 #include "engine/renderer/Shader.h"
-#include "engine/renderer/RenderCommand.h"
+// #include "engine/renderer/RenderCommand.h" - Removed
 #include "engine/renderer/VertexArray.h"
 
 namespace se {

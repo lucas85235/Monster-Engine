@@ -1,13 +1,12 @@
 #include "engine/renderer/InstancedMesh.h"
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
-#include "engine/renderer/RenderCommand.h"
+#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
 
-InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_t maxInstances)
-    : maxInstances_(maxInstances) {
-
+InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_t maxInstances) : maxInstances_(maxInstances) {
     instanceBuffer_ = CreateInstanceBuffer(InstanceData::GetStride(), maxInstances, InstanceBufferUsage::Dynamic);
     if (!instanceBuffer_) {
         SE_LOG_ERROR("Failed to create instance buffer for InstancedMesh");
@@ -17,14 +16,10 @@ InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_
     instancedVA_ = std::make_shared<VertexArray>();
 
     // Copy vertex buffers from base VA
-    for (const auto& vb : baseVA->GetVertexBuffers()) {
-        instancedVA_->AddVertexBuffer(vb);
-    }
+    for (const auto& vb : baseVA->GetVertexBuffers()) { instancedVA_->AddVertexBuffer(vb); }
 
     // Set index buffer from base VA
-    if (baseVA->GetIndexBuffer()) {
-        instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer());
-    }
+    if (baseVA->GetIndexBuffer()) { instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer()); }
 
     // Add instance buffer with layout
     instancedVA_->AddInstanceBuffer(instanceBuffer_, InstanceData::GetLayout());
@@ -65,12 +60,39 @@ void InstancedMesh::Draw(const std::shared_ptr<Material>& material) {
     }
 
     material->Bind();
-    RenderCommand::DrawIndexedInstanced(instancedVA_.get(), currentInstanceCount_);
+
+    // Get Device and Draw
+    auto& app = Application::Get();
+    if (auto* context = app.GetWindow().GetContext()) {
+        if (auto* device = context->GetDevice()) {
+            // Bind VA
+            instancedVA_->Bind();  // Bind calls device->BindVertexArray internally? Yes, VertexArray::Bind uses Application::Get()...
+            // But Draw calls need IDevice directly for now as per my plan (or does VA::Bind need it?)
+            // VertexArray::Bind uses GetDevice() helper inside VertexArray.cpp hopefully?
+            // Wait, VertexArray.cpp might use RenderCommand? I need to check VertexArray.cpp!
+
+            RHI::DrawIndexedCommand cmd{};
+            cmd.indexCount    = instancedVA_->GetIndexBuffer()->GetCount();
+            cmd.instanceCount = currentInstanceCount_;
+            device->DrawIndexed(cmd);
+        }
+    }
 }
 
 void InstancedMesh::DrawWithoutMaterial() {
     if (currentInstanceCount_ == 0) return;
-    RenderCommand::DrawIndexedInstanced(instancedVA_.get(), currentInstanceCount_);
+
+    auto& app = Application::Get();
+    if (auto* context = app.GetWindow().GetContext()) {
+        if (auto* device = context->GetDevice()) {
+            instancedVA_->Bind();  // Ensure bound
+
+            RHI::DrawIndexedCommand cmd{};
+            cmd.indexCount    = instancedVA_->GetIndexBuffer()->GetCount();
+            cmd.instanceCount = currentInstanceCount_;
+            device->DrawIndexed(cmd);
+        }
+    }
 }
 
 }  // namespace se

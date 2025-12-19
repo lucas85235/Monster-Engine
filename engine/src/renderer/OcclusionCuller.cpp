@@ -6,7 +6,7 @@
 #include "engine/core/Log.h"
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/GraphicsContext.h"
-#include "engine/renderer/RenderCommand.h"
+// #include "engine/renderer/RenderCommand.h" - Removed
 #include "engine/renderer/Shader.h"
 
 namespace {
@@ -184,7 +184,10 @@ void OcclusionCuller::RenderBoundingBox(const Vector3& center, const Vector3& ha
         device->SetDepthMask(false);
     }
 
-    RenderCommand::DrawIndexed(boundingBoxVA_.get());
+    RHI::DrawIndexedCommand cmd{};
+    cmd.indexCount    = boundingBoxVA_->GetIndexBuffer()->GetCount();
+    cmd.instanceCount = 1;
+    if (auto* device = GetDevice()) device->DrawIndexed(cmd);
 
     // Restore state - essential because SceneRenderer layout might rely on defaults
     if (auto* device = GetDevice()) {
