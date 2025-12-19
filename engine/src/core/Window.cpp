@@ -68,10 +68,15 @@ void Window::Init() {
         s_GLFWInitialized = true;
     }
 
-    // Set OpenGL version hints
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // Set API specific hints
+    if (spec_.Api == RHI::API::Vulkan) {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    } else {
+        // Set OpenGL version hints
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    }
 
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -86,7 +91,7 @@ void Window::Init() {
     }
 
     // Create graphics context
-    context_ = std::make_unique<GraphicsContext>(window_handle_);
+    context_ = std::make_unique<GraphicsContext>(window_handle_, spec_.Api);
     context_->Init();
 
     glfwSetWindowUserPointer(window_handle_, this);
