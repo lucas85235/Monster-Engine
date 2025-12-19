@@ -1,11 +1,12 @@
 #include "engine/Window.h"
 
 #include <GLFW/glfw3.h>
+
 #include <stdexcept>
 
 #include "engine/Log.h"
-#include "engine/events/Events.h"
 #include "engine/core/ServiceLocator.h"
+#include "engine/events/Events.h"
 #include "engine/renderer/GraphicsContext.h"
 
 namespace se {
@@ -45,9 +46,7 @@ bool Window::ShouldClose() const {
 }
 
 void Window::RequestClose() const {
-    if (event_bus_) {
-        event_bus_->Invoke<WindowCloseEvent>();
-    }
+    if (event_bus_) { event_bus_->Invoke<WindowCloseEvent>(); }
     glfwSetWindowShouldClose(window_handle_, GLFW_TRUE);
 }
 
@@ -60,7 +59,7 @@ Window* Window::Create(const WindowSpec& specification) {
 }
 
 void Window::Init() {
-    event_bus_ = spec_.EventBus;
+    event_bus_ = spec_.AppEventBus;
 
     if (!s_GLFWInitialized) {
         int success = glfwInit();
@@ -161,9 +160,7 @@ void Window::FramebufferSizeCallback(WindowHandle window, int width, int height)
     int h = std::max(1, height);
     int w = std::max(1, width);
 
-    if (event_bus_) {
-        event_bus_->Invoke<WindowResizeEvent>(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
-    }
+    if (event_bus_) { event_bus_->Invoke<WindowResizeEvent>(static_cast<uint32_t>(w), static_cast<uint32_t>(h)); }
 
     glViewport(0, 0, w, h);
 }

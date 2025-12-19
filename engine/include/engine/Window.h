@@ -20,7 +20,7 @@ struct WindowSpec {
     bool                  Decorated  = true;
     bool                  Fullscreen = false;
     bool                  VSync      = true;
-    EventBus*             EventBus   = nullptr;
+    EventBus*             AppEventBus   = nullptr;
     std::filesystem::path IconPath;
 };
 

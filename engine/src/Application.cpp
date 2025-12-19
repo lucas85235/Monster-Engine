@@ -1,13 +1,14 @@
 #include "engine/Application.h"
 
 #include <GLFW/glfw3.h>
+
 #include <glm.hpp>
 
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/input/InputManager.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/events/Events.h"
+#include "engine/input/InputManager.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -28,14 +29,14 @@ Application::Application(const ApplicationSpecification& specification) {
     InputManager::Get().Init();
 
     WindowSpec windowSpec;
-    windowSpec.Title      = specification.Name;
-    windowSpec.Width      = specification.WindowWidth;
-    windowSpec.Height     = specification.WindowHeight;
-    windowSpec.Decorated  = specification.WindowDecorated;
-    windowSpec.Fullscreen = specification.Fullscreen;
-    windowSpec.VSync      = specification.VSync;
-    windowSpec.IconPath   = specification.IconPath;
-    windowSpec.EventBus   = event_bus_.get();
+    windowSpec.Title       = specification.Name;
+    windowSpec.Width       = specification.WindowWidth;
+    windowSpec.Height      = specification.WindowHeight;
+    windowSpec.Decorated   = specification.WindowDecorated;
+    windowSpec.Fullscreen  = specification.Fullscreen;
+    windowSpec.VSync       = specification.VSync;
+    windowSpec.IconPath    = specification.IconPath;
+    windowSpec.AppEventBus = event_bus_.get();
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
@@ -62,27 +63,15 @@ Application::Application(const ApplicationSpecification& specification) {
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
     event_bus_->AddListener<WindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimize));
     event_bus_->AddListener<WindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowClose));
-    
+
     // Forward input events to InputManager
-    event_bus_->AddListener<KeyPressedEvent>([](const KeyPressedEvent& e) {
-        InputManager::Get().OnKeyPressed(e.keyCode);
-    });
-    event_bus_->AddListener<KeyReleasedEvent>([](const KeyReleasedEvent& e) {
-        InputManager::Get().OnKeyReleased(e.keyCode);
-    });
-    event_bus_->AddListener<MouseButtonPressedEvent>([](const MouseButtonPressedEvent& e) {
-        InputManager::Get().OnMouseButtonPressed(e.button);
-    });
-    event_bus_->AddListener<MouseButtonReleasedEvent>([](const MouseButtonReleasedEvent& e) {
-        InputManager::Get().OnMouseButtonReleased(e.button);
-    });
-    event_bus_->AddListener<MouseMovedEvent>([](const MouseMovedEvent& e) {
-        InputManager::Get().OnMouseMoved(e.x, e.y);
-    });
-    event_bus_->AddListener<MouseScrolledEvent>([](const MouseScrolledEvent& e) {
-        InputManager::Get().OnMouseScrolled(e.yOffset);
-    });
-    
+    event_bus_->AddListener<KeyPressedEvent>([](const KeyPressedEvent& e) { InputManager::Get().OnKeyPressed(e.keyCode); });
+    event_bus_->AddListener<KeyReleasedEvent>([](const KeyReleasedEvent& e) { InputManager::Get().OnKeyReleased(e.keyCode); });
+    event_bus_->AddListener<MouseButtonPressedEvent>([](const MouseButtonPressedEvent& e) { InputManager::Get().OnMouseButtonPressed(e.button); });
+    event_bus_->AddListener<MouseButtonReleasedEvent>([](const MouseButtonReleasedEvent& e) { InputManager::Get().OnMouseButtonReleased(e.button); });
+    event_bus_->AddListener<MouseMovedEvent>([](const MouseMovedEvent& e) { InputManager::Get().OnMouseMoved(e.x, e.y); });
+    event_bus_->AddListener<MouseScrolledEvent>([](const MouseScrolledEvent& e) { InputManager::Get().OnMouseScrolled(e.yOffset); });
+
     SE_LOG_INFO("Application initialized successfully");
 }
 
@@ -98,10 +87,10 @@ Application::~Application() {
 
     // Cleanup systems
     renderer_.reset();
-    
+
     // Reset ServiceLocator
     ServiceLocator::Get().Reset();
-    
+
     glfwTerminate();
 
     s_Instance = nullptr;
@@ -143,8 +132,7 @@ int Application::Run() {
         // Clear screen with the configured color
         renderer_->Clear();
 
-        if (window_->GetWidth() != static_cast<uint32_t>(width) || 
-            window_->GetHeight() != static_cast<uint32_t>(height)) {
+        if (window_->GetWidth() != static_cast<uint32_t>(width) || window_->GetHeight() != static_cast<uint32_t>(height)) {
             window_->SetWidth(width);
             window_->SetHeight(height);
         }
@@ -192,9 +180,9 @@ float Application::GetTime() {
 }
 
 bool Application::OnWindowResize(const WindowResizeEvent& e) {
-    if (e.width == 0 || e.height == 0) { 
+    if (e.width == 0 || e.height == 0) {
         minimized_ = true;
-        return false; 
+        return false;
     }
     minimized_ = false;
     return false;
