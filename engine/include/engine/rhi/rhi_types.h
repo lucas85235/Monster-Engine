@@ -62,6 +62,8 @@ enum class IndexType { UInt16, UInt32 };
 
 enum class FramebufferAttachment { Color0, Color1, Color2, Color3, Depth, Stencil, DepthStencil };
 
+enum class ColorWriteMask { None = 0, Red = 1, Green = 2, Blue = 4, Alpha = 8, All = 15 };
+
 // ============================================================================
 // STRUCTS
 // ============================================================================
@@ -152,13 +154,14 @@ struct DepthStencilState {
 };
 
 struct BlendState {
-    bool        blendEnable    = false;
-    BlendFactor srcColorFactor = BlendFactor::One;
-    BlendFactor dstColorFactor = BlendFactor::Zero;
-    BlendOp     colorOp        = BlendOp::Add;
-    BlendFactor srcAlphaFactor = BlendFactor::One;
-    BlendFactor dstAlphaFactor = BlendFactor::Zero;
-    BlendOp     alphaOp        = BlendOp::Add;
+    bool           blendEnable    = false;
+    BlendFactor    srcColorFactor = BlendFactor::One;
+    BlendFactor    dstColorFactor = BlendFactor::Zero;
+    BlendOp        colorOp        = BlendOp::Add;
+    BlendFactor    srcAlphaFactor = BlendFactor::One;
+    BlendFactor    dstAlphaFactor = BlendFactor::Zero;
+    BlendOp        alphaOp        = BlendOp::Add;
+    ColorWriteMask colorWriteMask = ColorWriteMask::All;
 };
 
 struct PipelineDescriptor {

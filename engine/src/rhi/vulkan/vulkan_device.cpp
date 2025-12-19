@@ -2196,6 +2196,14 @@ void VulkanDevice::SetClearDepth(float depth) {
     clearDepthValue = depth;
 }
 
+void VulkanDevice::SetColorWriteMask(ColorWriteMask mask) {
+    // TODO: Implement dynamic color write mask support
+}
+
+void VulkanDevice::SetDepthMask(bool enabled) {
+    // TODO: Implement dynamic depth mask support
+}
+
 void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
     if (pipeline.id == 0) {
         std::cerr << "[Vulkan] BindPipeline called with invalid handle" << std::endl;

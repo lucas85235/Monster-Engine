@@ -1,7 +1,5 @@
 #include "engine/renderer/SceneRenderer.h"
 
-#include <glad/glad.h>
-
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
@@ -320,8 +318,7 @@ void SceneRenderer::InitializeShadowResources() {
 
     SE_LOG_INFO("Shadow resources created successfully");
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    SE_LOG_INFO("Shadow resources created successfully");
+    if (auto* device = GetDevice()) { device->BindFramebuffer({0}); }
 }
 
 void SceneRenderer::DestroyShadowResources() {

@@ -254,6 +254,16 @@ class IDevice {
      */
     virtual void SetClearDepth(float depth) = 0;
 
+    /**
+     * @brief Define a máscara de escrita de cor
+     */
+    virtual void SetColorWriteMask(ColorWriteMask mask) = 0;
+
+    /**
+     * @brief Habilita ou desabilita escrita no depth buffer
+     */
+    virtual void SetDepthMask(bool enabled) = 0;
+
     // ========================================================================
     // BINDING
     // ========================================================================

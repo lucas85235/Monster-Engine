@@ -1,7 +1,5 @@
 #include "engine/renderer/OcclusionCuller.h"
 
-#include <glad/glad.h>
-
 #include <gtc/matrix_transform.hpp>
 
 #include "engine/core/Application.h"
@@ -91,6 +89,7 @@ void OcclusionCuller::Init() {
         desc.depthStencil.depthCompareOp   = RHI::CompareOp::LessOrEqual;
         desc.rasterizer.cullMode           = RHI::CullMode::Back;  // Or none? Box is convex.
         desc.topology                      = RHI::PrimitiveTopology::TriangleList;
+        desc.blend.colorWriteMask          = RHI::ColorWriteMask::None;
 
         // Need vertex layout from boundingBoxVA_
         if (!boundingBoxVA_->GetVertexBuffers().empty()) {
@@ -176,14 +175,22 @@ void OcclusionCuller::RenderBoundingBox(const Vector3& center, const Vector3& ha
     occlusionShader_->setMat4("uMVP", mvp);
 
     // Disable color and depth writes - we only want to test against existing depth
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-    glDepthMask(GL_FALSE);
+    // Disable color and depth writes - we only want to test against existing depth
+    // Pipeline state handles this mostly (color mask = None, depth write = false)
+    // But explicit calls ensure safety if pipeline binding implementation varies.
+    // Using RHI abstractions now.
+    if (auto* device = GetDevice()) {
+        device->SetColorWriteMask(RHI::ColorWriteMask::None);
+        device->SetDepthMask(false);
+    }
 
     RenderCommand::DrawIndexed(boundingBoxVA_.get());
 
-    // Restore state
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDepthMask(GL_TRUE);
+    // Restore state - essential because SceneRenderer layout might rely on defaults
+    if (auto* device = GetDevice()) {
+        device->SetColorWriteMask(RHI::ColorWriteMask::All);
+        device->SetDepthMask(true);
+    }
 }
 
 void OcclusionCuller::EndQuery() {

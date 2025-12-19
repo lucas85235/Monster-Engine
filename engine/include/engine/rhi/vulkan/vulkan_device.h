@@ -311,6 +311,8 @@ class VulkanDevice : public IDevice {
     void Clear(bool color, bool depth, bool stencil) override;
     void SetClearColor(const ClearColor& color) override;
     void SetClearDepth(float depth) override;
+    void SetColorWriteMask(ColorWriteMask mask) override;
+    void SetDepthMask(bool enabled) override;
 
     void BindPipeline(PipelineHandle pipeline) override;
     void BindVertexArray(VertexArrayHandle vao) override;

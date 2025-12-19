@@ -489,6 +489,13 @@ void OpenGLDevice::ApplyBlendState(const BlendState& state) {
     } else {
         glDisable(GL_BLEND);
     }
+
+    // Apply color write mask
+    uint8_t mask = static_cast<uint8_t>(state.colorWriteMask);
+    glColorMask((mask & static_cast<uint8_t>(ColorWriteMask::Red)) ? GL_TRUE : GL_FALSE,
+                (mask & static_cast<uint8_t>(ColorWriteMask::Green)) ? GL_TRUE : GL_FALSE,
+                (mask & static_cast<uint8_t>(ColorWriteMask::Blue)) ? GL_TRUE : GL_FALSE,
+                (mask & static_cast<uint8_t>(ColorWriteMask::Alpha)) ? GL_TRUE : GL_FALSE);
 }
 
 BufferHandle OpenGLDevice::CreateBuffer(const BufferDescriptor& desc) {
@@ -960,6 +967,18 @@ void OpenGLDevice::SetClearColor(const ClearColor& color) {
 void OpenGLDevice::SetClearDepth(float depth) {
     clearDepth = depth;
     glClearDepth(depth);
+}
+
+void OpenGLDevice::SetColorWriteMask(ColorWriteMask mask) {
+    uint8_t m = static_cast<uint8_t>(mask);
+    glColorMask((m & static_cast<uint8_t>(ColorWriteMask::Red)) ? GL_TRUE : GL_FALSE,
+                (m & static_cast<uint8_t>(ColorWriteMask::Green)) ? GL_TRUE : GL_FALSE,
+                (m & static_cast<uint8_t>(ColorWriteMask::Blue)) ? GL_TRUE : GL_FALSE,
+                (m & static_cast<uint8_t>(ColorWriteMask::Alpha)) ? GL_TRUE : GL_FALSE);
+}
+
+void OpenGLDevice::SetDepthMask(bool enabled) {
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
 }
 
 void OpenGLDevice::BindPipeline(PipelineHandle pipeline) {
