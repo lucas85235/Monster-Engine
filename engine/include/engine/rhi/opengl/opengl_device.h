@@ -32,8 +32,9 @@ class OpenGLDevice : public IDevice {
     };
 
     struct ShaderObject {
-        GLuint                                 program;
-        std::unordered_map<std::string, GLint> uniformLocations;
+        GLuint                                       program;
+        std::unordered_map<std::string, GLint>       uniformLocations;
+        std::unordered_map<std::string, std::string> uniformAliases;  // Maps simple name -> prefixed name (e.g., "uView" -> "_58.uView")
     };
 
     struct PipelineObject {

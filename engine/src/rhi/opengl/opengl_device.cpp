@@ -733,6 +733,27 @@ ShaderHandle OpenGLDevice::CreateShader(const std::vector<ShaderDescriptor>& sta
     ShaderObject shader;
     shader.program = program;
 
+    // Build uniform name aliases for SPIRV-Cross flattened UBO uniforms
+    // These have format "_XX.uniformName" which we map to just "uniformName"
+    GLint numUniforms = 0;
+    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &numUniforms);
+    for (GLint i = 0; i < numUniforms; i++) {
+        char    name[256];
+        GLsizei length;
+        GLint   size;
+        GLenum  type;
+        glGetActiveUniform(program, i, sizeof(name), &length, &size, &type, name);
+
+        // Check if name has prefix pattern "_XX." and create alias
+        std::string fullName(name);
+        size_t      dotPos = fullName.find('.');
+        if (dotPos != std::string::npos && dotPos > 0 && fullName[0] == '_') {
+            // Extract base name after the dot
+            std::string baseName            = fullName.substr(dotPos + 1);
+            shader.uniformAliases[baseName] = fullName;
+        }
+    }
+
     ShaderHandle handle{nextId++};
     shaders[handle.id] = shader;
 
@@ -1029,13 +1050,18 @@ void OpenGLDevice::SetUniform(ShaderHandle shader, const std::string& name, int 
     auto it = shaders.find(shader.id);
     if (it == shaders.end()) return;
 
+    // Check for aliased name
+    std::string lookupName = name;
+    auto        aliasIt    = it->second.uniformAliases.find(name);
+    if (aliasIt != it->second.uniformAliases.end()) { lookupName = aliasIt->second; }
+
     auto& cache = it->second.uniformLocations;
-    auto  locIt = cache.find(name);
+    auto  locIt = cache.find(lookupName);
     GLint location;
 
     if (locIt == cache.end()) {
-        location    = glGetUniformLocation(it->second.program, name.c_str());
-        cache[name] = location;
+        location          = glGetUniformLocation(it->second.program, lookupName.c_str());
+        cache[lookupName] = location;
     } else {
         location = locIt->second;
     }
@@ -1047,13 +1073,18 @@ void OpenGLDevice::SetUniform(ShaderHandle shader, const std::string& name, floa
     auto it = shaders.find(shader.id);
     if (it == shaders.end()) return;
 
+    // Check for aliased name
+    std::string lookupName = name;
+    auto        aliasIt    = it->second.uniformAliases.find(name);
+    if (aliasIt != it->second.uniformAliases.end()) { lookupName = aliasIt->second; }
+
     auto& cache = it->second.uniformLocations;
-    auto  locIt = cache.find(name);
+    auto  locIt = cache.find(lookupName);
     GLint location;
 
     if (locIt == cache.end()) {
-        location    = glGetUniformLocation(it->second.program, name.c_str());
-        cache[name] = location;
+        location          = glGetUniformLocation(it->second.program, lookupName.c_str());
+        cache[lookupName] = location;
     } else {
         location = locIt->second;
     }
@@ -1065,13 +1096,18 @@ void OpenGLDevice::SetUniform(ShaderHandle shader, const std::string& name, cons
     auto it = shaders.find(shader.id);
     if (it == shaders.end()) return;
 
+    // Check for aliased name
+    std::string lookupName = name;
+    auto        aliasIt    = it->second.uniformAliases.find(name);
+    if (aliasIt != it->second.uniformAliases.end()) { lookupName = aliasIt->second; }
+
     auto& cache = it->second.uniformLocations;
-    auto  locIt = cache.find(name);
+    auto  locIt = cache.find(lookupName);
     GLint location;
 
     if (locIt == cache.end()) {
-        location    = glGetUniformLocation(it->second.program, name.c_str());
-        cache[name] = location;
+        location          = glGetUniformLocation(it->second.program, lookupName.c_str());
+        cache[lookupName] = location;
     } else {
         location = locIt->second;
     }
@@ -1092,13 +1128,18 @@ void OpenGLDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
     auto it = shaders.find(shader.id);
     if (it == shaders.end()) return;
 
+    // Check for aliased name (e.g., "uView" might actually be "_58.uView")
+    std::string lookupName = name;
+    auto        aliasIt    = it->second.uniformAliases.find(name);
+    if (aliasIt != it->second.uniformAliases.end()) { lookupName = aliasIt->second; }
+
     auto& cache = it->second.uniformLocations;
-    auto  locIt = cache.find(name);
+    auto  locIt = cache.find(lookupName);
     GLint location;
 
     if (locIt == cache.end()) {
-        location    = glGetUniformLocation(it->second.program, name.c_str());
-        cache[name] = location;
+        location          = glGetUniformLocation(it->second.program, lookupName.c_str());
+        cache[lookupName] = location;
     } else {
         location = locIt->second;
     }

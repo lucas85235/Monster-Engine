@@ -203,6 +203,17 @@ class ShaderCrossCompiler {
         // Apply options
         compiler.set_common_options(options);
 
+        // Rename UBO blocks to empty string so flattened uniforms have no prefix
+        // This makes "_13.uModel" become just "uModel"
+        // We need to set BOTH the resource name and the type name to empty
+        spirv_cross::ShaderResources resources = compiler.get_shader_resources();
+        for (auto& ubo : resources.uniform_buffers) {
+            compiler.set_name(ubo.id, "");
+            // Also set the type name (the struct type) to empty
+            auto& type = compiler.get_type(ubo.base_type_id);
+            compiler.set_name(type.self, "");
+        }
+
         // Handle explicit bindings for older GLSL versions
         // GLSL < 420 doesn't support layout(binding=X) directly
         if (glslVersion < 420) { RemoveExplicitBindings(compiler); }
