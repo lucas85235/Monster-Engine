@@ -3,6 +3,7 @@
 
 #include <glm.hpp>
 
+#include "engine/renderer/ShaderReflection.h"
 #include "engine/rhi/rhi_types.h"
 #include "se_pch.h"
 
@@ -37,8 +38,13 @@ class Shader {
         return handle_;
     }
 
+    const ShaderReflectionData& GetReflectionData() const {
+        return reflectionData_;
+    }
+
    private:
-    RHI::ShaderHandle handle_ = {0};
+    RHI::ShaderHandle    handle_ = {0};
+    ShaderReflectionData reflectionData_;
 };
 
 }  // namespace se

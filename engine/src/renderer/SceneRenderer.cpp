@@ -387,6 +387,7 @@ void SceneRenderer::RenderShadowPass() {
                 auto pipeline = device->CreatePipeline(desc, sceneData_.ShadowShader->GetHandle(), vertexLayout);
                 if (RHI::IsValid(pipeline)) {
                     device->BindPipeline(pipeline);
+                    submission.vertex_array->Bind();
                     sceneData_.ShadowShader->setMat4("uModel", submission.Transform);
                     RHI::DrawIndexedCommand cmd{};
                     cmd.indexCount    = submission.vertex_array->GetIndexBuffer()->GetCount();
@@ -468,6 +469,8 @@ void SceneRenderer::RenderScenePass() {
                 if (RHI::IsValid(pipeline)) { device->BindPipeline(pipeline); }
             }
         }
+
+        submission.vertex_array->Bind();
 
         shader->setMat4("uView", sceneData_.ViewMatrix);
         shader->setMat4("uProj", sceneData_.ProjectionMatrix);

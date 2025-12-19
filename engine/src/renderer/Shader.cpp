@@ -8,6 +8,7 @@
 #include "engine/core/Application.h"
 #include "engine/core/Log.h"
 #include "engine/renderer/GraphicsContext.h"
+#include "engine/rhi/shader_cross_compiler.h"
 
 namespace se {
 
@@ -81,6 +82,91 @@ void Shader::setMat4(const char* name, const Matrix4& value) const {
 }
 
 std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath, const std::filesystem::path& fragPath) {
+    // Load SPIR-V helper
+    auto loadSPIRV = [](const std::filesystem::path& path) -> std::vector<uint32_t> {
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) return {};
+
+        size_t                fileSize = (size_t)file.tellg();
+        std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+        file.seekg(0);
+        file.read((char*)buffer.data(), fileSize);
+        return buffer;
+    };
+
+    // Construct SPIR-V paths
+    // e.g. assets/shaders/basic.vert -> assets/shaders/spirv/basic.vert.spv
+    auto getSpirvPath = [](const std::filesystem::path& sourcePath) -> std::filesystem::path {
+        auto filename = sourcePath.filename();
+        auto parent   = sourcePath.parent_path();
+        return parent / "spirv" / (filename.string() + ".spv");
+    };
+
+    auto vertSpirvPath = getSpirvPath(vertPath);
+    auto fragSpirvPath = getSpirvPath(fragPath);
+
+    SE_LOG_INFO("Attempting to load SPIR-V from: {}", vertSpirvPath.string());
+    SE_LOG_INFO("Attempting to load SPIR-V from: {}", fragSpirvPath.string());
+
+    std::vector<uint32_t> vertBinary = loadSPIRV(vertSpirvPath);
+    std::vector<uint32_t> fragBinary = loadSPIRV(fragSpirvPath);
+
+    if (vertBinary.empty()) SE_LOG_WARN("Failed to load vertex SPIR-V: {}", vertSpirvPath.string());
+    if (fragBinary.empty()) SE_LOG_WARN("Failed to load fragment SPIR-V: {}", fragSpirvPath.string());
+
+    if (!vertBinary.empty() && !fragBinary.empty()) {
+        SE_LOG_INFO("Loading SPIR-V shaders: {} / {}", vertSpirvPath.string(), fragSpirvPath.string());
+
+        // Get current API
+        auto* device = GetDevice();
+        // Assuming OpenGL for now as per context, but should ideally come from device
+        // We can check device type or assume generic approach
+        RHI::RenderAPI api = RHI::RenderAPI::OpenGL;
+        // In a real implementation we would query device->GetAPI()
+
+        auto vertResult = RHI::ShaderCrossCompiler::Process(vertBinary, api, RHI::ShaderStageType::Vertex, 450);
+        auto fragResult = RHI::ShaderCrossCompiler::Process(fragBinary, api, RHI::ShaderStageType::Fragment, 450);
+
+        if (vertResult.success && fragResult.success) {
+            std::shared_ptr<Shader> shader;
+            if (api == RHI::RenderAPI::OpenGL) {
+                shader = std::make_shared<Shader>(vertResult.glslSource, fragResult.glslSource);
+            } else {
+                // For Vulkan support in future
+                SE_LOG_ERROR("Vulkan SPIR-V passthrough not yet fully implemented in Shader class wrapper");
+                return nullptr;
+            }
+
+            // Extract Reflection Data
+            auto vertReflection = RHI::ShaderCrossCompiler::Reflect(vertBinary);
+            auto fragReflection = RHI::ShaderCrossCompiler::Reflect(fragBinary);
+
+            // Merge into shader
+            shader->reflectionData_.uniformBuffers = vertReflection.uniformBuffers;
+            // Append fragment UBOs that are unique
+            for (const auto& ubo : fragReflection.uniformBuffers) {
+                bool found = false;
+                for (const auto& existing : shader->reflectionData_.uniformBuffers) {
+                    if (existing.set == ubo.set && existing.binding == ubo.binding) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) shader->reflectionData_.uniformBuffers.push_back(ubo);
+            }
+
+            shader->reflectionData_.resources = vertReflection.resources;
+            for (const auto& res : fragReflection.resources) { shader->reflectionData_.resources.push_back(res); }
+
+            return shader;
+        } else {
+            SE_LOG_ERROR("Cross-compilation failed: V:{} F:{}", vertResult.errorMessage, fragResult.errorMessage);
+        }
+    }
+
+    // Fallback to text loading (Legacy)
+    SE_LOG_WARN("SPIR-V not found or failed, falling back to legacy GLSL source loading: {} / {}", vertPath.string(), fragPath.string());
+
     // Read files helper
     auto loadFile = [](const std::filesystem::path& path) -> std::string {
         std::ifstream file(path);

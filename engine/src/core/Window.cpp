@@ -148,10 +148,12 @@ void Window::Init() {
         event_bus_->Invoke<WindowFocusEvent>(focused == GLFW_TRUE);
     });
 
-    // Set initial viewport
-    int frame_buffer_width, frame_buffer_height;
-    glfwGetFramebufferSize(window_handle_, &frame_buffer_width, &frame_buffer_height);
-    glViewport(0, 0, frame_buffer_width, frame_buffer_height);
+    // Set initial viewport (OpenGL only)
+    if (spec_.Api == RHI::API::OpenGL) {
+        int frame_buffer_width, frame_buffer_height;
+        glfwGetFramebufferSize(window_handle_, &frame_buffer_width, &frame_buffer_height);
+        glViewport(0, 0, frame_buffer_width, frame_buffer_height);
+    }
 }
 
 void Window::Shutdown() {

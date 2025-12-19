@@ -34,10 +34,11 @@ void RenderSystem::EnsureInstancedMaterial() {
     fs::path vertPath = assetsPath / "shaders" / "instanced.vert";
     fs::path fragPath = assetsPath / "shaders" / "instanced.frag";
 
-    if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
-        SE_LOG_ERROR("Instanced shaders not found at: {}", vertPath.string());
-        return;
-    }
+    // Check removed: loading handled by Shader::CreateFromFiles (supports SPIR-V)
+    // if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
+    //     SE_LOG_ERROR("Instanced shaders not found at: {}", vertPath.string());
+    //     return;
+    // }
 
     auto shader = MaterialManager::GetShader("InstancedShader", vertPath, fragPath);
     if (!shader) {

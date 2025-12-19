@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(UNIX)
-add_compile_options(-Wno-changes-meaning)
+# Removed -Wno-changes-meaning as it's not compatible with Clang
+# add_compile_options(-Wno-changes-meaning)
 endif()
 
 add_subdirectory(engine)

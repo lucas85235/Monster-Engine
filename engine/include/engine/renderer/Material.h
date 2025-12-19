@@ -4,6 +4,11 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+namespace RHI {
+class ITexture;
+}
 
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/Shader.h"
@@ -34,12 +39,13 @@ class Material {
     RHI::PipelineHandle pipeline_ = {0};
 
    private:
-    std::shared_ptr<Shader>                  shader_;
-    std::unordered_map<std::string, float>   floatUniforms_;
-    std::unordered_map<std::string, int>     intUniforms_;
-    std::unordered_map<std::string, Vector3> vec3Uniforms_;
-    std::unordered_map<std::string, Vector4> vec4Uniforms_;
-    std::unordered_map<std::string, Matrix4> mat4Uniforms_;
+    std::shared_ptr<Shader> shader_;
+    // Buffer storage for UBO data (CPU side)
+    // Key: Binding/Set, Value: Vector of bytes
+    std::unordered_map<uint32_t, std::vector<uint8_t>>              uniformBuffers_;
+    std::unordered_map<std::string, std::shared_ptr<RHI::ITexture>> textures_;
+
+    void InvalidUniform(const std::string& name);
 };
 
 }  // namespace se
