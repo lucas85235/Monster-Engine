@@ -16,7 +16,7 @@ void ImguiDebug() {
     ImGui::End();
 }
 
-MainGameLayer::~MainGameLayer() {}
+MainGameLayer::~MainGameLayer() = default;
 void MainGameLayer::OnAttach() {
     Layer::OnAttach();
 }

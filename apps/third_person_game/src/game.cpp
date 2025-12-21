@@ -5,13 +5,12 @@
 
 using namespace se;
 int main() {
-    ApplicationSpecification app_spec{.Fullscreen      = false,
-                                      .Name            = "First-Game",
-                                      .Resizable       = true,
+    ApplicationSpecification app_spec{.Name            = "First-Game",
+                                      .WindowWidth     = 800,
+                                      .WindowHeight    = 600,
                                       .WindowDecorated = true,
                                       .Fullscreen      = false,
-                                      .WindowWidth     = 800,
-                                      .WindowHeight    = 600};
+                                      .Resizable       = true};
 
     Application app{app_spec};
     app.PushLayer<FirstGame::MainGameLayer>();
