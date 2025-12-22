@@ -33,22 +33,39 @@ sudo apt install -y \
     mesa-utils
 
 # ============================================
-# Vulkan (rendering)
+# Vulkan SDK and Validation Layers
 # ============================================
 echo "[3/9] Installing Vulkan SDK..."
 sudo apt install -y \
     libvulkan-dev \
     libvulkan1 \
-    vulkan-tools
+    vulkan-tools \
+    vulkan-validationlayers \
+    vulkan-validationlayers-dev \
+    libvulkan-volk-dev || echo "Some Vulkan packages may not be available"
 
 # ============================================
-# SPIRV-Cross (shader cross-compilation)
+# SPIRV-Cross and Shader Tools
+# Required for SPIR-V to GLSL cross-compilation
 # ============================================
-echo "[4/9] Installing SPIRV-Cross (optional)..."
+echo "[4/9] Installing SPIRV-Cross and shader tools..."
 sudo apt install -y \
     libspirv-cross-c-shared-dev \
+    spirv-cross \
     spirv-tools \
-    glslang-tools || echo "SPIRV-Cross not available - SPIR-V shaders will be disabled"
+    spirv-headers \
+    glslang-tools \
+    glslang-dev \
+    shaderc || echo "Some shader tools not available - installing alternatives..."
+
+# Alternative: Try installing from Vulkan SDK LunarG PPA if packages are missing
+if ! command -v glslangValidator &> /dev/null; then
+    echo "Installing Vulkan SDK from LunarG PPA..."
+    wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+    sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+    sudo apt update
+    sudo apt install -y vulkan-sdk || echo "Vulkan SDK installation failed - manual install may be required"
+fi
 
 # ============================================
 # Wayland (wayland support)
@@ -79,9 +96,17 @@ sudo apt install -y \
     zlib1g-dev
 
 # ============================================
+# Model Loading (Assimp)
+# ============================================
+echo "[8/9] Installing model loading libraries..."
+sudo apt install -y \
+    libassimp-dev \
+    assimp-utils || echo "Assimp not installed - will use bundled version"
+
+# ============================================
 # Audio (optional)
 # ============================================
-echo "[8/9] Installing audio libraries..."
+echo "[9/10] Installing audio libraries..."
 sudo apt install -y \
     libasound2-dev \
     libpulse-dev || echo "Audio libraries not installed"
@@ -89,7 +114,7 @@ sudo apt install -y \
 # ============================================
 # Debug Tools (optional)
 # ============================================
-echo "[9/9] Installing debug tools..."
+echo "[10/10] Installing debug tools..."
 sudo apt install -y \
     gdb \
     valgrind || echo "Debug tools not installed"

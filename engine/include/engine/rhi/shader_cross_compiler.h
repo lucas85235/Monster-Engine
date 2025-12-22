@@ -139,6 +139,53 @@ class ShaderCrossCompiler {
         return result;
     }
 
+    /**
+     * @brief Reflection helper to extract resources from SPIR-V
+     * Always available, returns empty data if SPIRV-Cross is not enabled
+     */
+    static se::ShaderReflectionData Reflect(const std::vector<uint32_t>& spirvBinary) {
+        se::ShaderReflectionData data;
+#if SPIRV_CROSS_AVAILABLE
+        try {
+            spirv_cross::CompilerGLSL    compiler(spirvBinary);
+            spirv_cross::ShaderResources resources = compiler.get_shader_resources();
+
+            // extract uniform buffers
+            for (auto& resource : resources.uniform_buffers) {
+                se::ShaderUniformBufferDeclaration ubo;
+                ubo.name    = resource.name;
+                ubo.set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+                ubo.binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+
+                auto& type = compiler.get_type(resource.type_id);
+                ubo.size   = (uint32_t)compiler.get_declared_struct_size(type);
+
+                // Reflect members
+                uint32_t member_count = (uint32_t)type.member_types.size();
+                for (uint32_t i = 0; i < member_count; i++) {
+                    se::ShaderResourceDeclaration member;
+                    member.name   = compiler.get_member_name(type.self, i);
+                    member.offset = compiler.type_struct_member_offset(type, i);
+                    member.size   = (uint32_t)compiler.get_declared_struct_member_size(type, i);
+                    ubo.members.push_back(member);
+                }
+                data.uniformBuffers.push_back(ubo);
+            }
+
+            // extract sampled images (textures)
+            for (auto& resource : resources.sampled_images) {
+                se::ShaderResourceDeclaration tex;
+                tex.name    = resource.name;
+                tex.set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+                tex.binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+                tex.type    = se::ReflectionDataType::Sampler2D;
+                data.resources.push_back(tex);
+            }
+        } catch (...) { std::cerr << "[ShaderCrossCompiler] Reflection failed" << std::endl; }
+#endif
+        return data;
+    }
+
    private:
 #if SPIRV_CROSS_AVAILABLE
     /**
@@ -230,55 +277,6 @@ class ShaderCrossCompiler {
         }
 
         return glslSource;
-    }
-
-    /**
-     * @brief Reflection helper to extract resources from SPIR-V
-     */
-   public:
-    static se::ShaderReflectionData Reflect(const std::vector<uint32_t>& spirvBinary) {
-        se::ShaderReflectionData data;
-#if SPIRV_CROSS_AVAILABLE
-        try {
-            spirv_cross::CompilerGLSL    compiler(spirvBinary);
-            spirv_cross::ShaderResources resources = compiler.get_shader_resources();
-
-            // extract uniform buffers
-            for (auto& resource : resources.uniform_buffers) {
-                se::ShaderUniformBufferDeclaration ubo;
-                ubo.name    = resource.name;
-                ubo.set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
-                ubo.binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
-
-                auto& type = compiler.get_type(resource.type_id);
-                ubo.size   = (uint32_t)compiler.get_declared_struct_size(type);
-
-                // Reflect members
-                uint32_t member_count = (uint32_t)type.member_types.size();
-                for (uint32_t i = 0; i < member_count; i++) {
-                    se::ShaderResourceDeclaration member;
-                    member.name   = compiler.get_member_name(type.self, i);
-                    member.offset = compiler.type_struct_member_offset(type, i);
-                    member.size   = (uint32_t)compiler.get_declared_struct_member_size(type, i);
-                    // Simple type mapping could be added here if needed
-                    ubo.members.push_back(member);
-                }
-                data.uniformBuffers.push_back(ubo);
-            }
-
-            // extract sampled images (textures)
-            for (auto& resource : resources.sampled_images) {
-                se::ShaderResourceDeclaration tex;
-                tex.name    = resource.name;
-                tex.set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
-                tex.binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
-                tex.type    = se::ReflectionDataType::Sampler2D;  // simplified
-                data.resources.push_back(tex);
-            }
-
-        } catch (...) { std::cerr << "[ShaderCrossCompiler] Reflection failed" << std::endl; }
-#endif
-        return data;
     }
 
     /**
