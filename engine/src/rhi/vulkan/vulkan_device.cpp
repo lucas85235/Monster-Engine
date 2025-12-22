@@ -1123,6 +1123,8 @@ VkImageView VulkanDevice::createImageView(VkImage image, VkFormat format) {
 
 // Buffer implementations
 BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
+    SE_LOG_INFO("[Vulkan] CreateBuffer START - size={} type={}", desc.size, static_cast<int>(desc.type));
+    
     VulkanBuffer vkBuffer;
     vkBuffer.size = desc.size;
     vkBuffer.type = desc.type;
@@ -1146,10 +1148,12 @@ BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
     bufferInfo.usage       = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+    SE_LOG_INFO("[Vulkan] CreateBuffer - calling vkCreateBuffer");
     if (vkCreateBuffer(device, &bufferInfo, nullptr, &vkBuffer.buffer) != VK_SUCCESS) {
         SE_LOG_ERROR("[Vulkan] Failed to create buffer" );
         return BufferHandle{0};
     }
+    SE_LOG_INFO("[Vulkan] CreateBuffer - vkCreateBuffer succeeded");
 
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device, vkBuffer.buffer, &memRequirements);
@@ -1160,15 +1164,18 @@ BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
     allocInfo.memoryTypeIndex =
         findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    SE_LOG_INFO("[Vulkan] CreateBuffer - calling vkAllocateMemory");
     if (vkAllocateMemory(device, &allocInfo, nullptr, &vkBuffer.memory) != VK_SUCCESS) {
         SE_LOG_ERROR("[Vulkan] Failed to allocate buffer memory" );
         vkDestroyBuffer(device, vkBuffer.buffer, nullptr);
         return BufferHandle{0};
     }
+    SE_LOG_INFO("[Vulkan] CreateBuffer - vkAllocateMemory succeeded");
 
     vkBindBufferMemory(device, vkBuffer.buffer, vkBuffer.memory, 0);
 
     if (desc.data) {
+        SE_LOG_INFO("[Vulkan] CreateBuffer - copying data");
         void* mappedData;
         vkMapMemory(device, vkBuffer.memory, 0, desc.size, 0, &mappedData);
         memcpy(mappedData, desc.data, desc.size);
@@ -1177,6 +1184,7 @@ BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
 
     BufferHandle handle{nextId++};
     buffers[handle.id] = vkBuffer;
+    SE_LOG_INFO("[Vulkan] CreateBuffer END - handle id={}", handle.id);
     return handle;
 }
 
@@ -2208,6 +2216,7 @@ void VulkanDevice::SetDepthMask(bool enabled) {
 }
 
 void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
+    SE_LOG_INFO("[Vulkan] BindPipeline START - id={}", pipeline.id);
     if (pipeline.id == 0) {
         SE_LOG_ERROR("[Vulkan] BindPipeline called with invalid handle" );
         return;
@@ -2217,11 +2226,14 @@ void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
 
     auto it = pipelines.find(pipeline.id);
     if (it != pipelines.end()) {
+        SE_LOG_INFO("[Vulkan] BindPipeline - calling vkCmdBindPipeline");
         vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, it->second.pipeline);
+        SE_LOG_INFO("[Vulkan] BindPipeline - vkCmdBindPipeline done, binding descriptor sets");
 
         // Bind descriptor sets with the pipeline layout
         vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, it->second.layout, 0, 1, &descriptorSets[currentFrame],
                                 0, nullptr);
+        SE_LOG_INFO("[Vulkan] BindPipeline END - success");
     } else {
         SE_LOG_ERROR("[Vulkan] BindPipeline: pipeline id={} not found", pipeline.id);
     }

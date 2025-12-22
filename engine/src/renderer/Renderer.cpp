@@ -64,18 +64,18 @@ void Renderer::Shutdown() {
 }
 
 void Renderer::BeginFrame() {
-    // RHI BeginFrame is typically called by Application/Window before this, or managed there.
-    // However, if we need explicit RHI BeginFrame here:
-    // if (auto* device = GetDevice()) device->BeginFrame();
-    // Current Application.cpp architecture calls BeginFrame/EndFrame on Renderer.
-    // Let's defer to Application.cpp loop which calls Renderer::BeginFrame.
-    // But currently Application.cpp doesn't seem to call RHI BeginFrame directly?
-    // Checking Application.cpp: Window::OnUpdate happens.
-    // Let's assume RHI frame logic is handled at Window/Context level or needs to be added here if RenderCommand did meaningful things.
-    // RenderCommand::BeginFrame didn't exist.
+    // Start the frame on the RHI device (begins command buffer, render pass, etc.)
+    if (auto* device = GetDevice()) { 
+        device->BeginFrame(); 
+    }
 }
 
-void Renderer::EndFrame() {}
+void Renderer::EndFrame() {
+    // End the frame on the RHI device (ends render pass, submits command buffer, presents)
+    if (auto* device = GetDevice()) { 
+        device->EndFrame(); 
+    }
+}
 
 void Renderer::Clear() {
     if (auto* device = GetDevice()) { device->Clear(true, true, false); }

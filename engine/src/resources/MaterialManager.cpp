@@ -1,6 +1,8 @@
 #include "engine/resources/MaterialManager.h"
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
 std::shared_ptr<Material>                                MaterialManager::defaultMaterial_;
@@ -118,8 +120,18 @@ void MaterialManager::CreateDefaultShader() {
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Failed to load default shader: {}", e.what());
 
-        // Fallback to hardcoded simple shader if file load fails?
-        // Or just re-throw. The app likely needs this shader.
+        // Check if Vulkan - don't attempt GLSL fallback
+        auto& app = Application::Get();
+        if (auto* context = app.GetWindow().GetContext()) {
+            if (auto* device = context->GetDevice()) {
+                if (device->GetAPI() == RHI::API::Vulkan) {
+                    SE_LOG_ERROR("Vulkan requires SPIR-V shaders - ensure assets/shaders/spirv/ contains compiled shaders");
+                    throw std::runtime_error("Default SPIR-V shader required for Vulkan");
+                }
+            }
+        }
+
+        // Fallback to hardcoded simple shader (OpenGL only)
         SE_LOG_WARN("Attempting fallback to hardcoded shader...");
 
         // Fallback: Simple Vertex/Fragment shader (Vertex Color only)

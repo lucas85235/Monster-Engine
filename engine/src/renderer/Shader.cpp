@@ -117,25 +117,70 @@ std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& ver
     if (!vertBinary.empty() && !fragBinary.empty()) {
         SE_LOG_INFO("Loading SPIR-V shaders: {} / {}", vertSpirvPath.string(), fragSpirvPath.string());
 
-        // Get current API
+        // Get current API from device
         auto* device = GetDevice();
-        // Assuming OpenGL for now as per context, but should ideally come from device
-        // We can check device type or assume generic approach
+        if (!device) {
+            SE_LOG_ERROR("Failed to get RHI device");
+            return nullptr;
+        }
+        
+        RHI::API currentAPI = device->GetAPI();
+        
+        if (currentAPI == RHI::API::Vulkan) {
+            // For Vulkan: pass SPIR-V binary directly
+            SE_LOG_INFO("Using SPIR-V binary for Vulkan shader");
+            
+            std::vector<RHI::ShaderDescriptor> stages;
+            
+            RHI::ShaderDescriptor vertDesc;
+            vertDesc.stage = RHI::ShaderStage::Vertex;
+            vertDesc.spirvBinary = vertBinary;
+            vertDesc.useSPIRV = true;
+            stages.push_back(vertDesc);
+            
+            RHI::ShaderDescriptor fragDesc;
+            fragDesc.stage = RHI::ShaderStage::Fragment;
+            fragDesc.spirvBinary = fragBinary;
+            fragDesc.useSPIRV = true;
+            stages.push_back(fragDesc);
+            
+            auto shader = std::make_shared<Shader>();
+            shader->handle_ = device->CreateShader(stages);
+            
+            if (!RHI::IsValid(shader->handle_)) {
+                SE_LOG_ERROR("Failed to create Vulkan shader from SPIR-V");
+                return nullptr;
+            }
+            
+            // Extract Reflection Data
+            auto vertReflection = RHI::ShaderCrossCompiler::Reflect(vertBinary);
+            auto fragReflection = RHI::ShaderCrossCompiler::Reflect(fragBinary);
+            
+            shader->reflectionData_.uniformBuffers = vertReflection.uniformBuffers;
+            for (const auto& ubo : fragReflection.uniformBuffers) {
+                bool found = false;
+                for (const auto& existing : shader->reflectionData_.uniformBuffers) {
+                    if (existing.set == ubo.set && existing.binding == ubo.binding) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) shader->reflectionData_.uniformBuffers.push_back(ubo);
+            }
+            
+            shader->reflectionData_.resources = vertReflection.resources;
+            for (const auto& res : fragReflection.resources) { shader->reflectionData_.resources.push_back(res); }
+            
+            return shader;
+        }
+        
+        // For OpenGL: transpile SPIR-V to GLSL
         RHI::RenderAPI api = RHI::RenderAPI::OpenGL;
-        // In a real implementation we would query device->GetAPI()
-
         auto vertResult = RHI::ShaderCrossCompiler::Process(vertBinary, api, RHI::ShaderStageType::Vertex, 450);
         auto fragResult = RHI::ShaderCrossCompiler::Process(fragBinary, api, RHI::ShaderStageType::Fragment, 450);
 
         if (vertResult.success && fragResult.success) {
-            std::shared_ptr<Shader> shader;
-            if (api == RHI::RenderAPI::OpenGL) {
-                shader = std::make_shared<Shader>(vertResult.glslSource, fragResult.glslSource);
-            } else {
-                // For Vulkan support in future
-                SE_LOG_ERROR("Vulkan SPIR-V passthrough not yet fully implemented in Shader class wrapper");
-                return nullptr;
-            }
+            auto shader = std::make_shared<Shader>(vertResult.glslSource, fragResult.glslSource);
 
             // Extract Reflection Data
             auto vertReflection = RHI::ShaderCrossCompiler::Reflect(vertBinary);

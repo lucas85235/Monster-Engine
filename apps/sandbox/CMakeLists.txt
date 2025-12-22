@@ -4,6 +4,8 @@ add_executable(sandbox
         src/AppLayer.h
         src/ThirdPersonLayer.cpp
         src/ThirdPersonLayer.h
+        src/VulkanTestLayer.cpp
+        src/VulkanTestLayer.h
         src/input_sample/InputSampleLayer.h
         src/input_sample/InputSampleLayer.cpp
         src/event_sample/EventSampleLayer.h

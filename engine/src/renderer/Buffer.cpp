@@ -100,11 +100,13 @@ void BufferLayout::CalculateOffsetsAndStride() {
 // ========== VertexBuffer ==========
 
 VertexBuffer::VertexBuffer(const void* vertices, uint32_t size) {
+    SE_LOG_INFO("VertexBuffer constructor START - size={}", size);
     auto* device = GetDevice();
     if (!device) {
         SE_LOG_ERROR("Failed to get RHI device in VertexBuffer constructor");
         return;
     }
+    SE_LOG_INFO("VertexBuffer - got device, creating descriptor");
 
     RHI::BufferDescriptor desc{};
     desc.type  = RHI::BufferType::Vertex;
@@ -112,7 +114,9 @@ VertexBuffer::VertexBuffer(const void* vertices, uint32_t size) {
     desc.size  = size;
     desc.data  = vertices;
 
+    SE_LOG_INFO("VertexBuffer - calling device->CreateBuffer");
     handle_ = device->CreateBuffer(desc);
+    SE_LOG_INFO("VertexBuffer constructor END - handle id={}", handle_.id);
 }
 
 VertexBuffer::VertexBuffer(uint32_t size) {

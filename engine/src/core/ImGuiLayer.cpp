@@ -3,11 +3,19 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 #include "examples/imgui_impl_glfw.h"
 #include "examples/imgui_impl_opengl3.h"
 
 namespace se {
+
+static RHI::IDevice* GetDevice() {
+    auto& app     = Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    return context ? context->GetDevice() : nullptr;
+}
 
 ImGuiLayer::ImGuiLayer() : Layer("ImGuiLayer") {}
 
@@ -19,6 +27,15 @@ void ImGuiLayer::SetWindow(GLFWwindow* window) {
 
 void ImGuiLayer::OnAttach() {
     SE_LOG_INFO("ImGuiLayer::OnAttach");
+
+    // Skip ImGui for Vulkan - uses OpenGL-specific backend
+    // TODO: Add Vulkan ImGui backend (imgui_impl_vulkan.h)
+    auto* device = GetDevice();
+    if (device && device->GetAPI() == RHI::API::Vulkan) {
+        SE_LOG_WARN("ImGui skipped for Vulkan (OpenGL backend not compatible)");
+        vulkanMode_ = true;
+        return;
+    }
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -50,6 +67,8 @@ void ImGuiLayer::OnAttach() {
 void ImGuiLayer::OnDetach() {
     SE_LOG_INFO("ImGuiLayer::OnDetach");
 
+    if (vulkanMode_) return;  // ImGui not initialized for Vulkan
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -64,12 +83,16 @@ void ImGuiLayer::OnRender() {
 }
 
 void ImGuiLayer::Begin() {
+    if (vulkanMode_) return;  // Skip for Vulkan
+    
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
 void ImGuiLayer::End() {
+    if (vulkanMode_) return;  // Skip for Vulkan
+    
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 

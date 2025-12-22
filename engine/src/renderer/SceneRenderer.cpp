@@ -242,6 +242,15 @@ void SceneRenderer::SetAORadius(float radius) {
 }
 
 void SceneRenderer::InitializeShadowResources() {
+    // Skip shadow resources for Vulkan - GLSL 330 shaders not compatible
+    // TODO: Create SPIR-V shadow shaders for Vulkan support
+    auto* device = GetDevice();
+    if (device && device->GetAPI() == RHI::API::Vulkan) {
+        SE_LOG_WARN("Shadow mapping skipped for Vulkan (SPIR-V shaders not yet available)");
+        sceneData_.ShadowsEnabled = false;
+        return;
+    }
+
     SE_LOG_INFO("Creating shadow resources ({}x{})", sceneData_.ShadowMapSize.x, sceneData_.ShadowMapSize.y);
 
     sceneData_.ShadowShader = std::make_shared<Shader>(kShadowVertexSource, kShadowFragmentSource);

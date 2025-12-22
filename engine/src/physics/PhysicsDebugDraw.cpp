@@ -12,6 +12,18 @@ namespace se {
 PhysicsDebugDraw::PhysicsDebugDraw() {
     debug_mode_ = DBG_DrawWireframe;
 
+    // Skip shader creation for Vulkan - uses GLSL 330
+    // TODO: Create SPIR-V debug draw shaders for Vulkan
+    auto& window = Application::Get().GetWindow();
+    if (auto* context = window.GetContext()) {
+        if (auto* device = context->GetDevice()) {
+            if (device->GetAPI() == RHI::API::Vulkan) {
+                SE_LOG_WARN("PhysicsDebugDraw disabled for Vulkan (GLSL 330 not compatible)");
+                return;
+            }
+        }
+    }
+
     const std::string vertexSrc = R"(#version 330 core
         layout (location = 0) in vec3 a_Position;
         uniform mat4 u_ViewProjection;

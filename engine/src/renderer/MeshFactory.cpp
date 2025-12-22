@@ -124,6 +124,7 @@ Mesh MeshFactory::CreateQuad() {
 }
 
 Mesh MeshFactory::CreateCube() {
+    SE_LOG_INFO("[MeshFactory] CreateCube START");
     std::vector<float>        vertices;
     std::vector<unsigned int> indices;
 
@@ -175,8 +176,11 @@ Mesh MeshFactory::CreateCube() {
 
     indices.assign(cubeIndices, cubeIndices + 36);
 
+    SE_LOG_INFO("[MeshFactory] CreateCube - vertices: {} indices: {} before addNormals", vertices.size(), indices.size());
     addNormals(vertices, indices);
+    SE_LOG_INFO("[MeshFactory] CreateCube - after addNormals, vertices: {}", vertices.size());
 
+    SE_LOG_INFO("[MeshFactory] CreateCube END - returning Mesh");
     return Mesh(vertices, indices);
 }
 

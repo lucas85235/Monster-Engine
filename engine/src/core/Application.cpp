@@ -37,6 +37,7 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.VSync       = specification.VSync;
     windowSpec.IconPath    = specification.IconPath;
     windowSpec.AppEventBus = event_bus_.get();
+    windowSpec.Api         = specification.GraphicsApi;
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
@@ -123,28 +124,38 @@ int Application::Run() {
         // Skip rendering if minimized
         if (minimized_) continue;
 
+        SE_LOG_DEBUG("BeginFrame...");
         // Begin frame
         renderer_->BeginFrame();
+        SE_LOG_DEBUG("BeginFrame done");
 
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
 
+        SE_LOG_DEBUG("Clear...");
         // Clear screen with the configured color
         renderer_->Clear();
+        SE_LOG_DEBUG("Clear done");
 
         if (window_->GetWidth() != static_cast<uint32_t>(width) || window_->GetHeight() != static_cast<uint32_t>(height)) {
             window_->SetWidth(width);
             window_->SetHeight(height);
         }
 
+        SE_LOG_DEBUG("Updating layers...");
         // Update all layers
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+        SE_LOG_DEBUG("Update done");
 
+        SE_LOG_DEBUG("Rendering layers...");
         // Render all layers
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
+        SE_LOG_DEBUG("Render done");
 
+        SE_LOG_DEBUG("EndFrame...");
         // End frame
         renderer_->EndFrame();
+        SE_LOG_DEBUG("EndFrame done");
 
         // ImGui rendering
         imguiLayer_->Begin();

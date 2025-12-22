@@ -28,25 +28,36 @@ void MeshManager::Shutdown() {
 }
 
 std::shared_ptr<VertexArray> MeshManager::CreateVertexArrayFromMesh(const Mesh& mesh) {
-    // Copy data to ensure persistence locally (if getVertices returns by value, this is a move/copy)
+    SE_LOG_INFO("CreateVertexArrayFromMesh: vertices={} indices={}", mesh.getVertices().size(), mesh.getIndices().size());
+    
     // Create vertex buffer - use data directly from mesh
+    SE_LOG_INFO("Creating VertexBuffer...");
     auto vertexBuffer = std::make_shared<VertexBuffer>(mesh.getVertices().data(), static_cast<uint32_t>(mesh.getVertices().size() * sizeof(float)));
+    SE_LOG_INFO("VertexBuffer created");
 
     // Layout: position (3) + color (3) + normal (3) + texcoord (2)
+    SE_LOG_INFO("Setting VertexBuffer layout...");
     vertexBuffer->SetLayout(BufferLayout({{ShaderDataType::Float3, "a_Position"},
                                           {ShaderDataType::Float3, "a_Color"},
                                           {ShaderDataType::Float3, "a_Normal"},
                                           {ShaderDataType::Float2, "a_TexCoord"}}));
+    SE_LOG_INFO("Layout set");
 
     // Create index buffer
+    SE_LOG_INFO("Creating IndexBuffer...");
     auto indexBuffer = std::make_shared<IndexBuffer>(mesh.getIndices().data(), static_cast<uint32_t>(mesh.getIndices().size()));
+    SE_LOG_INFO("IndexBuffer created");
 
     // Create and setup vertex array
+    SE_LOG_INFO("Creating VertexArray...");
     auto vertexArray = std::make_shared<VertexArray>();
+    SE_LOG_INFO("VertexArray created, adding buffers...");
     vertexArray->AddVertexBuffer(vertexBuffer);
+    SE_LOG_INFO("VertexBuffer added");
     vertexArray->SetIndexBuffer(indexBuffer);
+    SE_LOG_INFO("IndexBuffer set");
 
-    // SE_LOG_INFO("VertexArray created successfully");
+    SE_LOG_INFO("CreateVertexArrayFromMesh complete");
     return vertexArray;
 }
 
@@ -93,6 +104,7 @@ std::shared_ptr<VertexArray> MeshManager::CreatePrimitive(PrimitiveMeshType type
         case PrimitiveMeshType::Cube:
             SE_LOG_INFO("Creating Cube mesh");
             mesh = MeshFactory::CreateCube();
+            SE_LOG_INFO("MeshFactory::CreateCube completed - verts: {} indices: {}", mesh.getVertices().size(), mesh.getIndices().size());
             break;
         case PrimitiveMeshType::Sphere:
             SE_LOG_INFO("Creating Sphere mesh");

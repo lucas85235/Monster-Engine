@@ -62,6 +62,15 @@ OcclusionCuller::~OcclusionCuller() {
 void OcclusionCuller::Init() {
     if (initialized_) return;
 
+    // Skip for Vulkan - GLSL 330 shaders not compatible
+    // TODO: Create SPIR-V occlusion shaders for Vulkan support
+    auto* device = GetDevice();
+    if (device && device->GetAPI() == RHI::API::Vulkan) {
+        SE_LOG_WARN("Occlusion culling skipped for Vulkan (SPIR-V shaders not yet available)");
+        enabled_ = false;
+        return;
+    }
+
     SE_LOG_INFO("Initializing OcclusionCuller");
 
     // Create query pool

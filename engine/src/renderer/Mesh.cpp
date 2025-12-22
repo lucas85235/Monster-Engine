@@ -1,7 +1,21 @@
 #include "engine/renderer/Mesh.h"
 
+#include "engine/core/Application.h"
+#include "engine/renderer/GraphicsContext.h"
+
+// Helper to check if we're using OpenGL
+static bool IsOpenGL() {
+    auto& app = se::Application::Get();
+    auto* context = app.GetWindow().GetContext();
+    if (!context) return false;
+    auto* device = context->GetDevice();
+    return device && device->GetAPI() == RHI::API::OpenGL;
+}
+
 Mesh::Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) : vertices_(vertices), indices_(indices) {
-    setupMesh();
+    if (IsOpenGL()) {
+        setupMesh();
+    }
 }
 
 Mesh::Mesh(Mesh&& other) noexcept
@@ -14,9 +28,12 @@ Mesh::Mesh(Mesh&& other) noexcept
 Mesh& Mesh::operator=(Mesh&& other) noexcept {
     if (this == &other) return *this;
 
-    if (vao_) glDeleteVertexArrays(1, &vao_);
-    if (vbo_) glDeleteBuffers(1, &vbo_);
-    if (ebo_) glDeleteBuffers(1, &ebo_);
+    // Only delete OpenGL resources if using OpenGL
+    if (IsOpenGL()) {
+        if (vao_) glDeleteVertexArrays(1, &vao_);
+        if (vbo_) glDeleteBuffers(1, &vbo_);
+        if (ebo_) glDeleteBuffers(1, &ebo_);
+    }
 
     vertices_ = std::move(other.vertices_);
     indices_  = std::move(other.indices_);
@@ -32,9 +49,12 @@ Mesh& Mesh::operator=(Mesh&& other) noexcept {
 }
 
 Mesh::~Mesh() {
-    if (vao_) glDeleteVertexArrays(1, &vao_);
-    if (vbo_) glDeleteBuffers(1, &vbo_);
-    if (ebo_) glDeleteBuffers(1, &ebo_);
+    // Only delete OpenGL resources if using OpenGL
+    if (IsOpenGL()) {
+        if (vao_) glDeleteVertexArrays(1, &vao_);
+        if (vbo_) glDeleteBuffers(1, &vbo_);
+        if (ebo_) glDeleteBuffers(1, &ebo_);
+    }
 }
 
 void Mesh::setupMesh() {
@@ -76,6 +96,7 @@ void Mesh::setupMesh() {
 }
 
 void Mesh::draw() const {
+    if (!IsOpenGL()) return;  // Skip for Vulkan
     glBindVertexArray(vao_);
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices_.size()), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);

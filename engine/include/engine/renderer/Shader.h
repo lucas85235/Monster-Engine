@@ -11,6 +11,7 @@ namespace se {
 
 class Shader {
    public:
+    Shader() = default;
     Shader(const std::string& vertSrc, const std::string& fragSrc);
 
     static std::shared_ptr<Shader> CreateFromFiles(const std::filesystem::path& vertPath, const std::filesystem::path& fragPath);

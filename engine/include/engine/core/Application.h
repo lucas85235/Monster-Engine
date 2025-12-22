@@ -24,6 +24,7 @@ struct ApplicationSpecification {
     bool                  Resizable      = true;
     bool                  EnableImGui    = true;
     std::filesystem::path IconPath;
+    RHI::API              GraphicsApi    = RHI::API::OpenGL;
 };
 
 class Application {

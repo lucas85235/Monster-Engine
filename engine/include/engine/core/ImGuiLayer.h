@@ -23,6 +23,7 @@ class ImGuiLayer : public Layer {
 
    private:
     GLFWwindow* window_ = nullptr;
+    bool vulkanMode_ = false;  // True when running Vulkan (ImGui disabled)
 };
 
 }  // namespace se
