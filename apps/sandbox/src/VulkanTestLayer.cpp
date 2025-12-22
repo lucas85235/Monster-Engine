@@ -1,5 +1,6 @@
 #include "VulkanTestLayer.h"
 
+#include <imgui.h>
 #include <engine/core/Application.h>
 #include <engine/core/Log.h>
 #include <engine/input/Input.h>
@@ -243,4 +244,25 @@ void VulkanTestLayer::OnRender() {
         
         material_->Unbind();
     }
+}
+
+void VulkanTestLayer::OnImGuiRender() {
+    ImGui::Begin("Vulkan Test Layer");
+    
+    ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+    ImGui::Text("Rotation: %.1f", rotation_);
+    ImGui::Text("Camera Position: (%.1f, %.1f, %.1f)", 
+        camera_.GetPosition().x, camera_.GetPosition().y, camera_.GetPosition().z);
+    
+    if (useModel_ && model_) {
+        ImGui::Text("Model: %zu submeshes", model_->GetMeshCount());
+    } else {
+        ImGui::Text("Rendering: Cube");
+    }
+    
+    ImGui::Separator();
+    ImGui::Text("Controls: WASD to move, Mouse to look");
+    ImGui::Text("Press ESC to exit");
+    
+    ImGui::End();
 }

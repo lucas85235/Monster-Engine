@@ -30,10 +30,22 @@ set(IMGUI_SOURCES
         examples/imgui_impl_opengl3.cpp
         examples/imgui_impl_glfw.h
         examples/imgui_impl_glfw.cpp
+        examples/imgui_impl_vulkan.h
+        examples/imgui_impl_vulkan.cpp
 )
 
 # Create static library
 add_library(ImGui STATIC ${IMGUI_SOURCES})
+
+# Find Vulkan for imgui_impl_vulkan
+find_package(Vulkan REQUIRED)
+
+# Include directories
+target_include_directories(ImGui PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}  # For imgui.h
+)
+target_include_directories(ImGui PUBLIC ${Vulkan_INCLUDE_DIRS})
+target_link_libraries(ImGui PUBLIC ${Vulkan_LIBRARIES})
 
 # Enforce C++17
 target_compile_features(ImGui PUBLIC cxx_std_17)

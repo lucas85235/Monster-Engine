@@ -156,18 +156,18 @@ int Application::Run() {
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
         SE_LOG_DEBUG("Render done");
 
-        SE_LOG_DEBUG("EndFrame...");
-        // End frame
-        renderer_->EndFrame();
-        SE_LOG_DEBUG("EndFrame done");
-
-        // ImGui rendering
+        // ImGui rendering (must be before EndFrame for Vulkan - needs active render pass)
         imguiLayer_->Begin();
 
         // Let layers draw their ImGui
         for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
 
         imguiLayer_->End();
+
+        SE_LOG_DEBUG("EndFrame...");
+        // End frame
+        renderer_->EndFrame();
+        SE_LOG_DEBUG("EndFrame done");
 
         // Swap buffers
         window_->SwapBuffers();

@@ -2,6 +2,8 @@
 
 #include "engine/core/Layer.h"
 
+#include <vulkan/vulkan.h>
+
 struct GLFWwindow;
 
 namespace se {
@@ -23,7 +25,13 @@ class ImGuiLayer : public Layer {
 
    private:
     GLFWwindow* window_ = nullptr;
-    bool vulkanMode_ = false;  // True when running Vulkan (ImGui disabled)
+    bool vulkanMode_ = false;
+    
+    // Vulkan-specific state
+    VkDescriptorPool imguiDescriptorPool_ = VK_NULL_HANDLE;
+    VkCommandPool imguiCommandPool_ = VK_NULL_HANDLE;
+    VkCommandBuffer imguiCommandBuffer_ = VK_NULL_HANDLE;
+    bool imguiFontsUploaded_ = false;
 };
 
 }  // namespace se

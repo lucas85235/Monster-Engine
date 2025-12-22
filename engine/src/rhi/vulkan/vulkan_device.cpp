@@ -421,6 +421,7 @@ void VulkanDevice::createLogicalDevice() {
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    graphicsQueueFamilyIndex = indices.graphicsFamily.value();
 
     SE_LOG_INFO("[Vulkan] Logical device created" );
 }
@@ -2768,6 +2769,10 @@ void VulkanDevice::EndFrame() {
     vkQueuePresentKHR(presentQueue, &presentInfo);
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+uint32_t VulkanDevice::GetGraphicsQueueFamily() const {
+    return graphicsQueueFamilyIndex;
 }
 
 VkFormat VulkanDevice::toVkFormat(TextureFormat format) {

@@ -109,6 +109,7 @@ class VulkanDevice : public IDevice {
 
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue  = VK_NULL_HANDLE;
+    uint32_t graphicsQueueFamilyIndex = 0;
 
     VkSwapchainKHR             swapChain = VK_NULL_HANDLE;
     std::vector<VkImage>       swapChainImages;
@@ -333,6 +334,20 @@ class VulkanDevice : public IDevice {
 
     bool BeginFrame() override;
     void EndFrame() override;
+    
+    // Vulkan handle getters for ImGui integration
+    VkInstance GetVkInstance() const { return instance; }
+    VkPhysicalDevice GetVkPhysicalDevice() const { return physicalDevice; }
+    VkDevice GetVkDevice() const { return device; }
+    VkQueue GetVkGraphicsQueue() const { return graphicsQueue; }
+    VkRenderPass GetVkRenderPass() const { return renderPass; }
+    VkCommandBuffer GetCurrentCommandBuffer() const { 
+        return commandBuffers.empty() ? VK_NULL_HANDLE : commandBuffers[currentFrame]; 
+    }
+    VkDescriptorPool GetVkDescriptorPool() const { return descriptorPool; }
+    uint32_t GetGraphicsQueueFamily() const;
+    uint32_t GetMinImageCount() const { return MAX_FRAMES_IN_FLIGHT; }
+    uint32_t GetImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
 };
 
 // Debug callback

@@ -15,7 +15,7 @@ public:
     void OnDetach() override;
     void OnUpdate(float ts) override;
     void OnRender() override;
-    void OnImGuiRender() override {}
+    void OnImGuiRender() override;
 
 private:
     Camera camera_;
