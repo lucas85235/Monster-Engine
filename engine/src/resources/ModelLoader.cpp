@@ -93,8 +93,19 @@ void ProcessMesh(aiMesh* mesh, const aiScene* scene, std::shared_ptr<Model> mode
         if (aiMat->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
             aiString str;
             aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &str);
-            std::string           filename = std::string(str.C_Str());
-            std::filesystem::path fullPath = std::filesystem::path(directory) / filename;
+            std::string filename = std::string(str.C_Str());
+
+            std::filesystem::path texPath(filename);
+            std::filesystem::path fullPath;
+
+            if (texPath.is_absolute()) {
+                // If path starts with /, Assimp might be giving us an absolute path or relative to root.
+                // We assume it's relative to the model directory but with a leading slash.
+                // relative_path() strips the root name/directory separator if present.
+                fullPath = std::filesystem::path(directory) / texPath.relative_path();
+            } else {
+                fullPath = std::filesystem::path(directory) / texPath;
+            }
 
             if (std::filesystem::exists(fullPath)) {
                 auto texture = LoadTexture(fullPath.string());

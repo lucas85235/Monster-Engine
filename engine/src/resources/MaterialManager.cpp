@@ -99,45 +99,58 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string& name, cons
 }
 
 void MaterialManager::CreateDefaultShader() {
-    SE_LOG_INFO("Creating default shader...");
+    SE_LOG_INFO("Creating default shader (loading from SPIR-V)...");
 
-    // Simple default vertex shader
-    const std::string vertexSrc = R"(
-    #version 330 core
-    layout(location = 0) in vec3 a_Position;
-    layout(location = 1) in vec3 a_Color;
-    layout(location = 2) in vec3 a_Normal;  // ← ADICIONE
+    // Load basic shader from SPIR-V assets
+    // This shader supports textures, lighting, and shadow maps
+    // Path: assets/shaders/spirv/basic.vert.spv and basic.frag.spv
 
-    uniform mat4 uView;
-    uniform mat4 uProj;
-    uniform mat4 uModel;
+    // We assume the assets are in relative path "assets/shaders/spirv/"
+    // But Shader::CreateFromFiles expects paths.
+    // Let's use std::filesystem::path
 
-    out vec3 v_Color;
-
-    void main() {
-        v_Color = a_Color;
-        gl_Position = uProj * uView * uModel * vec4(a_Position, 1.0);
-    }
-)";
-
-    // Simple default fragment shader
-    const std::string fragmentSrc = R"(
-        #version 330 core
-        layout(location = 0) out vec4 color;
-
-        in vec3 v_Color;
-
-        void main() {
-            color = vec4(v_Color, 1.0);
-        }
-    )";
+    std::filesystem::path vertPath = "assets/shaders/basic.vert";
+    std::filesystem::path fragPath = "assets/shaders/basic.frag";
 
     try {
-        defaultShader_ = std::make_shared<Shader>(vertexSrc, fragmentSrc);
-        SE_LOG_INFO("Default shader created successfully (ID: {})", defaultShader_->GetHandle().id);
+        defaultShader_ = Shader::CreateFromFiles(vertPath, fragPath);
+        SE_LOG_INFO("Default shader loaded successfully (ID: {})", defaultShader_->GetHandle().id);
     } catch (const std::exception& e) {
-        SE_LOG_ERROR("Failed to create default shader: {}", e.what());
-        throw;
+        SE_LOG_ERROR("Failed to load default shader: {}", e.what());
+
+        // Fallback to hardcoded simple shader if file load fails?
+        // Or just re-throw. The app likely needs this shader.
+        SE_LOG_WARN("Attempting fallback to hardcoded shader...");
+
+        // Fallback: Simple Vertex/Fragment shader (Vertex Color only)
+        const std::string vertexSrc = R"(
+        #version 330 core
+        layout(location = 0) in vec3 a_Position;
+        layout(location = 1) in vec3 a_Color;
+        layout(location = 2) in vec3 a_Normal;
+
+        uniform mat4 uView;
+        uniform mat4 uProj;
+        uniform mat4 uModel;
+
+        out vec3 v_Color;
+
+        void main() {
+            v_Color = a_Color;
+            gl_Position = uProj * uView * uModel * vec4(a_Position, 1.0);
+        }
+        )";
+
+        const std::string fragmentSrc = R"(
+            #version 330 core
+            layout(location = 0) out vec4 color;
+            in vec3 v_Color;
+            void main() {
+                color = vec4(v_Color, 1.0);
+            }
+        )";
+
+        defaultShader_ = std::make_shared<Shader>(vertexSrc, fragmentSrc);
     }
 }
 
