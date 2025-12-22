@@ -152,6 +152,7 @@ target_compile_definitions(simple_engine PUBLIC
         GLM_ENABLE_EXPERIMENTAL
         BT_THREADSAFE=1
         STBI_NO_SIMD
+        $<$<CONFIG:Debug>:SE_DEBUG>
 )
 
 if(HAS_SPIRV_CROSS)

@@ -64,6 +64,7 @@ constexpr Ref<T> CreateRef(Args&&... args) {
 #define BIT(x)               (1 << x)
 #define SE_BIND_EVENT_FN(fn) [this](auto&&... args) -> decltype(auto) { return this->fn(std::forward<decltype(args)>(args)...); }
 
-#define DEBUG
+// SE_DEBUG is defined by CMake based on build type (Debug vs Release)
+// Do NOT define DEBUG here - it should come from the build system
 
 }  // namespace se

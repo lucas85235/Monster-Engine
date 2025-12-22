@@ -20,8 +20,11 @@ Application::Application(const ApplicationSpecification& specification) {
     }
     s_Instance = this;
 
-#ifdef DEBUG
-    LogInit(true);
+    // Initialize logging system
+#ifdef SE_DEBUG
+    LogInit(true, true);  // Debug logs + file logging in debug builds
+#else
+    LogInit(false, false);  // Info level only, no file logging in release
 #endif
 
     SE_LOG_INFO("Starting Simple Engine");

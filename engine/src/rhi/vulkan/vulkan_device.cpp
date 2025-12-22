@@ -2219,7 +2219,7 @@ void VulkanDevice::SetDepthMask(bool enabled) {
 }
 
 void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
-    SE_LOG_INFO("[Vulkan] BindPipeline START - id={}", pipeline.id);
+    SE_LOG_DEBUG("[Vulkan] BindPipeline START - id={}", pipeline.id);
     if (pipeline.id == 0) {
         SE_LOG_ERROR("[Vulkan] BindPipeline called with invalid handle" );
         return;
@@ -2229,14 +2229,14 @@ void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
 
     auto it = pipelines.find(pipeline.id);
     if (it != pipelines.end()) {
-        SE_LOG_INFO("[Vulkan] BindPipeline - calling vkCmdBindPipeline");
+        SE_LOG_DEBUG("[Vulkan] BindPipeline - calling vkCmdBindPipeline");
         vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, it->second.pipeline);
-        SE_LOG_INFO("[Vulkan] BindPipeline - vkCmdBindPipeline done, binding descriptor sets");
+        SE_LOG_DEBUG("[Vulkan] BindPipeline - vkCmdBindPipeline done, binding descriptor sets");
 
         // Bind descriptor sets with the pipeline layout
         vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, it->second.layout, 0, 1, &descriptorSets[currentFrame],
                                 0, nullptr);
-        SE_LOG_INFO("[Vulkan] BindPipeline END - success");
+        SE_LOG_DEBUG("[Vulkan] BindPipeline END - success");
     } else {
         SE_LOG_ERROR("[Vulkan] BindPipeline: pipeline id={} not found", pipeline.id);
     }
@@ -2487,7 +2487,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print model matrix translation to verify transform
         static bool firstModel = true;
         if (firstModel) {
-            SE_LOG_INFO("[Vulkan] First Model Transform: pos=[{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
+            SE_LOG_DEBUG("[Vulkan] First Model Transform: pos=[{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstModel = false;
         }
     } else if (nameLower.find("view") != std::string::npos) {
@@ -2495,7 +2495,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print view matrix translation (camera position)
         static bool firstView = true;
         if (firstView) {
-            SE_LOG_INFO("[Vulkan] First View Matrix: [{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
+            SE_LOG_DEBUG("[Vulkan] First View Matrix: [{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstView = false;
         }
     } else if (nameLower.find("proj") != std::string::npos) {
@@ -2503,7 +2503,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print projection matrix to verify values
         static bool firstProj = true;
         if (firstProj) {
-            SE_LOG_INFO("[Vulkan] First Proj Matrix: [{}, {}, {}, {}]", matrix[0], matrix[5], matrix[10], matrix[14]);
+            SE_LOG_DEBUG("[Vulkan] First Proj Matrix: [{}, {}, {}, {}]", matrix[0], matrix[5], matrix[10], matrix[14]);
             firstProj = false;
         }
     } else {
@@ -2555,7 +2555,7 @@ void VulkanDevice::Draw(const DrawCommand& cmd) {
     }
 
     if (drawCallCount <= 5) {
-        SE_LOG_INFO("[Vulkan] Draw #{}: vertices={}, instances={}, pipeline={}", 
+        SE_LOG_DEBUG("[Vulkan] Draw #{}: vertices={}, instances={}, pipeline={}", 
                   drawCallCount, cmd.vertexCount, cmd.instanceCount, currentPipeline.id);
     }
     
@@ -2624,7 +2624,7 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     }
 
     if (drawIndexedCount <= 5) {
-        SE_LOG_INFO("[Vulkan] DrawIndexed #{}: indices={}, instances={}, pipeline={}, vao={}, hasIB={}", 
+        SE_LOG_DEBUG("[Vulkan] DrawIndexed #{}: indices={}, instances={}, pipeline={}, vao={}, hasIB={}", 
                   drawIndexedCount, cmd.indexCount, cmd.instanceCount, currentPipeline.id, currentVAO.id, hasIndexBuffer);
     }
 

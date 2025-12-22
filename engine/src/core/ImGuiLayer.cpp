@@ -51,6 +51,11 @@ void ImGuiLayer::OnAttach() {
     if (!vulkanMode_) {
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     }
+    
+    // Disable mouse cursor changes on Vulkan - glfwSetCursor is slow on Linux/X11
+    if (vulkanMode_) {
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+    }
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
