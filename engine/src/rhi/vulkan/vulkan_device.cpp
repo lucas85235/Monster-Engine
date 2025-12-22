@@ -3,6 +3,8 @@
 #include <cmath>
 #include <fstream>
 
+#include "engine/core/Log.h"
+
 namespace RHI {
 
 VulkanDevice::~VulkanDevice() {
@@ -11,9 +13,9 @@ VulkanDevice::~VulkanDevice() {
 
 bool VulkanDevice::Initialize() {
     if (!window) {
-        std::cerr << "[Vulkan] Error: Window not set. Call SetWindow() before "
+        SE_LOG_ERROR("[Vulkan] Error: Window not set. Call SetWindow() before "
                      "Initialize()"
-                  << std::endl;
+                  );
         return false;
     }
 
@@ -77,14 +79,14 @@ bool VulkanDevice::Initialize() {
     cachedUbo.numPointLights = 0;
     memset(cachedUbo.pointLights, 0, sizeof(cachedUbo.pointLights));
 
-    std::cout << "[Vulkan] Device initialized successfully" << std::endl;
+    SE_LOG_INFO("[Vulkan] Device initialized successfully" );
     return true;
 }
 
 void VulkanDevice::Shutdown() {
     if (device == VK_NULL_HANDLE) return;
 
-    std::cout << "[Vulkan] Shutting down device..." << std::endl;
+    SE_LOG_INFO("[Vulkan] Shutting down device..." );
     WaitIdle();
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -152,7 +154,7 @@ void VulkanDevice::Shutdown() {
         instance = VK_NULL_HANDLE;
     }
 
-    std::cout << "[Vulkan] Device shutdown complete" << std::endl;
+    SE_LOG_INFO("[Vulkan] Device shutdown complete" );
 }
 
 DeviceInfo VulkanDevice::GetDeviceInfo() const {
@@ -217,7 +219,7 @@ void VulkanDevice::createInstance() {
     bool useValidationLayers = enableValidationLayers;
 
     if (useValidationLayers && !checkValidationLayerSupport()) {
-        std::cerr << "[Vulkan] Validation layers not available, disabling" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Validation layers not available, disabling" );
         useValidationLayers = false;
     }
 
@@ -256,7 +258,7 @@ void VulkanDevice::createInstance() {
 
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) { throw std::runtime_error("[Vulkan] Failed to create instance"); }
 
-    std::cout << "[Vulkan] Instance created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Instance created" );
 }
 
 void VulkanDevice::setupDebugMessenger() {
@@ -271,7 +273,7 @@ void VulkanDevice::setupDebugMessenger() {
     createInfo.pfnUserCallback = debugCallback;
 
     if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to set up debug messenger" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to set up debug messenger" );
     }
 }
 
@@ -279,7 +281,7 @@ void VulkanDevice::createSurface() {
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
         throw std::runtime_error("[Vulkan] Failed to create window surface");
     }
-    std::cout << "[Vulkan] Surface created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Surface created" );
 }
 
 QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice dev) {
@@ -376,7 +378,7 @@ void VulkanDevice::pickPhysicalDevice() {
 
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(physicalDevice, &props);
-    std::cout << "[Vulkan] Selected GPU: " << props.deviceName << std::endl;
+    SE_LOG_INFO("[Vulkan] Selected GPU: {}", props.deviceName);
 }
 
 void VulkanDevice::createLogicalDevice() {
@@ -419,7 +421,7 @@ void VulkanDevice::createLogicalDevice() {
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 
-    std::cout << "[Vulkan] Logical device created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Logical device created" );
 }
 
 VkSurfaceFormatKHR VulkanDevice::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) {
@@ -499,7 +501,7 @@ void VulkanDevice::createSwapChain() {
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent      = extent;
 
-    std::cout << "[Vulkan] Swap chain created (" << extent.width << "x" << extent.height << ")" << std::endl;
+    SE_LOG_INFO("[Vulkan] Swap chain created ({}x{})", extent.width, extent.height);
 }
 
 void VulkanDevice::createImageViews() {
@@ -585,7 +587,7 @@ void VulkanDevice::createDepthResources() {
         throw std::runtime_error("[Vulkan] Failed to create depth image view");
     }
 
-    std::cout << "[Vulkan] Depth buffer created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Depth buffer created" );
 }
 
 void VulkanDevice::createRenderPass() {
@@ -647,7 +649,7 @@ void VulkanDevice::createRenderPass() {
         throw std::runtime_error("[Vulkan] Failed to create render pass");
     }
 
-    std::cout << "[Vulkan] Render pass created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Render pass created" );
 }
 
 void VulkanDevice::createFramebuffers() {
@@ -670,7 +672,7 @@ void VulkanDevice::createFramebuffers() {
         }
     }
 
-    std::cout << "[Vulkan] Framebuffers created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Framebuffers created" );
 }
 
 void VulkanDevice::createCommandPool() {
@@ -685,7 +687,7 @@ void VulkanDevice::createCommandPool() {
         throw std::runtime_error("[Vulkan] Failed to create command pool");
     }
 
-    std::cout << "[Vulkan] Command pool created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Command pool created" );
 }
 
 void VulkanDevice::createCommandBuffers() {
@@ -701,7 +703,7 @@ void VulkanDevice::createCommandBuffers() {
         throw std::runtime_error("[Vulkan] Failed to allocate command buffers");
     }
 
-    std::cout << "[Vulkan] Command buffers allocated" << std::endl;
+    SE_LOG_INFO("[Vulkan] Command buffers allocated" );
 }
 
 void VulkanDevice::createSyncObjects() {
@@ -724,7 +726,7 @@ void VulkanDevice::createSyncObjects() {
         }
     }
 
-    std::cout << "[Vulkan] Sync objects created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Sync objects created" );
 }
 
 void VulkanDevice::createDescriptorSetLayout() {
@@ -865,7 +867,7 @@ void VulkanDevice::createDescriptorSets() {
         }
     }
 
-    std::cout << "[Vulkan] Descriptor sets initialized with dummy textures" << std::endl;
+    SE_LOG_INFO("[Vulkan] Descriptor sets initialized with dummy textures" );
 }
 
 void VulkanDevice::createDummyTexture() {
@@ -884,7 +886,7 @@ void VulkanDevice::createDummyTexture() {
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     if (vkCreateBuffer(device, &bufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create dummy staging buffer" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create dummy staging buffer" );
         return;
     }
 
@@ -898,7 +900,7 @@ void VulkanDevice::createDummyTexture() {
         findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &stagingBufferMemory) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to allocate dummy staging buffer memory" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to allocate dummy staging buffer memory" );
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         return;
     }
@@ -935,10 +937,10 @@ void VulkanDevice::createDummyTexture() {
     samplerInfo.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
     if (vkCreateSampler(device, &samplerInfo, nullptr, &dummySampler) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create dummy sampler" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create dummy sampler" );
     }
 
-    std::cout << "[Vulkan] Dummy texture created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Dummy texture created" );
 }
 
 void VulkanDevice::updateUniformBuffer(uint32_t currentImage) {
@@ -1032,8 +1034,9 @@ void VulkanDevice::createImage(uint32_t width, uint32_t height, VkFormat format,
 
     vkBindImageMemory(device, image, imageMemory, 0);
 
-    std::cout << "[Vulkan] createImage: " << width << "x" << height << " format=" << format << " image=" << reinterpret_cast<uint64_t>(image)
-              << " mem=" << reinterpret_cast<uint64_t>(imageMemory) << " size=" << memRequirements.size << std::endl;
+    SE_LOG_DEBUG("[Vulkan] createImage: {}x{} format={} image={} mem={} size={}", 
+              width, height, static_cast<int>(format), reinterpret_cast<uint64_t>(image),
+              reinterpret_cast<uint64_t>(imageMemory), memRequirements.size);
 }
 
 void VulkanDevice::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
@@ -1144,7 +1147,7 @@ BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     if (vkCreateBuffer(device, &bufferInfo, nullptr, &vkBuffer.buffer) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create buffer" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create buffer" );
         return BufferHandle{0};
     }
 
@@ -1158,7 +1161,7 @@ BufferHandle VulkanDevice::CreateBuffer(const BufferDescriptor& desc) {
         findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &vkBuffer.memory) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to allocate buffer memory" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to allocate buffer memory" );
         vkDestroyBuffer(device, vkBuffer.buffer, nullptr);
         return BufferHandle{0};
     }
@@ -1205,8 +1208,8 @@ TextureHandle VulkanDevice::CreateTexture(const TextureDescriptor& desc) {
     vkTexture.isCubemap   = (desc.type == TextureType::TextureCube);
     vkTexture.arrayLayers = vkTexture.isCubemap ? 6 : 1;
 
-    std::cout << "[Vulkan] CreateTexture: " << desc.width << "x" << desc.height << " format=" << static_cast<int>(desc.format)
-              << " type=" << (vkTexture.isCubemap ? "Cubemap" : "2D") << std::endl;
+    SE_LOG_INFO("[Vulkan] CreateTexture: {}x{} format={} type={}", 
+              desc.width, desc.height, static_cast<int>(desc.format), (vkTexture.isCubemap ? "Cubemap" : "2D"));
 
     // Create the image
     VkImageCreateInfo imageInfo{};
@@ -1227,7 +1230,7 @@ TextureHandle VulkanDevice::CreateTexture(const TextureDescriptor& desc) {
     if (vkTexture.isCubemap) { imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; }
 
     if (vkCreateImage(device, &imageInfo, nullptr, &vkTexture.image) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create image" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create image" );
         return TextureHandle{0};
     }
 
@@ -1247,7 +1250,7 @@ TextureHandle VulkanDevice::CreateTexture(const TextureDescriptor& desc) {
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &vkTexture.memory) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to allocate image memory" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to allocate image memory" );
         vkDestroyImage(device, vkTexture.image, nullptr);
         return TextureHandle{0};
     }
@@ -1381,7 +1384,7 @@ TextureHandle VulkanDevice::CreateTexture(const TextureDescriptor& desc) {
     viewInfo.subresourceRange.layerCount     = vkTexture.arrayLayers;
 
     if (vkCreateImageView(device, &viewInfo, nullptr, &vkTexture.imageView) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create texture image view" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create texture image view" );
         vkDestroyImage(device, vkTexture.image, nullptr);
         vkFreeMemory(device, vkTexture.memory, nullptr);
         return TextureHandle{0};
@@ -1389,7 +1392,7 @@ TextureHandle VulkanDevice::CreateTexture(const TextureDescriptor& desc) {
 
     TextureHandle handle{nextId++};
     textures[handle.id] = vkTexture;
-    std::cout << "[Vulkan] Texture created id=" << handle.id << (vkTexture.isCubemap ? " (cubemap)" : "") << std::endl;
+    SE_LOG_INFO("[Vulkan] Texture created id={}{}", handle.id, (vkTexture.isCubemap ? " (cubemap)" : ""));
     return handle;
 }
 
@@ -1440,7 +1443,7 @@ void VulkanDevice::UpdateTextureCubeFace(TextureHandle texture, CubemapFace face
     if (it == textures.end()) return;
 
     uint32_t faceLayer = static_cast<uint32_t>(face);
-    std::cout << "[Vulkan] UpdateTextureCubeFace: face=" << faceLayer << " mip=" << mipLevel << std::endl;
+    SE_LOG_DEBUG("[Vulkan] UpdateTextureCubeFace: face={} mip={}", faceLayer, mipLevel);
 
     // RGBA16F = 4 components × 2 bytes (half-float) = 8 bytes per pixel
     VkDeviceSize imageSize = it->second.width * it->second.height * 8;
@@ -1528,7 +1531,7 @@ void VulkanDevice::GenerateMipmaps(TextureHandle texture) {
     // FIXME: Currently the VkImage is created with mipLevels=1
     // Generating mipmaps on an image without allocated mip storage is UB
     // This needs to be fixed by creating images with proper mip level count
-    std::cout << "[Vulkan] GenerateMipmaps: skipping (image has only 1 mip level)" << std::endl;
+    SE_LOG_INFO("[Vulkan] GenerateMipmaps: skipping (image has only 1 mip level)" );
 
     // Image is already in SHADER_READ_ONLY_OPTIMAL from CreateTexture
     return;
@@ -1680,33 +1683,33 @@ ShaderHandle VulkanDevice::CreateShader(const std::vector<ShaderDescriptor>& sta
             // Use SPIR-V directly from descriptor
             if (stage.stage == ShaderStage::Vertex) {
                 vertCode = stage.spirvBinary;
-                std::cout << "[Vulkan] Using SPIR-V from descriptor (vertex)" << std::endl;
+                SE_LOG_INFO("[Vulkan] Using SPIR-V from descriptor (vertex)" );
             } else if (stage.stage == ShaderStage::Fragment) {
                 fragCode = stage.spirvBinary;
-                std::cout << "[Vulkan] Using SPIR-V from descriptor (fragment)" << std::endl;
+                SE_LOG_INFO("[Vulkan] Using SPIR-V from descriptor (fragment)" );
             }
         }
     }
 
     // Fallback: load from files if descriptors didn't provide SPIR-V
     if (vertCode.empty()) {
-        std::cerr << "[Vulkan] WARNING: No vertex SPIR-V provided, using fallback shader" << std::endl;
+        SE_LOG_ERROR("[Vulkan] WARNING: No vertex SPIR-V provided, using fallback shader" );
         vertCode = readSpirvFile("shaders/cube.vert.spv");
     }
     if (fragCode.empty()) {
-        std::cerr << "[Vulkan] WARNING: No fragment SPIR-V provided, using "
+        SE_LOG_ERROR("[Vulkan] WARNING: No fragment SPIR-V provided, using "
                      "fallback shader"
-                  << std::endl;
+                  );
         fragCode = readSpirvFile("shaders/cube.frag.spv");
     }
 
     if (vertCode.empty() || fragCode.empty()) {
-        std::cerr << "[Vulkan] Failed to load SPIR-V shader files" << std::endl;
-        std::cerr << "[Vulkan] Make sure shaders are compiled (check CMake output)" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to load SPIR-V shader files" );
+        SE_LOG_ERROR("[Vulkan] Make sure shaders are compiled (check CMake output)" );
         return ShaderHandle{0};
     }
 
-    std::cout << "[Vulkan] Loaded SPIR-V shaders successfully" << std::endl;
+    SE_LOG_INFO("[Vulkan] Loaded SPIR-V shaders successfully" );
 
     VkShaderModuleCreateInfo vertInfo{};
     vertInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -1714,7 +1717,7 @@ ShaderHandle VulkanDevice::CreateShader(const std::vector<ShaderDescriptor>& sta
     vertInfo.pCode    = vertCode.data();
 
     if (vkCreateShaderModule(device, &vertInfo, nullptr, &vkShader.vertModule) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create vertex shader module" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create vertex shader module" );
         return ShaderHandle{0};
     }
 
@@ -1724,14 +1727,14 @@ ShaderHandle VulkanDevice::CreateShader(const std::vector<ShaderDescriptor>& sta
     fragInfo.pCode    = fragCode.data();
 
     if (vkCreateShaderModule(device, &fragInfo, nullptr, &vkShader.fragModule) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create fragment shader module" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create fragment shader module" );
         vkDestroyShaderModule(device, vkShader.vertModule, nullptr);
         return ShaderHandle{0};
     }
 
     ShaderHandle handle{nextId++};
     shaders[handle.id] = vkShader;
-    std::cout << "[Vulkan] Shader created" << std::endl;
+    SE_LOG_INFO("[Vulkan] Shader created" );
     return handle;
 }
 
@@ -1762,7 +1765,7 @@ VkFormat getVkFormat(VertexAttributeType type) {
 PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, ShaderHandle shader, const VertexLayout& layout) {
     auto shaderIt = shaders.find(shader.id);
     if (shaderIt == shaders.end()) {
-        std::cerr << "[Vulkan] Invalid shader handle for pipeline" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Invalid shader handle for pipeline" );
         return PipelineHandle{0};
     }
 
@@ -1922,7 +1925,7 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
     pipelineLayoutInfo.pPushConstantRanges    = &pushConstantRange;
 
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &vkPipeline.layout) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create pipeline layout" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create pipeline layout" );
         return PipelineHandle{0};
     }
 
@@ -1944,7 +1947,7 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
     pipelineInfo.subpass             = 0;
 
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vkPipeline.pipeline) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create graphics pipeline" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create graphics pipeline" );
         vkDestroyPipelineLayout(device, vkPipeline.layout, nullptr);
         return PipelineHandle{0};
     }
@@ -1952,7 +1955,7 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
     PipelineHandle handle{nextId++};
     vkPipeline.shader    = shader;
     pipelines[handle.id] = vkPipeline;
-    std::cout << "[Vulkan] Graphics pipeline created (id=" << handle.id << ")" << std::endl;
+    SE_LOG_INFO("[Vulkan] Graphics pipeline created (id={})", handle.id);
     return handle;
 }
 
@@ -1996,7 +1999,7 @@ FramebufferHandle VulkanDevice::CreateFramebuffer(const FramebufferDescriptor& d
     for (size_t i = 0; i < desc.colorAttachments.size(); ++i) {
         auto texIt = textures.find(desc.colorAttachments[i].texture.id);
         if (texIt == textures.end()) {
-            std::cerr << "[Vulkan] CreateFramebuffer: invalid color attachment texture" << std::endl;
+            SE_LOG_ERROR("[Vulkan] CreateFramebuffer: invalid color attachment texture" );
             continue;
         }
 
@@ -2069,7 +2072,7 @@ FramebufferHandle VulkanDevice::CreateFramebuffer(const FramebufferDescriptor& d
     renderPassInfo.pDependencies   = &dependency;
 
     if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &vkFb.renderPass) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create framebuffer render pass" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create framebuffer render pass" );
         return FramebufferHandle{0};
     }
     vkFb.ownsRenderPass = true;
@@ -2085,14 +2088,14 @@ FramebufferHandle VulkanDevice::CreateFramebuffer(const FramebufferDescriptor& d
     fbInfo.layers          = 1;
 
     if (vkCreateFramebuffer(device, &fbInfo, nullptr, &vkFb.framebuffer) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create framebuffer" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create framebuffer" );
         vkDestroyRenderPass(device, vkFb.renderPass, nullptr);
         return FramebufferHandle{0};
     }
 
     FramebufferHandle handle{nextId++};
     framebuffers[handle.id] = vkFb;
-    std::cout << "[Vulkan] Framebuffer created (id=" << handle.id << ", " << desc.width << "x" << desc.height << ")" << std::endl;
+    SE_LOG_INFO("[Vulkan] Framebuffer created (id={}, {}x{})", handle.id, desc.width, desc.height);
     return handle;
 }
 
@@ -2152,7 +2155,7 @@ void VulkanDevice::ResizeFramebuffer(FramebufferHandle framebuffer, uint32_t wid
     fbInfo.layers          = 1;
 
     if (vkCreateFramebuffer(device, &fbInfo, nullptr, &it->second.framebuffer) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to resize framebuffer" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to resize framebuffer" );
     }
 }
 
@@ -2206,7 +2209,7 @@ void VulkanDevice::SetDepthMask(bool enabled) {
 
 void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
     if (pipeline.id == 0) {
-        std::cerr << "[Vulkan] BindPipeline called with invalid handle" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindPipeline called with invalid handle" );
         return;
     }
 
@@ -2220,7 +2223,7 @@ void VulkanDevice::BindPipeline(PipelineHandle pipeline) {
         vkCmdBindDescriptorSets(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, it->second.layout, 0, 1, &descriptorSets[currentFrame],
                                 0, nullptr);
     } else {
-        std::cerr << "[Vulkan] BindPipeline: pipeline id=" << pipeline.id << " not found" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindPipeline: pipeline id={} not found", pipeline.id);
     }
 }
 
@@ -2238,7 +2241,7 @@ void VulkanDevice::BindFramebuffer(FramebufferHandle framebuffer) {
 
     auto it = framebuffers.find(framebuffer.id);
     if (it == framebuffers.end()) {
-        std::cerr << "[Vulkan] BindFramebuffer: framebuffer id=" << framebuffer.id << " not found" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindFramebuffer: framebuffer id={} not found", framebuffer.id);
         return;
     }
 
@@ -2251,24 +2254,24 @@ void VulkanDevice::BindTexture(uint32_t slot, TextureHandle texture) {
     // 4=ao(5), 5=emission(6)
     constexpr uint32_t MAX_TEXTURE_SLOTS = 6;
     if (slot >= MAX_TEXTURE_SLOTS) {
-        std::cerr << "[Vulkan] BindTexture: slot " << slot << " out of range" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindTexture: slot {} out of range", slot);
         return;
     }
 
     auto texIt = textures.find(texture.id);
     if (texIt == textures.end()) {
-        std::cerr << "[Vulkan] BindTexture: texture id=" << texture.id << " not found" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindTexture: texture id={} not found", texture.id);
         return;
     }
 
-    std::cout << "[Vulkan] BindTexture: slot=" << slot << " -> binding=" << (1 + slot) << ", texId=" << texture.id << std::endl;
+    SE_LOG_DEBUG("[Vulkan] BindTexture: slot={} -> binding={}, texId={}", slot, (1 + slot), texture.id);
 
     // Use dummySampler which is configured for 2D textures with REPEAT mode
     // Don't use samplers.begin() because it might return cubemap sampler with
     // CLAMP_TO_EDGE
     VkSampler texSampler = dummySampler;
     if (texSampler == VK_NULL_HANDLE) {
-        std::cerr << "[Vulkan] BindTexture: dummySampler not initialized" << std::endl;
+        SE_LOG_ERROR("[Vulkan] BindTexture: dummySampler not initialized" );
         return;
     }
 
@@ -2465,7 +2468,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print model matrix translation to verify transform
         static bool firstModel = true;
         if (firstModel) {
-            std::cout << "[Vulkan] First Model Transform: pos=[" << matrix[12] << ", " << matrix[13] << ", " << matrix[14] << "]" << std::endl;
+            SE_LOG_INFO("[Vulkan] First Model Transform: pos=[{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstModel = false;
         }
     } else if (name == "view" || name.find("view") != std::string::npos) {
@@ -2473,7 +2476,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print view matrix translation (camera position)
         static bool firstView = true;
         if (firstView) {
-            std::cout << "[Vulkan] First View Matrix: [" << matrix[12] << ", " << matrix[13] << ", " << matrix[14] << "]" << std::endl;
+            SE_LOG_INFO("[Vulkan] First View Matrix: [{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstView = false;
         }
     } else if (name == "projection" || name == "proj" || name.find("proj") != std::string::npos) {
@@ -2481,8 +2484,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         // Debug: Print projection matrix to verify values
         static bool firstProj = true;
         if (firstProj) {
-            std::cout << "[Vulkan] First Proj Matrix: [" << matrix[0] << ", " << matrix[5] << ", " << matrix[10] << ", " << matrix[14] << "]"
-                      << std::endl;
+            SE_LOG_INFO("[Vulkan] First Proj Matrix: [{}, {}, {}, {}]", matrix[0], matrix[5], matrix[10], matrix[14]);
             firstProj = false;
         }
     }
@@ -2494,7 +2496,19 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
 }
 
 void VulkanDevice::Draw(const DrawCommand& cmd) {
+    static uint32_t drawCallCount = 0;
+    drawCallCount++;
+    
+    if (currentPipeline.id == 0) {
+        SE_LOG_ERROR("[Vulkan] Draw: ERROR - No pipeline bound!" );
+        return;
+    }
+    
     auto vaoIt = vertexArrays.find(currentVAO.id);
+    if (vaoIt == vertexArrays.end()) {
+        SE_LOG_WARN("[Vulkan] Draw: No VAO bound (id={})", currentVAO.id);
+    }
+    
     if (vaoIt != vertexArrays.end()) {
         auto pipeIt = pipelines.find(currentPipeline.id);
         if (pipeIt != pipelines.end()) {
@@ -2512,14 +2526,37 @@ void VulkanDevice::Draw(const DrawCommand& cmd) {
             }
         }
 
-        if (!vbs.empty()) { vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); }
+        if (!vbs.empty()) { 
+            vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); 
+        } else {
+            SE_LOG_ERROR("[Vulkan] Draw: WARNING - No vertex buffers to bind!" );
+        }
     }
 
+    if (drawCallCount <= 5) {
+        SE_LOG_INFO("[Vulkan] Draw #{}: vertices={}, instances={}, pipeline={}", 
+                  drawCallCount, cmd.vertexCount, cmd.instanceCount, currentPipeline.id);
+    }
+    
     vkCmdDraw(commandBuffers[currentFrame], cmd.vertexCount, cmd.instanceCount, cmd.firstVertex, cmd.firstInstance);
 }
 
 void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
+    static uint32_t drawIndexedCount = 0;
+    drawIndexedCount++;
+    
+    if (currentPipeline.id == 0) {
+        SE_LOG_ERROR("[Vulkan] DrawIndexed: ERROR - No pipeline bound!" );
+        return;
+    }
+    
     auto vaoIt = vertexArrays.find(currentVAO.id);
+    if (vaoIt == vertexArrays.end()) {
+        SE_LOG_WARN("[Vulkan] DrawIndexed: VAO id={} not found!", currentVAO.id);
+    }
+    
+    bool hasIndexBuffer = false;
+    
     if (vaoIt != vertexArrays.end()) {
         auto pipeIt = pipelines.find(currentPipeline.id);
         if (pipeIt != pipelines.end()) {
@@ -2537,12 +2574,19 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
             }
         }
 
-        if (!vbs.empty()) { vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); }
+        if (!vbs.empty()) { 
+            vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, static_cast<uint32_t>(vbs.size()), vbs.data(), offsets.data()); 
+        } else {
+            SE_LOG_ERROR("[Vulkan] DrawIndexed: WARNING - No vertex buffers bound!" );
+        }
 
         auto ibIt = buffers.find(vaoIt->second.indexBuffer.id);
         if (ibIt != buffers.end()) {
             VkIndexType indexType = (cmd.indexType == IndexType::UInt16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
             vkCmdBindIndexBuffer(commandBuffers[currentFrame], ibIt->second.buffer, 0, indexType);
+            hasIndexBuffer = true;
+        } else {
+            SE_LOG_WARN("[Vulkan] DrawIndexed: Index buffer id={} not found!", vaoIt->second.indexBuffer.id);
         }
     }
 
@@ -2556,6 +2600,11 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     if (pipeIt != pipelines.end()) {
         vkCmdPushConstants(commandBuffers[currentFrame], pipeIt->second.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(PushConstants), &cachedPushConstants);
+    }
+
+    if (drawIndexedCount <= 5) {
+        SE_LOG_INFO("[Vulkan] DrawIndexed #{}: indices={}, instances={}, pipeline={}, vao={}, hasIB={}", 
+                  drawIndexedCount, cmd.indexCount, cmd.instanceCount, currentPipeline.id, currentVAO.id, hasIndexBuffer);
     }
 
     vkCmdDrawIndexed(commandBuffers[currentFrame], cmd.indexCount, cmd.instanceCount, cmd.firstIndex, cmd.vertexOffset, cmd.firstInstance);
@@ -2862,7 +2911,7 @@ void VulkanDevice::DrawSkybox(TextureHandle cubemap, SamplerHandle sampler, cons
     if (!skyboxInitialized) {
         initializeSkyboxResources();
         if (!skyboxInitialized) {
-            std::cerr << "[Vulkan] Failed to initialize skybox resources" << std::endl;
+            SE_LOG_ERROR("[Vulkan] Failed to initialize skybox resources" );
             return;
         }
     }
@@ -2921,7 +2970,7 @@ void VulkanDevice::DrawSkybox(TextureHandle cubemap, SamplerHandle sampler, cons
 }
 
 void VulkanDevice::initializeSkyboxResources() {
-    std::cout << "[Vulkan] Initializing dedicated skybox resources..." << std::endl;
+    SE_LOG_INFO("[Vulkan] Initializing dedicated skybox resources..." );
 
     // Skybox cube vertices (inverted for inside view)
     static const float cubeVertices[] = {
@@ -3079,7 +3128,7 @@ void VulkanDevice::initializeSkyboxResources() {
     auto vertCode = loadSpirv("shaders/skybox.vert.spv");
     auto fragCode = loadSpirv("shaders/skybox.frag.spv");
     if (vertCode.empty() || fragCode.empty()) {
-        std::cerr << "[Vulkan] Failed to load skybox shaders" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to load skybox shaders" );
         return;
     }
 
@@ -3201,12 +3250,12 @@ void VulkanDevice::initializeSkyboxResources() {
     pipelineInfo.subpass             = 0;
 
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &skyboxPipeline) != VK_SUCCESS) {
-        std::cerr << "[Vulkan] Failed to create skybox pipeline" << std::endl;
+        SE_LOG_ERROR("[Vulkan] Failed to create skybox pipeline" );
         return;
     }
 
     skyboxInitialized = true;
-    std::cout << "[Vulkan] Skybox resources initialized successfully" << std::endl;
+    SE_LOG_INFO("[Vulkan] Skybox resources initialized successfully" );
 }
 
 void VulkanDevice::cleanupSkyboxResources() {
@@ -3229,7 +3278,7 @@ void VulkanDevice::cleanupSkyboxResources() {
     }
 
     skyboxInitialized = false;
-    std::cout << "[Vulkan] Skybox resources cleaned up" << std::endl;
+    SE_LOG_INFO("[Vulkan] Skybox resources cleaned up" );
 }
 
 }  // namespace RHI
