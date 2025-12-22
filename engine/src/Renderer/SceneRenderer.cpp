@@ -48,9 +48,7 @@ namespace se {
 SceneRenderer::SceneRenderer() {}
 
 SceneRenderer::~SceneRenderer() {
-    if (initialized_) {
-        Shutdown();
-    }
+    if (initialized_) { Shutdown(); }
 }
 
 void SceneRenderer::Init() {
@@ -58,7 +56,7 @@ void SceneRenderer::Init() {
         SE_LOG_WARN("SceneRenderer already initialized");
         return;
     }
-    
+
     SE_LOG_INFO("Initializing SceneRenderer");
     InitializeShadowResources();
     occlusionCuller_.Init();
@@ -67,7 +65,7 @@ void SceneRenderer::Init() {
 
 void SceneRenderer::Shutdown() {
     if (!initialized_) return;
-    
+
     SE_LOG_INFO("Shutting down SceneRenderer");
     occlusionCuller_.Shutdown();
     DestroyShadowResources();
@@ -91,22 +89,22 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     } else {
         Vector3 lightDir = sceneData_.directional_light.Direction;
         if (glm::length(lightDir) <= 0.0f) { lightDir = Vector3(0.0f, -1.0f, 0.0f); }
-        lightDir                                = glm::normalize(lightDir);
+        lightDir                               = glm::normalize(lightDir);
         sceneData_.directional_light.Direction = lightDir;
 
-        sceneData_.ShadowsEnabled = sceneData_.directional_light.CastShadows && 
+        sceneData_.ShadowsEnabled = sceneData_.directional_light.CastShadows &&
                                     sceneData_.directional_light.Intensity > 0.0f;
 
         if (sceneData_.ShadowsEnabled) {
             // Shadow frustum follows camera position for consistent shadow coverage
-            Vector3 cameraPos = glm::inverse(sceneData_.ViewMatrix)[3];
+            Vector3       cameraPos  = glm::inverse(sceneData_.ViewMatrix)[3];
             const Vector3 focusPoint = Vector3(cameraPos.x, 0.0f, cameraPos.z);
             const Vector3 lightPos   = focusPoint - lightDir * sceneData_.ShadowDistance;
             Vector3       up         = Vector3(0.0f, 1.0f, 0.0f);
             if (glm::abs(glm::dot(up, lightDir)) > 0.95f) { up = Vector3(0.0f, 0.0f, 1.0f); }
             Matrix4 lightView = glm::lookAt(lightPos, focusPoint, up);
-            Matrix4 lightProj = glm::ortho(-sceneData_.ShadowOrthoSize, sceneData_.ShadowOrthoSize, 
-                                           -sceneData_.ShadowOrthoSize, sceneData_.ShadowOrthoSize, 
+            Matrix4 lightProj = glm::ortho(-sceneData_.ShadowOrthoSize, sceneData_.ShadowOrthoSize,
+                                           -sceneData_.ShadowOrthoSize, sceneData_.ShadowOrthoSize,
                                            0.1f, sceneData_.ShadowDistance * 2.0f);
             sceneData_.LightSpaceMatrix = lightProj * lightView;
         } else {
@@ -122,55 +120,50 @@ void SceneRenderer::EndScene() {
     RenderScenePass();
 }
 
-void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray, 
-                           const std::shared_ptr<Material>& material, 
-                           const Matrix4& transform,
-                           bool castsShadows, bool receiveShadows,
-                           float boundingRadius) {
+void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
+                           const std::shared_ptr<Material>& material, const Matrix4& transform,
+                           bool castsShadows, bool receiveShadows, float boundingRadius) {
     Submission submission;
     submission.vertex_array   = vertexArray;
     submission.material       = material;
     submission.Transform      = transform;
     submission.CastsShadows   = castsShadows;
     submission.ReceiveShadows = receiveShadows;
-    
+
     // Extract position from transform
     submission.Center = Vector3(transform[3]);
-    
+
     // Create stable ObjectId based on position hash (for occlusion query tracking)
     // This ensures the same object gets the same ID across frames
-    auto hashFloat = [](float f) -> uint32_t {
-        return *reinterpret_cast<uint32_t*>(&f);
-    };
-    submission.ObjectId = hashFloat(submission.Center.x) ^ 
-                          (hashFloat(submission.Center.y) << 8) ^ 
+    auto hashFloat      = [](float f) -> uint32_t { return *reinterpret_cast<uint32_t*>(&f); };
+    submission.ObjectId = hashFloat(submission.Center.x) ^ (hashFloat(submission.Center.y) << 8) ^
                           (hashFloat(submission.Center.z) << 16);
     if (submission.ObjectId == 0) submission.ObjectId = 1;  // 0 is reserved
-    
+
     // Calculate bounding radius considering scale
-    float scaleX = glm::length(Vector3(transform[0]));
-    float scaleY = glm::length(Vector3(transform[1]));
-    float scaleZ = glm::length(Vector3(transform[2]));
+    float scaleX   = glm::length(Vector3(transform[0]));
+    float scaleY   = glm::length(Vector3(transform[1]));
+    float scaleZ   = glm::length(Vector3(transform[2]));
     float maxScale = glm::max(glm::max(scaleX, scaleY), scaleZ);
-    
+
     // For a unit cube, bounding sphere radius is sqrt(3)/2 ≈ 0.866
     submission.BoundingRadius = boundingRadius * maxScale;
-    
+
     sceneData_.Submissions.emplace_back(std::move(submission));
 }
 
 void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
-                                    const std::shared_ptr<Material>& material,
-                                    bool castsShadows, bool receiveShadows) {
+                                    const std::shared_ptr<Material>& material, bool castsShadows,
+                                    bool receiveShadows) {
     if (!instancedMesh || !material) {
         SE_LOG_WARN("SubmitInstanced called with null instancedMesh or material");
         return;
     }
-    
+
     InstancedSubmission submission;
-    submission.instancedMesh = instancedMesh;
-    submission.material = material;
-    submission.castsShadows = castsShadows;
+    submission.instancedMesh  = instancedMesh;
+    submission.material       = material;
+    submission.castsShadows   = castsShadows;
     submission.receiveShadows = receiveShadows;
     instancedSubmissions_.emplace_back(std::move(submission));
 }
@@ -187,7 +180,8 @@ void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
     if (glm::length(sceneData_.directional_light.Direction) <= 0.0f) {
         sceneData_.directional_light.Direction = Vector3(0.0f, -1.0f, 0.0f);
     } else {
-        sceneData_.directional_light.Direction = glm::normalize(sceneData_.directional_light.Direction);
+        sceneData_.directional_light.Direction =
+            glm::normalize(sceneData_.directional_light.Direction);
     }
 
     sceneData_.directional_light.Intensity = glm::max(light.Intensity, 0.0f);
@@ -206,10 +200,10 @@ SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() const {
 void SceneRenderer::SetShadowMapSize(int width, int height) {
     if (width <= 0 || height <= 0) {
         SE_LOG_WARN("Invalid shadow map size: {}x{}, using default 1024x1024", width, height);
-        width = 1024;
+        width  = 1024;
         height = 1024;
     }
-    
+
     if (sceneData_.ShadowMapSize.x != width || sceneData_.ShadowMapSize.y != height) {
         sceneData_.ShadowMapSize = glm::ivec2(width, height);
         if (initialized_) {
@@ -240,9 +234,9 @@ void SceneRenderer::SetAORadius(float radius) {
 }
 
 void SceneRenderer::InitializeShadowResources() {
-    SE_LOG_INFO("Creating shadow resources ({}x{})", 
-                sceneData_.ShadowMapSize.x, sceneData_.ShadowMapSize.y);
-    
+    SE_LOG_INFO("Creating shadow resources ({}x{})", sceneData_.ShadowMapSize.x,
+                sceneData_.ShadowMapSize.y);
+
     sceneData_.ShadowShader = std::make_shared<Shader>(kShadowVertexSource, kShadowFragmentSource);
     if (!sceneData_.ShadowShader || sceneData_.ShadowShader->getID() == 0) {
         SE_LOG_ERROR("Failed to create shadow shader");
@@ -250,7 +244,8 @@ void SceneRenderer::InitializeShadowResources() {
     }
 
     // Create instanced shadow shader (uses same fragment, different vertex for instance buffer)
-    sceneData_.InstancedShadowShader = std::make_shared<Shader>(kInstancedShadowVertexSource, kShadowFragmentSource);
+    sceneData_.InstancedShadowShader =
+        std::make_shared<Shader>(kInstancedShadowVertexSource, kShadowFragmentSource);
     if (!sceneData_.InstancedShadowShader || sceneData_.InstancedShadowShader->getID() == 0) {
         SE_LOG_ERROR("Failed to create instanced shadow shader");
         return;
@@ -272,14 +267,14 @@ void SceneRenderer::InitializeShadowResources() {
     }
 
     glBindTexture(GL_TEXTURE_2D, sceneData_.ShadowDepthTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, sceneData_.ShadowMapSize.x, 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, sceneData_.ShadowMapSize.x,
                  sceneData_.ShadowMapSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-    
+
     GLenum texError = glGetError();
     if (texError != GL_NO_ERROR) {
         SE_LOG_ERROR("GL error creating shadow depth texture: 0x{:X}", texError);
     }
-    
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -290,11 +285,11 @@ void SceneRenderer::InitializeShadowResources() {
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
     glBindFramebuffer(GL_FRAMEBUFFER, sceneData_.ShadowFramebuffer);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
                            sceneData_.ShadowDepthTexture, 0);
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
-    
+
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         SE_LOG_ERROR("Shadow framebuffer incomplete, status: 0x{:X}", status);
@@ -302,11 +297,10 @@ void SceneRenderer::InitializeShadowResources() {
         DestroyShadowResources();
         return;
     }
-    
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     SE_LOG_INFO("Shadow resources created successfully");
 }
-
 
 void SceneRenderer::DestroyShadowResources() {
     if (sceneData_.ShadowDepthTexture) {
@@ -354,17 +348,17 @@ void SceneRenderer::RenderShadowPass() {
     if (!instancedSubmissions_.empty() && sceneData_.InstancedShadowShader) {
         sceneData_.InstancedShadowShader->bind();
         sceneData_.InstancedShadowShader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
-        
+
         for (const auto& instanced : instancedSubmissions_) {
             if (!instanced.castsShadows) continue;
             if (!instanced.instancedMesh) continue;
-            
+
             auto va = instanced.instancedMesh->GetVertexArray();
             if (!va) continue;
-            
+
             uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
             if (instanceCount == 0) continue;
-            
+
             // Draw all instances in a single call - shader reads transform from instance buffer
             RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
         }
@@ -391,7 +385,7 @@ void SceneRenderer::RenderScenePass() {
     // Separate into occluders (large) and occludees (small)
     std::vector<const Submission*> occluders;
     std::vector<const Submission*> occludees;
-    const float kOccluderThreshold = 5.0f;
+    const float                    kOccluderThreshold = 5.0f;
 
     for (const auto& submission : sceneData_.Submissions) {
         if (!submission.vertex_array || !submission.material) continue;
@@ -424,14 +418,16 @@ void SceneRenderer::RenderScenePass() {
         shader->setMat4("uModel", submission.Transform);
         shader->setVec3("uLightDirection", -sceneData_.directional_light.Direction);
         shader->setVec3("uLightColor", sceneData_.directional_light.Color);
-        shader->setFloat("uLightIntensity", sceneData_.directional_light.Active ? 
-                         sceneData_.directional_light.Intensity : 0.0f);
+        shader->setFloat("uLightIntensity", sceneData_.directional_light.Active
+                                                ? sceneData_.directional_light.Intensity
+                                                : 0.0f);
         shader->setFloat("uAmbientStrength", sceneData_.AmbientStrength);
         shader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
         shader->setInt("uShadowMap", 0);
         shader->setFloat("uReceiveShadows", submission.ReceiveShadows ? 1.0f : 0.0f);
-        shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && 
-                         sceneData_.directional_light.Active ? 1.0f : 0.0f);
+        shader->setFloat(
+            "uShadowsEnabled",
+            sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
 
@@ -443,21 +439,17 @@ void SceneRenderer::RenderScenePass() {
     };
 
     // PHASE 1: Render all OCCLUDERS first to fill depth buffer
-    for (const auto* submission : occluders) {
-        renderObject(*submission);
-    }
+    for (const auto* submission : occluders) { renderObject(*submission); }
 
     // PHASE 2: Test occludee bounding boxes against depth buffer filled by occluders
     if (occlusionCullingEnabled_ && occlusionCuller_.IsEnabled()) {
         for (const auto* submission : occludees) {
             occlusionCuller_.BeginQuery(submission->ObjectId);
-            occlusionCuller_.RenderBoundingBox(
-                submission->Center, 
-                Vector3(submission->BoundingRadius)
-            );
+            occlusionCuller_.RenderBoundingBox(submission->Center,
+                                               Vector3(submission->BoundingRadius));
             occlusionCuller_.EndQuery();
         }
-        
+
         // Collect results immediately (blocking) to use this frame
         occlusionCuller_.CollectResults();
     }
@@ -476,7 +468,7 @@ void SceneRenderer::RenderScenePass() {
     // PHASE 4: Render instanced batches (no culling - already handled by RenderSystem)
     for (const auto& instanced : instancedSubmissions_) {
         if (!instanced.instancedMesh || !instanced.material) continue;
-        
+
         uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
         if (instanceCount == 0) continue;
 
@@ -489,28 +481,28 @@ void SceneRenderer::RenderScenePass() {
         shader->setMat4("uProj", sceneData_.ProjectionMatrix);
         shader->setVec3("uLightDirection", -sceneData_.directional_light.Direction);
         shader->setVec3("uLightColor", sceneData_.directional_light.Color);
-        shader->setFloat("uLightIntensity", sceneData_.directional_light.Active ? 
-                         sceneData_.directional_light.Intensity : 0.0f);
+        shader->setFloat("uLightIntensity", sceneData_.directional_light.Active
+                                                ? sceneData_.directional_light.Intensity
+                                                : 0.0f);
         shader->setFloat("uAmbientStrength", sceneData_.AmbientStrength);
         shader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
         shader->setInt("uShadowMap", 0);
         shader->setFloat("uReceiveShadows", instanced.receiveShadows ? 1.0f : 0.0f);
-        shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && 
-                         sceneData_.directional_light.Active ? 1.0f : 0.0f);
+        shader->setFloat(
+            "uShadowsEnabled",
+            sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
 
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
-        
+
         stats_.InstancedBatches++;
         stats_.InstancedObjects += instanceCount;
         stats_.DrawCalls++;
-        
+
         const auto& indexBuffer = instanced.instancedMesh->GetVertexArray()->GetIndexBuffer();
-        if (indexBuffer) {
-            stats_.TriangleCount += (indexBuffer->GetCount() / 3) * instanceCount;
-        }
+        if (indexBuffer) { stats_.TriangleCount += (indexBuffer->GetCount() / 3) * instanceCount; }
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);

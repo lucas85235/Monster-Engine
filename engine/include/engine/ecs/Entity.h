@@ -64,7 +64,9 @@ class Entity {
         return entityHandle_;
     }
 
-    Scene* GetScene() const { return scene_; }
+    Scene* GetScene() const {
+        return scene_;
+    }
 
    private:
     entt::entity entityHandle_{entt::null};

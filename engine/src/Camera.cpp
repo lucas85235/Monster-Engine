@@ -4,7 +4,11 @@
 #include "ext/matrix_transform.hpp"
 
 Camera::Camera(se::Vector3 position, se::Vector3 up, float yaw, float pitch)
-    : position_(position), world_up_(up), yaw_(yaw), pitch_(pitch), front_(se::Vector3(0.0f, 0.0f, -1.0f)) {
+    : position_(position),
+      world_up_(up),
+      yaw_(yaw),
+      pitch_(pitch),
+      front_(se::Vector3(0.0f, 0.0f, -1.0f)) {
     updateCameraVectors();
 }
 

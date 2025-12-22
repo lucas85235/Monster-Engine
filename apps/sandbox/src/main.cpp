@@ -3,10 +3,10 @@
 
 #include "AppLayer.h"
 #include "ThirdPersonLayer.h"
-#include "event_sample/EventSampleLayer.h"
-#include "input_sample/InputSampleLayer.h"
 #include "UILayer.h"
 #include "engine/ui/RmlUiLayer.h"
+#include "event_sample/EventSampleLayer.h"
+#include "input_sample/InputSampleLayer.h"
 #include "physics_sample/PhysicsSampleLayer.h"
 
 using namespace std;

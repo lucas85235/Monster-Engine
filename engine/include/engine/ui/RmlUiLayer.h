@@ -1,9 +1,10 @@
 #pragma once
 
-#include "engine/Layer.h"
-#include "engine/ui/RmlUiInterfaces.h"
-#include "engine/events/Events.h"
 #include <RmlUi/Core.h>
+
+#include "engine/Layer.h"
+#include "engine/events/Events.h"
+#include "engine/ui/RmlUiInterfaces.h"
 
 namespace se {
 
@@ -19,7 +20,9 @@ class RmlUiLayer : public Layer {
     void OnUpdate(float ts) override;
     void OnRender() override;
 
-    Rml::Context* GetContext() const { return context_; }
+    Rml::Context* GetContext() const {
+        return context_;
+    }
 
    private:
     RmlUiSystemInterface*     system_interface_ = nullptr;
@@ -27,7 +30,7 @@ class RmlUiLayer : public Layer {
     RmlUiFontEngineInterface* font_interface_   = nullptr;
     Rml::Context*             context_          = nullptr;
     EventBus*                 event_bus_        = nullptr;
-    
+
     void OnWindowResize(const WindowResizeEvent& e);
     void OnMouseMove(const MouseMovedEvent& e);
     void OnMouseButtonPressed(const MouseButtonPressedEvent& e);

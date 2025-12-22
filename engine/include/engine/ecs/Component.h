@@ -22,7 +22,9 @@ class Component {
         Disable();
     }
 
-    bool IsEnabled() const { return is_enabled; }
+    bool IsEnabled() const {
+        return is_enabled;
+    }
 
    protected:
     bool is_enabled = false;

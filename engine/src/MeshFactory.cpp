@@ -76,7 +76,8 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
 }
 }  // namespace
 
-void MeshFactory::addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g, float b) {
+void MeshFactory::addVertex(std::vector<float>& vertices, float x, float y, float z, float r,
+                            float g, float b) {
     vertices.push_back(x);
     vertices.push_back(y);
     vertices.push_back(z);

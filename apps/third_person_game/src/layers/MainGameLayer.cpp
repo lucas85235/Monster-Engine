@@ -1,4 +1,5 @@
 #include "MainGameLayer.h"
+
 #include "engine/Application.h"
 
 namespace FirstGame {
@@ -40,4 +41,4 @@ void MainGameLayer::OnImGuiRender() {
 
     ImguiDebug();
 }
-} // namespace FirstGame
+}  // namespace FirstGame

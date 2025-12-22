@@ -9,11 +9,11 @@
 #include <gtc/type_ptr.hpp>
 
 #include "SampleUtilities.h"
-
-#include "engine/renderer/CameraController.h"
 #include "engine/input/InputManager.h"
+#include "engine/renderer/CameraController.h"
 
-AppLayer::AppLayer() : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), cameraController_(camera_) {}
+AppLayer::AppLayer()
+    : Layer("AppLayer"), camera_(glm::vec3(0.0f, 0.0f, 10.0f)), cameraController_(camera_) {}
 
 AppLayer::~AppLayer() {}
 
@@ -29,7 +29,8 @@ void AppLayer::OnAttach() {
     AddDirectionalLight();
 
     // Create original entities
-    Utilities::CreateCubeEntity("Cube", {0.0f, -2.0f, 0.0f}, {50.0f, 1.0f, 50.0f}, scene_.get(), material_);
+    Utilities::CreateCubeEntity("Cube", {0.0f, -2.0f, 0.0f}, {50.0f, 1.0f, 50.0f}, scene_.get(),
+                                material_);
     CreateCubeEntity("Rotating Cube", {3.0f, 0.0f, -2.0f});
     CreateSphereEntity("Sphere", {-3.0f, 0.0f, -2.0f});
     CreateCapsuleEntity("Capsule", {0.0f, 2.5f, -2.0f});
@@ -40,7 +41,7 @@ void AppLayer::OnAttach() {
     auto* window = app.GetWindow().GetNativeWindow();
 
     if (window) {
-        // inputHandler_.initialize(window); 
+        // inputHandler_.initialize(window);
         // CameraController doesn't need window initialization anymore
     }
 
@@ -53,12 +54,12 @@ void AppLayer::OnAttach() {
     input.BindAxis("MoveUp", Key::Space, 1.0f);
     input.BindAxis("MoveUp", Key::LeftControl, -1.0f);
     input.BindAxis("LookX", Key::MouseX, 1.0f);
-    input.BindAxis("LookY", Key::MouseY, -1.0f); // Inverted Y
+    input.BindAxis("LookY", Key::MouseY, -1.0f);  // Inverted Y
     input.BindAction("ToggleCamera", Key::Tab);
     input.BindAction("ToggleCursor", Key::LeftAlt);
 
     // InputHandler::setCursorModeFromString(window, "normal");
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // Default to captured for camera
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  // Default to captured for camera
 
     RenderCommand::SetClearColor({0.3f, 0.3f, 0.3f, 1.0f});
 }
@@ -67,7 +68,6 @@ void AppLayer::OnDetach() {
     SE_LOG_INFO("AppLayer detached");
     scene_.reset();
 }
-
 
 void AppLayer::OnUpdate(float ts) {
     animationTime_ += ts;
@@ -93,7 +93,8 @@ void AppLayer::OnUpdate(float ts) {
         // Make capsule rotate on X axis
         if (name.Name == "Capsule") {
             transform.Rotate({0.0f, 30.0f * ts, 0.0f});
-            transform.SetScale(glm::vec3(1.0, 1.0, 1.0) * glm::sin(animationTime_ * 2) * 0.5f + 1.0f);
+            transform.SetScale(glm::vec3(1.0, 1.0, 1.0) * glm::sin(animationTime_ * 2) * 0.5f +
+                               1.0f);
         }
     }
 
@@ -107,14 +108,15 @@ void AppLayer::OnUpdate(float ts) {
 
     if (InputManager::Get().IsActionJustPressed("ToggleCursor")) {
         static bool cursorLocked = true;
-        cursorLocked = !cursorLocked;
+        cursorLocked             = !cursorLocked;
         InputManager::Get().SetCursorMode(cursorLocked ? CursorMode::Locked : CursorMode::Normal);
     }
 }
 
 void AppLayer::OnRender() {
     // Calculate aspect ratio
-    glm::vec2 windowSize  = {Application::Get().GetWindow().GetWidth(), Application::Get().GetWindow().GetHeight()};
+    glm::vec2 windowSize  = {Application::Get().GetWindow().GetWidth(),
+                             Application::Get().GetWindow().GetHeight()};
     float     aspectRatio = windowSize.x / windowSize.y;
 
     // Scene automatically renders all entities with MeshRenderComponent!
@@ -233,7 +235,8 @@ void AppLayer::HandleInput(float deltaTime) {
 
 // ==================== Entity Creation Helpers ====================
 
-void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& position, const glm::vec3& scale) {
+void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& position,
+                                const glm::vec3& scale) {
     SE_LOG_INFO("Creating cube entity: {}", name);
 
     auto entity = scene_->CreateEntity(name);
@@ -253,7 +256,8 @@ void AppLayer::CreateCubeEntity(const std::string& name, const glm::vec3& positi
     transform.SetPosition(position);
     transform.SetScale(scale);
 
-    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y, position.z);
+    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y,
+                position.z);
 }
 
 void AppLayer::AddDirectionalLight() {
@@ -277,7 +281,8 @@ void AppLayer::CreateSphereEntity(const std::string& name, const glm::vec3& posi
     auto entity = scene_->CreateEntity(name);
 
     // Add mesh render component
-    entity.AddComponent<MeshRenderComponent>(MeshManager::GetPrimitive(PrimitiveMeshType::Sphere), material_);
+    entity.AddComponent<MeshRenderComponent>(MeshManager::GetPrimitive(PrimitiveMeshType::Sphere),
+                                             material_);
 
     // Set position
     auto& transform = entity.GetComponent<TransformComponent>();
@@ -292,7 +297,8 @@ void AppLayer::CreateCapsuleEntity(const std::string& name, const glm::vec3& pos
     auto entity = scene_->CreateEntity(name);
 
     // Add mesh render component
-    entity.AddComponent<MeshRenderComponent>(MeshManager::GetPrimitive(PrimitiveMeshType::Sphere), material_);
+    entity.AddComponent<MeshRenderComponent>(MeshManager::GetPrimitive(PrimitiveMeshType::Sphere),
+                                             material_);
 
     // Set position and scale
     auto& transform = entity.GetComponent<TransformComponent>();

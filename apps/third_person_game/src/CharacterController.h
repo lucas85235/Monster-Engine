@@ -2,6 +2,6 @@
 
 namespace FirstGame {
 class CharacterController {
-public:
+   public:
 };
-} // FirstGame
+}  // namespace FirstGame

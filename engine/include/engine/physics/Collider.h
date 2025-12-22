@@ -1,8 +1,10 @@
 #pragma once
 #include <btBulletCollisionCommon.h>
+
 #include <cstdint>
-#include "engine/ecs/Component.h"
+
 #include "Engine.h"
+#include "engine/ecs/Component.h"
 
 namespace se {
 struct ColliderBase {
@@ -44,4 +46,4 @@ struct CapsuleCollider : ColliderBase {
 
     CapsuleCollider(float radius, float height) : Radius(radius), Height(height) {}
 };
-} // namespace se
+}  // namespace se

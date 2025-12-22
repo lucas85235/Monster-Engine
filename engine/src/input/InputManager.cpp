@@ -1,8 +1,11 @@
 #include "engine/input/InputManager.h"
-#include "engine/Log.h"
-#include "engine/Application.h"
+
+#include <GLFW/glfw3.h>  // For raw input queries if needed, but we try to rely on events
+
 #include <algorithm>
-#include <GLFW/glfw3.h> // For raw input queries if needed, but we try to rely on events
+
+#include "engine/Application.h"
+#include "engine/Log.h"
 
 namespace se {
 
@@ -14,29 +17,35 @@ void InputManager::Init() {
 void InputManager::Update() {
     // Reset "Just" states
     for (auto& [key, state] : keyStates_) {
-        state.JustPressed = false;
+        state.JustPressed  = false;
         state.JustReleased = false;
     }
     for (auto& [btn, state] : mouseButtonStates_) {
-        state.JustPressed = false;
+        state.JustPressed  = false;
         state.JustReleased = false;
     }
 
-    mouseDelta_ = {0.0f, 0.0f};
+    mouseDelta_  = {0.0f, 0.0f};
     scrollDelta_ = 0.0f;  // Reset scroll each frame
 }
 
 void InputManager::SetCursorMode(CursorMode mode) {
-    auto& app = Application::Get();
+    auto&        app    = Application::Get();
     WindowHandle window = app.GetWindow().GetNativeWindow();
-    
+
     int glfwMode = GLFW_CURSOR_NORMAL;
     switch (mode) {
-        case CursorMode::Normal: glfwMode = GLFW_CURSOR_NORMAL; break;
-        case CursorMode::Hidden: glfwMode = GLFW_CURSOR_HIDDEN; break;
-        case CursorMode::Locked: glfwMode = GLFW_CURSOR_DISABLED; break;
+        case CursorMode::Normal:
+            glfwMode = GLFW_CURSOR_NORMAL;
+            break;
+        case CursorMode::Hidden:
+            glfwMode = GLFW_CURSOR_HIDDEN;
+            break;
+        case CursorMode::Locked:
+            glfwMode = GLFW_CURSOR_DISABLED;
+            break;
     }
-    
+
     glfwSetInputMode(window, GLFW_CURSOR, glfwMode);
 }
 
@@ -51,14 +60,14 @@ void InputManager::BindAxis(const std::string& name, KeyCode key, float scale) {
 void InputManager::UnbindAction(const std::string& name) {
     actionBindings_.erase(
         std::remove_if(actionBindings_.begin(), actionBindings_.end(),
-            [&](const ActionBinding& binding) { return binding.Name == name; }),
+                       [&](const ActionBinding& binding) { return binding.Name == name; }),
         actionBindings_.end());
 }
 
 void InputManager::UnbindAxis(const std::string& name) {
     axisBindings_.erase(
         std::remove_if(axisBindings_.begin(), axisBindings_.end(),
-            [&](const AxisBinding& binding) { return binding.Name == name; }),
+                       [&](const AxisBinding& binding) { return binding.Name == name; }),
         axisBindings_.end());
 }
 
@@ -130,7 +139,7 @@ Vector2 InputManager::GetMouseDelta() const {
 void InputManager::OnKeyPressed(KeyCode key) {
     auto& state = keyStates_[key];
     if (!state.IsDown) {
-        state.IsDown = true;
+        state.IsDown      = true;
         state.JustPressed = true;
     }
 }
@@ -138,7 +147,7 @@ void InputManager::OnKeyPressed(KeyCode key) {
 void InputManager::OnKeyReleased(KeyCode key) {
     auto& state = keyStates_[key];
     if (state.IsDown) {
-        state.IsDown = false;
+        state.IsDown       = false;
         state.JustReleased = true;
     }
 }
@@ -146,7 +155,7 @@ void InputManager::OnKeyReleased(KeyCode key) {
 void InputManager::OnMouseButtonPressed(MouseButton button) {
     auto& state = mouseButtonStates_[button];
     if (!state.IsDown) {
-        state.IsDown = true;
+        state.IsDown      = true;
         state.JustPressed = true;
     }
 }
@@ -154,7 +163,7 @@ void InputManager::OnMouseButtonPressed(MouseButton button) {
 void InputManager::OnMouseButtonReleased(MouseButton button) {
     auto& state = mouseButtonStates_[button];
     if (state.IsDown) {
-        state.IsDown = false;
+        state.IsDown       = false;
         state.JustReleased = true;
     }
 }
@@ -162,27 +171,25 @@ void InputManager::OnMouseButtonReleased(MouseButton button) {
 void InputManager::OnMouseMoved(float x, float y) {
     if (firstMouse_) {
         lastMousePosition_ = {x, y};
-        firstMouse_ = false;
+        firstMouse_        = false;
     }
 
     mousePosition_ = {x, y};
     mouseDelta_ += mousePosition_ - lastMousePosition_;
     lastMousePosition_ = mousePosition_;
-    
-    // Y inverted in many systems, but let's keep it raw here and let the camera handle inversion if needed.
-    // Actually, standard GLFW is top-left origin.
-    // Let's invert Y delta here to match typical camera expectations (up is positive) if needed, 
-    // but usually it's better to keep raw delta and let the consumer decide.
-    // For now, raw delta.
-    // Wait, in InputHandler.cpp: double yOffset = lastY_ - ypos;  // Y inverted in GLFW
-    // So if I want positive delta to mean "up", and y increases downwards, then yes:
-    // deltaY = lastY - currentY.
-    // My implementation: currentY - lastY. So positive delta means moving down.
-    // I will leave it as is (standard delta) and let CameraController flip it.
+
+    // Y inverted in many systems, but let's keep it raw here and let the camera handle inversion if
+    // needed. Actually, standard GLFW is top-left origin. Let's invert Y delta here to match
+    // typical camera expectations (up is positive) if needed, but usually it's better to keep raw
+    // delta and let the consumer decide. For now, raw delta. Wait, in InputHandler.cpp: double
+    // yOffset = lastY_ - ypos;  // Y inverted in GLFW So if I want positive delta to mean "up", and
+    // y increases downwards, then yes: deltaY = lastY - currentY. My implementation: currentY -
+    // lastY. So positive delta means moving down. I will leave it as is (standard delta) and let
+    // CameraController flip it.
 }
 
 void InputManager::OnMouseScrolled(float yOffset) {
     scrollDelta_ += yOffset;
 }
 
-} // namespace se
+}  // namespace se

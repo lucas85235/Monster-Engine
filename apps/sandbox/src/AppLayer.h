@@ -1,16 +1,15 @@
 #pragma once
 
 #include <engine/Camera.h>
-#include <engine/renderer/CameraController.h>
 #include <engine/Layer.h>
 #include <engine/ecs/Scene.h>
+#include <engine/renderer/CameraController.h>
 #include <engine/resources/MaterialManager.h>
 #include <engine/resources/MeshManager.h>
 
 #include <glm.hpp>
 #include <memory>
 #include <string>
-
 
 using namespace se;
 class AppLayer : public Layer {
@@ -22,7 +21,6 @@ class AppLayer : public Layer {
     void OnAttach() override;
 
     void OnDetach() override;
-
 
     void OnUpdate(float ts) override;
 
@@ -38,7 +36,8 @@ class AppLayer : public Layer {
     // Helper methods for creating entities
     void AddDirectionalLight();
 
-    void CreateCubeEntity(const std::string& name, const Vector3& position, const Vector3& scale = Vector3(1.0f));
+    void CreateCubeEntity(const std::string& name, const Vector3& position,
+                          const Vector3& scale = Vector3(1.0f));
 
     void CreateSphereEntity(const std::string& name, const Vector3& position);
 

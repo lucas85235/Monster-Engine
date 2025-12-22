@@ -1,11 +1,11 @@
 #pragma once
+#include "../Character.h"
 #include "engine/Layer.h"
 #include "engine/ecs/Scene.h"
-#include "../Character.h"
 
 namespace FirstGame {
 class MainGameLayer : public se::Layer {
-public:
+   public:
     ~MainGameLayer() override;
 
     void OnAttach() override;
@@ -18,8 +18,8 @@ public:
 
     void OnImGuiRender() override;
 
-private:
+   private:
     Ref<Character> character_;
     Scope<Scene>   scene_;
 };
-} // namespace FirstGame
+}  // namespace FirstGame

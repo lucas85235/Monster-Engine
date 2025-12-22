@@ -14,9 +14,11 @@ class RenderCommand {
     static void Clear();
 
     static void DrawIndexed(const VertexArray* vertexArray, uint32_t indexCount = 0);
-    static void DrawIndexedInstanced(const VertexArray* vertexArray, uint32_t instanceCount, uint32_t indexCount = 0);
+    static void DrawIndexedInstanced(const VertexArray* vertexArray, uint32_t instanceCount,
+                                     uint32_t indexCount = 0);
     static void DrawArrays(const VertexArray* vertexArray, uint32_t vertexCount);
-    static void DrawArraysInstanced(const VertexArray* vertexArray, uint32_t vertexCount, uint32_t instanceCount);
+    static void DrawArraysInstanced(const VertexArray* vertexArray, uint32_t vertexCount,
+                                    uint32_t instanceCount);
     static void DrawLines(const VertexArray* vertexArray, uint32_t vertexCount);
 
     static void SetDepthTest(bool enabled);

@@ -19,7 +19,9 @@ void GraphicsContext::Init() {
     glfwMakeContextCurrent(windowHandle_);
 
     // Initialize GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { throw std::runtime_error("Failed to initialize GLAD"); }
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        throw std::runtime_error("Failed to initialize GLAD");
+    }
 
     SE_LOG_INFO("OpenGL Info:");
     SE_LOG_INFO("  Vendor: {}", (const char*)glGetString(GL_VENDOR));

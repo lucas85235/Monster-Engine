@@ -24,5 +24,6 @@ class MeshFactory {
 
    private:
     // Helper functions
-    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g, float b);
+    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g,
+                          float b);
 };

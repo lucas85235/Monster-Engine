@@ -21,7 +21,9 @@ class MaterialManager {
     static std::shared_ptr<Material> CreateMaterial(std::shared_ptr<Shader> shader);
 
     // Get or load a shader (cached)
-    static std::shared_ptr<Shader> GetShader(const std::string& name, const std::filesystem::path& vertPath, const std::filesystem::path& fragPath);
+    static std::shared_ptr<Shader> GetShader(const std::string&           name,
+                                             const std::filesystem::path& vertPath,
+                                             const std::filesystem::path& fragPath);
 
     // Clear all cached resources
     static void ClearCache();

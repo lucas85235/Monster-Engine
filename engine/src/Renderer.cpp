@@ -1,10 +1,10 @@
 #include "engine/Renderer.h"
 
 #include "engine/Log.h"
+#include "engine/core/ServiceLocator.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
-#include "engine/core/ServiceLocator.h"
 
 namespace se {
 

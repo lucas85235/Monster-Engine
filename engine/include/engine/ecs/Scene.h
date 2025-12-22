@@ -1,8 +1,8 @@
 #pragma once
 
 #include <entt.hpp>
-#include <string>
 #include <memory>
+#include <string>
 
 #include "engine/Camera.h"
 #include "engine/Log.h"
@@ -22,15 +22,15 @@ class Scene {
     ~Scene();
 
     // Disable copy
-    Scene(const Scene&) = delete;
+    Scene(const Scene&)            = delete;
     Scene& operator=(const Scene&) = delete;
 
     // Allow move
-    Scene(Scene&&) = default;
+    Scene(Scene&&)            = default;
     Scene& operator=(Scene&&) = default;
 
     Entity CreateEntity(const std::string& name = "Entity");
-    void DestroyEntity(Entity entity);
+    void   DestroyEntity(Entity entity);
 
     template <typename... Components>
     auto GetAllEntitiesWith() {
@@ -39,7 +39,9 @@ class Scene {
 
     Entity FindEntityByName(const std::string& name);
 
-    const std::string& GetName() const { return name_; }
+    const std::string& GetName() const {
+        return name_;
+    }
 
     void OnUpdate(float deltaTime);
     void OnRender(const Camera& camera, float aspectRatio);
@@ -51,17 +53,27 @@ class Scene {
     }
 
     // Physics access - returns nullptr if physics not enabled
-    PhysicsSystem* GetPhysicsSystem() { return physics_system_.get(); }
-    const PhysicsSystem* GetPhysicsSystem() const { return physics_system_.get(); }
-    bool HasPhysics() const { return physics_system_ != nullptr; }
+    PhysicsSystem* GetPhysicsSystem() {
+        return physics_system_.get();
+    }
+    const PhysicsSystem* GetPhysicsSystem() const {
+        return physics_system_.get();
+    }
+    bool HasPhysics() const {
+        return physics_system_ != nullptr;
+    }
 
-    entt::registry& GetRegistry() { return registry_; }
-    const entt::registry& GetRegistry() const { return registry_; }
+    entt::registry& GetRegistry() {
+        return registry_;
+    }
+    const entt::registry& GetRegistry() const {
+        return registry_;
+    }
 
    private:
     std::string    name_;
     entt::registry registry_;
-    
+
     // Physics is optional and owned by Scene via unique_ptr
     std::unique_ptr<PhysicsSystem> physics_system_;
 

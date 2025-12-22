@@ -5,7 +5,7 @@
 namespace se {
 
 // Type aliases for input codes
-using KeyCode = uint16_t;
+using KeyCode     = uint16_t;
 using MouseButton = uint16_t;
 
 // ==================== Window Events ====================
@@ -34,9 +34,11 @@ struct WindowMovedEvent {
 
 struct KeyPressedEvent {
     KeyCode keyCode;
-    int repeatCount;
-    
-    bool IsRepeat() const { return repeatCount > 0; }
+    int     repeatCount;
+
+    bool IsRepeat() const {
+        return repeatCount > 0;
+    }
 };
 
 struct KeyReleasedEvent {

@@ -1,9 +1,8 @@
 #pragma once
 
+#include <glm.hpp>
 #include <memory>
 #include <vector>
-
-#include <glm.hpp>
 
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/IInstanceBuffer.h"
@@ -22,10 +21,8 @@ struct InstanceData {
     Vector4 Color{1.0f, 1.0f, 1.0f, 1.0f};
 
     static BufferLayout GetLayout() {
-        return {
-            {ShaderDataType::Mat4, "a_InstanceTransform", 1u},
-            {ShaderDataType::Float4, "a_InstanceColor", 1u}
-        };
+        return {{ShaderDataType::Mat4, "a_InstanceTransform", 1u},
+                {ShaderDataType::Float4, "a_InstanceColor", 1u}};
     }
 
     static constexpr uint32_t GetStride() {
@@ -35,10 +32,10 @@ struct InstanceData {
 
 /**
  * InstancedMesh - Renders many copies of the same mesh efficiently.
- * 
+ *
  * Uses GPU instancing to reduce draw calls when rendering multiple
  * copies of the same geometry with different transforms/colors.
- * 
+ *
  * Usage:
  *   auto instancedMesh = std::make_shared<InstancedMesh>(baseVertexArray, 1000);
  *   std::vector<InstanceData> instances(100);
@@ -59,16 +56,22 @@ class InstancedMesh {
     void Draw(const std::shared_ptr<Material>& material);
     void DrawWithoutMaterial();
 
-    uint32_t GetInstanceCount() const { return currentInstanceCount_; }
-    uint32_t GetMaxInstances() const { return maxInstances_; }
+    uint32_t GetInstanceCount() const {
+        return currentInstanceCount_;
+    }
+    uint32_t GetMaxInstances() const {
+        return maxInstances_;
+    }
 
-    const std::shared_ptr<VertexArray>& GetVertexArray() const { return instancedVA_; }
+    const std::shared_ptr<VertexArray>& GetVertexArray() const {
+        return instancedVA_;
+    }
 
    private:
-    std::shared_ptr<VertexArray>    instancedVA_;
+    std::shared_ptr<VertexArray>     instancedVA_;
     std::shared_ptr<IInstanceBuffer> instanceBuffer_;
-    uint32_t maxInstances_        = 0;
-    uint32_t currentInstanceCount_ = 0;
+    uint32_t                         maxInstances_         = 0;
+    uint32_t                         currentInstanceCount_ = 0;
 };
 
 }  // namespace se

@@ -1,21 +1,22 @@
 #include "PhysicsSampleLayer.h"
 
+#include <imgui.h>
+
+#include "../SampleUtilities.h"
 #include "engine/Application.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/events/EventBus.h"
-#include "engine/physics/RigidbodyComponent.h"
 #include "engine/physics/BoxCollider.h"
+#include "engine/physics/RigidbodyComponent.h"
 #include "engine/resources/MeshManager.h"
-#include "../SampleUtilities.h"
-#include <imgui.h>
 
 PhysicsSampleLayer::~PhysicsSampleLayer() {}
 
 void PhysicsSampleLayer::OnDetach() {}
 
 void PhysicsSampleLayer::OnAttach() {
-    scene_ = CreateScope<Scene>();
+    scene_    = CreateScope<Scene>();
     material_ = Utilities::LoadMaterial();
 
     // Camera setup
@@ -25,9 +26,9 @@ void PhysicsSampleLayer::OnAttach() {
     // Floor
     {
         auto floor = scene_->CreateEntity("Floor");
-        auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+        auto mesh  = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
         floor.AddComponent<MeshRenderComponent>(mesh, material_);
-        
+
         auto& transform = floor.GetComponent<TransformComponent>();
         transform.SetPosition({0.0f, -1.0f, 0.0f});
         transform.SetScale({20.0f, 2.0f, 20.0f});
@@ -42,7 +43,7 @@ void PhysicsSampleLayer::OnAttach() {
 
     // Dynamic Box
     {
-        auto box = scene_->CreateEntity("Box");
+        auto box  = scene_->CreateEntity("Box");
         auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
         box.AddComponent<MeshRenderComponent>(mesh, material_);
 
@@ -60,7 +61,7 @@ void PhysicsSampleLayer::OnAttach() {
     // Dynamic Sphere
     {
         auto sphere = scene_->CreateEntity("Sphere");
-        auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Sphere);
+        auto mesh   = MeshManager::GetPrimitive(PrimitiveMeshType::Sphere);
         sphere.AddComponent<MeshRenderComponent>(mesh, material_);
 
         auto& transform = sphere.GetComponent<TransformComponent>();
@@ -77,7 +78,7 @@ void PhysicsSampleLayer::OnAttach() {
     // Dynamic Capsule
     {
         auto capsule = scene_->CreateEntity("Capsule");
-        auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
+        auto mesh    = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
         capsule.AddComponent<MeshRenderComponent>(mesh, material_);
 
         auto& transform = capsule.GetComponent<TransformComponent>();
@@ -91,14 +92,14 @@ void PhysicsSampleLayer::OnAttach() {
         RigidbodyData data = RigidbodyData{.mass = 1.0f};
         capsule.AddComponent<RigidbodyComponent>(data, capsule);
     }
-    
+
     // Directional Light
     {
-        auto light = scene_->CreateEntity("Sun");
-        auto& dirLight = light.AddComponent<DirectionalLightComponent>();
-        dirLight.Color = {1.0f, 1.0f, 1.0f};
+        auto  light        = scene_->CreateEntity("Sun");
+        auto& dirLight     = light.AddComponent<DirectionalLightComponent>();
+        dirLight.Color     = {1.0f, 1.0f, 1.0f};
         dirLight.Intensity = 1.0f;
-        
+
         auto& transform = light.GetComponent<TransformComponent>();
         transform.SetRotation({45.0f, 45.0f, 0.0f});
     }
@@ -109,9 +110,9 @@ void PhysicsSampleLayer::OnUpdate(float ts) {
 }
 
 void PhysicsSampleLayer::OnRender() {
-    auto& window = Application::Get().GetWindow();
+    auto& window      = Application::Get().GetWindow();
     float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
-    
+
     scene_->OnRender(camera_, aspectRatio);
 }
 

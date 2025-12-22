@@ -1,12 +1,12 @@
 #include "engine/ui/RmlUiLayer.h"
+
+#include <GLFW/glfw3.h>
 #include <RmlUi/Debugger.h>
 
 #include "engine/Application.h"
 #include "engine/Log.h"
 #include "engine/events/EventBus.h"
 #include "engine/events/Events.h"
-
-#include <GLFW/glfw3.h>
 
 namespace se {
 
@@ -29,8 +29,8 @@ void RmlUiLayer::OnAttach() {
     }
 
     auto& window = Application::Get().GetWindow();
-    int width = window.GetWidth();
-    int height = window.GetHeight();
+    int   width  = window.GetWidth();
+    int   height = window.GetHeight();
 
     render_interface_->SetViewport(width, height);
 
@@ -41,7 +41,7 @@ void RmlUiLayer::OnAttach() {
     }
 
     Rml::Debugger::Initialise(context_);
-    
+
     // Subscribe to events via EventBus
     event_bus_ = &Application::Get().GetEventBus();
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
@@ -62,8 +62,7 @@ void RmlUiLayer::OnDetach() {
 }
 
 void RmlUiLayer::OnUpdate(float ts) {
-    if (context_)
-        context_->Update();
+    if (context_) context_->Update();
 }
 
 void RmlUiLayer::OnRender() {
@@ -72,9 +71,9 @@ void RmlUiLayer::OnRender() {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDisable(GL_DEPTH_TEST);
-        
+
         context_->Render();
-        
+
         glEnable(GL_DEPTH_TEST);
         glDisable(GL_BLEND);
     }
@@ -88,23 +87,19 @@ void RmlUiLayer::OnWindowResize(const WindowResizeEvent& e) {
 }
 
 void RmlUiLayer::OnMouseMove(const MouseMovedEvent& e) {
-    if (context_)
-        context_->ProcessMouseMove(static_cast<int>(e.x), static_cast<int>(e.y), 0);
+    if (context_) context_->ProcessMouseMove(static_cast<int>(e.x), static_cast<int>(e.y), 0);
 }
 
 void RmlUiLayer::OnMouseButtonPressed(const MouseButtonPressedEvent& e) {
-    if (context_)
-        context_->ProcessMouseButtonDown(e.button, 0);
+    if (context_) context_->ProcessMouseButtonDown(e.button, 0);
 }
 
 void RmlUiLayer::OnMouseButtonReleased(const MouseButtonReleasedEvent& e) {
-    if (context_)
-        context_->ProcessMouseButtonUp(e.button, 0);
+    if (context_) context_->ProcessMouseButtonUp(e.button, 0);
 }
 
 void RmlUiLayer::OnMouseScrolled(const MouseScrolledEvent& e) {
-    if (context_)
-        context_->ProcessMouseWheel(-e.yOffset, 0);
+    if (context_) context_->ProcessMouseWheel(-e.yOffset, 0);
 }
 
 void RmlUiLayer::OnKeyPressed(const KeyPressedEvent& e) {
@@ -121,7 +116,7 @@ void RmlUiLayer::OnKeyReleased(const KeyReleasedEvent& e) {
 
 void RmlUiLayer::OnKeyTyped(const KeyTypedEvent& e) {
     if (context_) {
-        if (e.keyCode >= 32) // Printable
+        if (e.keyCode >= 32)  // Printable
             context_->ProcessTextInput((Rml::Character)e.keyCode);
     }
 }

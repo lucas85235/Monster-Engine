@@ -1,10 +1,9 @@
 #pragma once
 
+#include <glm.hpp>
 #include <memory>
 #include <unordered_map>
 #include <vector>
-
-#include <glm.hpp>
 
 #include "engine/renderer/Frustum.h"
 #include "engine/renderer/OcclusionQuery.h"
@@ -16,7 +15,7 @@ class Shader;
 
 /**
  * OcclusionCuller - GPU-based occlusion culling using hardware queries.
- * 
+ *
  * Uses temporal coherence: objects visible last frame are rendered first,
  * then we test occluded objects with bounding box queries.
  * Results from current frame are used next frame to avoid GPU stalls.
@@ -36,7 +35,9 @@ class OcclusionCuller {
     void SetViewProjection(const Matrix4& viewProj);
 
     // Get the frustum for external frustum culling
-    const Frustum& GetFrustum() const { return frustum_; }
+    const Frustum& GetFrustum() const {
+        return frustum_;
+    }
 
     // Test if a bounding sphere is visible (frustum only, fast)
     bool IsSphereVisible(const Vector3& center, float radius) const;
@@ -63,11 +64,17 @@ class OcclusionCuller {
     void BeginFrame();
 
     // Get current view-projection matrix
-    const Matrix4& GetViewProjection() const { return viewProj_; }
+    const Matrix4& GetViewProjection() const {
+        return viewProj_;
+    }
 
     // Statistics
-    uint32_t GetQueriesIssued() const { return queriesIssued_; }
-    uint32_t GetOccludedCount() const { return occludedCount_; }
+    uint32_t GetQueriesIssued() const {
+        return queriesIssued_;
+    }
+    uint32_t GetOccludedCount() const {
+        return occludedCount_;
+    }
 
     void ResetStats() {
         queriesIssued_ = 0;
@@ -75,24 +82,28 @@ class OcclusionCuller {
     }
 
     // Enable/disable occlusion culling
-    void SetEnabled(bool enabled) { enabled_ = enabled; }
-    bool IsEnabled() const { return enabled_; }
+    void SetEnabled(bool enabled) {
+        enabled_ = enabled;
+    }
+    bool IsEnabled() const {
+        return enabled_;
+    }
 
    private:
-    Frustum frustum_;
-    Matrix4 viewProj_{1.0f};
+    Frustum                             frustum_;
+    Matrix4                             viewProj_{1.0f};
     std::unique_ptr<OcclusionQueryPool> queryPool_;
 
     // Bounding box for occlusion tests
     std::shared_ptr<VertexArray> boundingBoxVA_;
-    std::shared_ptr<Shader> occlusionShader_;
+    std::shared_ptr<Shader>      occlusionShader_;
 
     // Previous frame visibility results
     std::unordered_map<uint32_t, bool> previousFrameVisibility_;
-    
+
     // Current frame active queries
     std::unordered_map<uint32_t, std::shared_ptr<IOcclusionQuery>> activeQueries_;
-    uint32_t currentQueryObjectId_ = 0;
+    uint32_t                                                       currentQueryObjectId_ = 0;
 
     // Statistics
     uint32_t queriesIssued_ = 0;

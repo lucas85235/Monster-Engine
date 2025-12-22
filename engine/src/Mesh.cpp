@@ -1,11 +1,16 @@
 #include "engine/Mesh.h"
 
-Mesh::Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) : vertices_(vertices), indices_(indices) {
+Mesh::Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices)
+    : vertices_(vertices), indices_(indices) {
     setupMesh();
 }
 
 Mesh::Mesh(Mesh&& other) noexcept
-    : vertices_(std::move(other.vertices_)), indices_(std::move(other.indices_)), vao_(other.vao_), vbo_(other.vbo_), ebo_(other.ebo_) {
+    : vertices_(std::move(other.vertices_)),
+      indices_(std::move(other.indices_)),
+      vao_(other.vao_),
+      vbo_(other.vbo_),
+      ebo_(other.ebo_) {
     other.vao_ = 0;
     other.vbo_ = 0;
     other.ebo_ = 0;
@@ -48,11 +53,13 @@ void Mesh::setupMesh() {
 
     // Bind and set VBO
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-    glBufferData(GL_ARRAY_BUFFER, vertices_.size() * sizeof(float), vertices_.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices_.size() * sizeof(float), vertices_.data(),
+                 GL_STATIC_DRAW);
 
     // Bind and set EBO
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.size() * sizeof(unsigned int), indices_.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.size() * sizeof(unsigned int), indices_.data(),
+                 GL_STATIC_DRAW);
 
     // Vertex attributes
     // Position attribute (location = 0, 3 floats)

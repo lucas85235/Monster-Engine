@@ -15,15 +15,15 @@ struct CharacterSpecs {
 };
 
 /**
- * Brief: This class is the representation of a character in the game. The character has a collider, rigidbody
- * and other features that simulates how a person behaves in real life.
+ * Brief: This class is the representation of a character in the game. The character has a collider,
+ * rigidbody and other features that simulates how a person behaves in real life.
  *
  */
 class Character {
-public:
+   public:
     Character(Entity entity);
 
-private:
+   private:
     /**
      * Brief: One-line summary of what this function does.
      *
@@ -36,4 +36,4 @@ private:
     CharacterSpecs specs_;
     Entity         entity_;
 };
-} // FirstGame
+}  // namespace FirstGame

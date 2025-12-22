@@ -21,7 +21,8 @@ void InputSampleLayer::OnAttach() {
     scene_                 = CreateScope<Scene>("Main Scene");
 
     // Add the entities
-    Utilities::CreateCubeEntity("Cube", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, scene_.get(), material);
+    Utilities::CreateCubeEntity("Cube", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, scene_.get(),
+                                material);
 }
 
 void InputSampleLayer::OnDetach() {}

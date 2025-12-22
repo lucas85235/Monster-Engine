@@ -135,7 +135,8 @@ unsigned int Shader::compileStage(unsigned int type, const char* src) {
         checkCompile(id, /*isProgram=*/false);
     } catch (const std::exception& e) {
         // include source with line numbers to help debugging
-        std::string msg = std::string(e.what()) + "\n---- Shader Source (" + stageName(type) + ") ----\n" + numberedSource(src);
+        std::string msg = std::string(e.what()) + "\n---- Shader Source (" + stageName(type) +
+                          ") ----\n" + numberedSource(src);
         // cleanup shader before rethrowing
         glDeleteShader(id);
         throw std::runtime_error(msg);
@@ -144,13 +145,15 @@ unsigned int Shader::compileStage(unsigned int type, const char* src) {
     return id;
 }
 
-std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath, const std::filesystem::path& fragPath) {
+std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath,
+                                                const std::filesystem::path& fragPath) {
     // Read files
     std::ifstream vsFile(vertPath);
     std::ifstream fsFile(fragPath);
 
     if (!vsFile.is_open() || !fsFile.is_open()) {
-        throw std::runtime_error("Failed to open shader files: " + vertPath.string() + ", " + fragPath.string());
+        throw std::runtime_error("Failed to open shader files: " + vertPath.string() + ", " +
+                                 fragPath.string());
     }
 
     std::stringstream vsStream, fsStream;

@@ -51,9 +51,15 @@ class Application {
         layer_stack_.emplace_back(std::move(layer));
     }
 
-    Window& GetWindow() { return *window_; }
-    Renderer& GetRenderer() { return *renderer_; }
-    EventBus& GetEventBus() { return *event_bus_; }
+    Window& GetWindow() {
+        return *window_;
+    }
+    Renderer& GetRenderer() {
+        return *renderer_;
+    }
+    EventBus& GetEventBus() {
+        return *event_bus_;
+    }
 
     static Application& Get();
 

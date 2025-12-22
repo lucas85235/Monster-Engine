@@ -17,7 +17,9 @@ class Layer {
     virtual void OnRender() {}
     virtual void OnImGuiRender() {}
 
-    const std::string& GetName() const { return debugName_; }
+    const std::string& GetName() const {
+        return debugName_;
+    }
 
    protected:
     std::string debugName_;
