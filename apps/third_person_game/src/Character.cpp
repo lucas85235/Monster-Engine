@@ -4,12 +4,13 @@
 
 namespace FirstGame {
 Character::Character(Entity entity) : entity_(entity) {
-    RigidbodyData data{.mass            = 1.0f,
+    RigidbodyData data{.mass            = 0.0f,
                        .gravityScale    = 1.0f,
                        .material        = PhysicsMaterial(0.8f, 0.8f),
                        .freezeRotationX = true,
                        .freezeRotationZ = true};
-    entity_.AddComponent<RigidbodyComponent>(data, entity_);
+    auto rb = entity_.AddComponent<RigidbodyComponent>(data, entity_);
+    rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
 
     CapsuleCollider collider;
     collider.Height = specs_.character_height_;

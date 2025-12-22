@@ -22,6 +22,9 @@ struct CharacterSpecs {
 class Character {
    public:
     Character(Entity entity);
+    Entity GetEntity()const {
+        return entity_;
+    }
 
    private:
     /**

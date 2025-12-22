@@ -2,6 +2,7 @@
 #include "../Character.h"
 #include "engine/Layer.h"
 #include "engine/ecs/Scene.h"
+#include "engine/renderer/Material.h"
 
 namespace FirstGame {
 class MainGameLayer : public se::Layer {
@@ -16,10 +17,13 @@ class MainGameLayer : public se::Layer {
 
     void OnRender() override;
 
-    void OnImGuiRender() override;
+    void OnImGuiRender() override;void UpdateCamera();
 
    private:
     Ref<Character> character_;
     Scope<Scene>   scene_;
+    Camera         camera_;
+    Ref<Material> material_;
+    bool mouseCaptured_;
 };
 }  // namespace FirstGame
