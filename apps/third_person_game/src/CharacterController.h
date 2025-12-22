@@ -1,7 +1,7 @@
 #pragma once
 
-namespace se {
+namespace FirstGame {
 class CharacterController {
 public:
 };
-} // se
+} // FirstGame

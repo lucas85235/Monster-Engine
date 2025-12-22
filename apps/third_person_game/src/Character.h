@@ -1,13 +1,17 @@
 #pragma once
-#include "engine/physics/BoxCollider.h"
+#include "engine/physics/Collider.h"
 #include "engine/physics/RigidbodyComponent.h"
 
-namespace se {
+namespace FirstGame {
+using namespace se;
+
 struct CharacterSpecs {
     float acceleration_       = 3.4f;
     float max_movement_speed_ = 5.0f;
     float max_rotation_speed_ = 180.0f;
     float jump_force_         = 3.0f;
+    float character_height_   = 1.0f;
+    float character_radius_   = 0.5f;
 };
 
 /**
@@ -15,9 +19,9 @@ struct CharacterSpecs {
  * and other features that simulates how a person behaves in real life.
  *
  */
-class Character : public Entity {
+class Character {
 public:
-    Character();
+    Character(Entity entity);
 
 private:
     /**
@@ -29,8 +33,7 @@ private:
      * @return True if the operation succeeded.
      */
 
-    CharacterSpecs            specs_;
-    Scope<CapsuleCollider>    capsule_collider_;
-    Scope<RigidbodyComponent> rigidbody_component_;
+    CharacterSpecs specs_;
+    Entity         entity_;
 };
-} // se
+} // FirstGame
