@@ -28,6 +28,7 @@ class Texture {
     static std::shared_ptr<Texture> Create(const std::string& path);
     static std::shared_ptr<Texture> Create(uint32_t width, uint32_t height, RHI::TextureFormat format = RHI::TextureFormat::RGBA8);
     static std::shared_ptr<Texture> CreateWhiteTexture();
+    static std::shared_ptr<Texture> CreateFromMemory(const unsigned char* data, int size);
 
    private:
     uint32_t           width_  = 0;

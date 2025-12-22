@@ -88,4 +88,25 @@ std::shared_ptr<Texture> Texture::CreateWhiteTexture() {
     return std::make_shared<Texture>(1, 1, RHI::TextureFormat::RGBA8, &whiteData);
 }
 
+std::shared_ptr<Texture> Texture::CreateFromMemory(const unsigned char* data, int size) {
+    if (!data || size <= 0) {
+        SE_LOG_ERROR("[Texture] CreateFromMemory: Invalid data or size");
+        return nullptr;
+    }
+
+    int w, h, channels;
+    stbi_set_flip_vertically_on_load(1);
+    unsigned char* pixels = stbi_load_from_memory(data, size, &w, &h, &channels, 4);
+
+    if (!pixels) {
+        SE_LOG_ERROR("[Texture] CreateFromMemory: Failed to decode image data");
+        return nullptr;
+    }
+
+    auto texture = std::make_shared<Texture>(static_cast<uint32_t>(w), static_cast<uint32_t>(h), RHI::TextureFormat::RGBA8, pixels);
+
+    stbi_image_free(pixels);
+    return texture;
+}
+
 }  // namespace se
