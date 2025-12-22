@@ -2,6 +2,8 @@
 
 #include <engine/core/Application.h>
 #include <engine/core/Log.h>
+#include <engine/input/Input.h>
+#include <engine/input/InputManager.h>
 #include <engine/renderer/GraphicsContext.h>
 #include <engine/renderer/MeshFactory.h>
 #include <engine/renderer/Renderer.h>
@@ -51,6 +53,48 @@ void VulkanTestLayer::OnDetach() {
 
 void VulkanTestLayer::OnUpdate(float ts) {
     rotation_ += ts * 45.0f;  // 45 degrees per second
+    
+    auto& input = se::InputManager::Get();
+    
+    // Mouse camera rotation using InputManager axis
+    float mouseX = input.GetAxis("CameraRotateX");
+    float mouseY = input.GetAxis("CameraRotateY");
+    camera_.SetYaw(camera_.GetYaw() + mouseX * 0.1f);
+    camera_.SetPitch(camera_.GetPitch() - mouseY * 0.1f);
+    
+    // WASD camera movement
+    if (se::Input::IsKeyPressed(se::Key::W)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::FORWARD, ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::S)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::BACKWARD, ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::A)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::LEFT, ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::D)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::RIGHT, ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::Space)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::UP, ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::LeftShift)) {
+        camera_.ProcessKeyboard(Camera::CameraMovement::DOWN, ts);
+    }
+    
+    // Arrow keys for camera rotation (alternative)
+    if (se::Input::IsKeyPressed(se::Key::Left)) {
+        camera_.SetYaw(camera_.GetYaw() - 60.0f * ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::Right)) {
+        camera_.SetYaw(camera_.GetYaw() + 60.0f * ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::Up)) {
+        camera_.SetPitch(camera_.GetPitch() + 60.0f * ts);
+    }
+    if (se::Input::IsKeyPressed(se::Key::Down)) {
+        camera_.SetPitch(camera_.GetPitch() - 60.0f * ts);
+    }
 }
 
 void VulkanTestLayer::OnRender() {

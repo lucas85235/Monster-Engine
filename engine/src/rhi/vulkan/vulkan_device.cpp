@@ -1,5 +1,6 @@
 #include "engine/rhi/vulkan/vulkan_device.h"
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 
@@ -2474,8 +2475,12 @@ void VulkanDevice::SetUniform(ShaderHandle shader, const std::string& name, cons
 void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& name, const float* matrix) {
     if (!matrix) return;
 
+    // Convert name to lowercase for case-insensitive matching
+    std::string nameLower = name;
+    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
     // Copy matrix to cached state based on uniform name
-    if (name == "model" || name.find("model") != std::string::npos) {
+    if (nameLower.find("model") != std::string::npos) {
         memcpy(cachedPushConstants.model, matrix, sizeof(float) * 16);
         // Debug: Print model matrix translation to verify transform
         static bool firstModel = true;
@@ -2483,7 +2488,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
             SE_LOG_INFO("[Vulkan] First Model Transform: pos=[{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstModel = false;
         }
-    } else if (name == "view" || name.find("view") != std::string::npos) {
+    } else if (nameLower.find("view") != std::string::npos) {
         memcpy(cachedUbo.view, matrix, sizeof(float) * 16);
         // Debug: Print view matrix translation (camera position)
         static bool firstView = true;
@@ -2491,7 +2496,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
             SE_LOG_INFO("[Vulkan] First View Matrix: [{}, {}, {}]", matrix[12], matrix[13], matrix[14]);
             firstView = false;
         }
-    } else if (name == "projection" || name == "proj" || name.find("proj") != std::string::npos) {
+    } else if (nameLower.find("proj") != std::string::npos) {
         memcpy(cachedUbo.proj, matrix, sizeof(float) * 16);
         // Debug: Print projection matrix to verify values
         static bool firstProj = true;
@@ -2499,6 +2504,8 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
             SE_LOG_INFO("[Vulkan] First Proj Matrix: [{}, {}, {}, {}]", matrix[0], matrix[5], matrix[10], matrix[14]);
             firstProj = false;
         }
+    } else {
+        SE_LOG_WARN("[Vulkan] SetUniformMatrix4: unknown uniform '{}'", name);
     }
 
     // Copy cached UBO to mapped buffer for current frame

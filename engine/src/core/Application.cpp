@@ -92,6 +92,10 @@ Application::~Application() {
     // Reset ServiceLocator
     ServiceLocator::Get().Reset();
 
+    // IMPORTANT: Window must be destroyed before glfwTerminate()
+    // because VulkanDevice needs GLFW surface for vkDestroySurfaceKHR
+    window_.reset();
+
     glfwTerminate();
 
     s_Instance = nullptr;

@@ -204,7 +204,11 @@ void Material::SetVector4(const std::string& name, const Vector4& value) {
 void Material::SetMatrix4(const std::string& name, const Matrix4& value) {
     if (!shader_) return;
     auto [binding, offset] = FindUniformMember(shader_->GetReflectionData(), name);
-    if (binding != -1) { memcpy(uniformBuffers_[binding].data() + offset, &value, sizeof(Matrix4)); }
+    if (binding != -1) { 
+        memcpy(uniformBuffers_[binding].data() + offset, &value, sizeof(Matrix4)); 
+    }
+    // Also call shader directly for immediate update (Vulkan push constants)
+    shader_->setMat4(name.c_str(), value);
 }
 
 void Material::SetTexture(const std::string& name, RHI::TextureHandle texture) {
