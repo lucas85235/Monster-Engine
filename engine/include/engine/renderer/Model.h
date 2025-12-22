@@ -7,6 +7,7 @@
 #include "engine/renderer/Material.h"
 #include "engine/renderer/Mesh.h"
 #include "engine/renderer/Texture.h"
+#include "engine/renderer/VertexArray.h"
 
 namespace se {
 
@@ -27,9 +28,10 @@ enum class TextureType { Diffuse, Normal, Metallic, Roughness, AO, Emission, Unk
 
 // A SubMesh represents a single drawable mesh with its material
 struct SubMesh {
-    std::shared_ptr<Mesh>     mesh;
-    std::shared_ptr<Material> material;
-    PBRMaterialProperties     pbrProperties;
+    std::shared_ptr<Mesh>        mesh;         // Legacy mesh (for vertex data access)
+    std::shared_ptr<VertexArray> vertexArray;  // RHI abstraction (for rendering)
+    std::shared_ptr<Material>    material;
+    PBRMaterialProperties        pbrProperties;
 
     // Textures stored by type
     std::shared_ptr<Texture> diffuseTexture;

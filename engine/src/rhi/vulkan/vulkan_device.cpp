@@ -740,13 +740,14 @@ void VulkanDevice::createDescriptorSetLayout() {
     uboLayoutBinding.pImmutableSamplers = nullptr;
 
     // Bindings 1-6: Texture samplers for PBR materials
-    constexpr uint32_t                                              NUM_TEXTURE_SLOTS = 6;
+    // Binding 7: Shadow map sampler
+    constexpr uint32_t                                              NUM_TEXTURE_SLOTS = 7;
     std::array<VkDescriptorSetLayoutBinding, 1 + NUM_TEXTURE_SLOTS> bindings;
     bindings[0] = uboLayoutBinding;
 
     for (uint32_t i = 0; i < NUM_TEXTURE_SLOTS; i++) {
         VkDescriptorSetLayoutBinding& texBinding = bindings[1 + i];
-        texBinding.binding                       = 1 + i;  // 1=diffuse, 2=normal, 3=metallic, 4=roughness, 5=ao, 6=emission
+        texBinding.binding                       = 1 + i;  // 1=diffuse, 2=normal, 3=metallic, 4=roughness, 5=ao, 6=emission, 7=shadow
         texBinding.descriptorCount               = 1;
         texBinding.descriptorType                = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         texBinding.pImmutableSamplers            = nullptr;
@@ -848,13 +849,13 @@ void VulkanDevice::createDescriptorSets() {
 
         vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 
-        // Initialize all 6 texture bindings (1-6) with dummy texture
+        // Initialize all 7 texture bindings (1-7) with dummy texture
         VkDescriptorImageInfo dummyImageInfo{};
         dummyImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         dummyImageInfo.imageView   = dummyImageView;
         dummyImageInfo.sampler     = dummySampler;
 
-        for (uint32_t binding = 1; binding <= 6; binding++) {
+        for (uint32_t binding = 1; binding <= 7; binding++) {
             VkWriteDescriptorSet texWrite{};
             texWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             texWrite.dstSet          = descriptorSets[i];
@@ -2650,17 +2651,17 @@ bool VulkanDevice::BeginFrame() {
     dummyImageInfo.imageView   = dummyImageView;
     dummyImageInfo.sampler     = dummySampler;
 
-    std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
-    for (uint32_t i = 0; i < 6; i++) {
+    std::array<VkWriteDescriptorSet, 7> descriptorWrites{};
+    for (uint32_t i = 0; i < 7; i++) {
         descriptorWrites[i].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[i].dstSet          = descriptorSets[currentFrame];
-        descriptorWrites[i].dstBinding      = 1 + i;  // bindings 1-6
+        descriptorWrites[i].dstBinding      = 1 + i;  // bindings 1-7
         descriptorWrites[i].dstArrayElement = 0;
         descriptorWrites[i].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[i].descriptorCount = 1;
         descriptorWrites[i].pImageInfo      = &dummyImageInfo;
     }
-    vkUpdateDescriptorSets(device, 6, descriptorWrites.data(), 0, nullptr);
+    vkUpdateDescriptorSets(device, 7, descriptorWrites.data(), 0, nullptr);
 
     // Reset material flags for this frame
     cachedPushConstants.materialProps[3] = 0.0f;

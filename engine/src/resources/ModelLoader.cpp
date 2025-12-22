@@ -147,6 +147,13 @@ void ProcessMesh(aiMesh* mesh, const aiScene* scene, std::shared_ptr<Model> mode
     // Create SubMesh
     SubMesh submesh;
     submesh.mesh = std::make_shared<Mesh>(vertices, indices);
+    
+    // Create RHI VertexArray for rendering (works with both OpenGL and Vulkan)
+    submesh.vertexArray = MeshManager::CreateVertexArrayFromMesh(*submesh.mesh);
+    
+    if (!submesh.vertexArray) {
+        SE_LOG_ERROR("[ModelLoader] Failed to create VertexArray for submesh");
+    }
 
     // Process Material
     if (mesh->mMaterialIndex >= 0) {
