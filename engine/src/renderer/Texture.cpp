@@ -51,7 +51,7 @@ Texture::Texture(const std::string& path) : path_(path) {
     stbi_image_free(data);
 }
 
-Texture::Texture(uint32_t width, uint32_t height, RHI::TextureFormat format) : width_(width), height_(height) {
+Texture::Texture(uint32_t width, uint32_t height, RHI::TextureFormat format, const void* data) : width_(width), height_(height) {
     RHI::TextureDescriptor desc{};
     desc.type            = RHI::TextureType::Texture2D;
     desc.format          = format;
@@ -59,7 +59,7 @@ Texture::Texture(uint32_t width, uint32_t height, RHI::TextureFormat format) : w
     desc.height          = height_;
     desc.mipLevels       = 1;
     desc.generateMipmaps = false;
-    desc.data            = nullptr;  // Empty texture
+    desc.data            = data;
 
     auto* device = GetDevice();
     if (device) { handle_ = device->CreateTexture(desc); }
@@ -81,6 +81,11 @@ std::shared_ptr<Texture> Texture::Create(const std::string& path) {
 
 std::shared_ptr<Texture> Texture::Create(uint32_t width, uint32_t height, RHI::TextureFormat format) {
     return std::make_shared<Texture>(width, height, format);
+}
+
+std::shared_ptr<Texture> Texture::CreateWhiteTexture() {
+    uint32_t whiteData = 0xffffffff;  // RGBA 255,255,255,255
+    return std::make_shared<Texture>(1, 1, RHI::TextureFormat::RGBA8, &whiteData);
 }
 
 }  // namespace se

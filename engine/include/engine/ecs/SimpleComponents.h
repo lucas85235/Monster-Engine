@@ -143,6 +143,8 @@ struct MeshRenderComponent {
     MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat) : MeshVertexArray(va), MeshMaterial(mat) {}
     MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat, const Vector4& color)
         : MeshVertexArray(va), MeshMaterial(mat), Color(color) {}
+
+    float BoundingRadius = 1.0f;
 };
 
 // ==================== Directional Light Component ====================

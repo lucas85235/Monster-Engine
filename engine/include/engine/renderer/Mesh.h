@@ -45,6 +45,8 @@ class Mesh {
         return indices_.size();
     }
 
+    float CalculateBoundingRadius() const;
+
    private:
     void setupMesh();
 

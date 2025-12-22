@@ -42,6 +42,7 @@ class ThirdPersonLayer : public Layer {
     void UpdateGrabSystem(float ts);
     void TryGrabOrRelease();
     void CleanupBullets();
+    void LoadModel(const std::string& path);
 
     Ref<Scene>    scene_;
     Ref<Material> material_;

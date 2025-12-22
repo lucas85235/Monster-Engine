@@ -4,8 +4,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "engine/renderer/Shader.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/Shader.h"
+#include "engine/renderer/Texture.h"
 
 namespace se {
 
@@ -26,6 +27,9 @@ class MaterialManager {
     // Clear all cached resources
     static void ClearCache();
 
+    // Get default white texture (1x1 white pixel)
+    static std::shared_ptr<Texture> GetWhiteTexture();
+
    private:
     MaterialManager() = delete;
 
@@ -33,6 +37,7 @@ class MaterialManager {
 
     static std::shared_ptr<Material>                                defaultMaterial_;
     static std::shared_ptr<Shader>                                  defaultShader_;
+    static std::shared_ptr<Texture>                                 whiteTexture_;
     static std::unordered_map<std::string, std::shared_ptr<Shader>> shaderCache_;
     static bool                                                     initialized_;
 };

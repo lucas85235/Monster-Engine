@@ -48,6 +48,12 @@ void RenderSystem::EnsureInstancedMaterial() {
 
     instancedMaterial_ = MaterialManager::CreateMaterial(shader);
     instancedMaterial_->SetFloat("uSpecularStrength", 0.5f);
+
+    // Assign White Texture to Instanced Material to ensure untextured objects render white (not black)
+    // uTexture is bound to slot 0 in shader.
+    auto whiteTex = MaterialManager::GetWhiteTexture();
+    if (whiteTex) { instancedMaterial_->SetTexture("uTexture", whiteTex->GetHandle()); }
+
     SE_LOG_INFO("Created instanced material with shader: {}", vertPath.string());
 }
 
@@ -133,7 +139,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        InstanceBatchKey key{meshRender.MeshVertexArray.get(), meshRender.MeshMaterial.get()};
+        InstanceBatchKey key{meshRender.MeshVertexArray.get(), meshRender.MeshMaterial.get(), meshRender.BoundingRadius};
 
         InstanceData instanceData;
         instanceData.Transform = transform.GetTransform();
@@ -169,7 +175,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         if (instances.size() == 1) {
             // Single instance - use normal submit for simplicity
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true);
+            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, key.boundingRadius);
         } else {
             // Multiple instances - use instanced rendering
             instancedObjects += static_cast<uint32_t>(instances.size());

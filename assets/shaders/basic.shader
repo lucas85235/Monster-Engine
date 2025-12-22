@@ -27,6 +27,7 @@ layout(location = 2) out vec3 v_Normal;
 layout(location = 3) out vec3 v_FragPos;
 layout(location = 4) out vec4 v_LightSpacePos;
 layout(location = 5) out float f_SpecularStrenght;
+layout(location = 6) out vec2 v_TexCoord;
 
 void main() {
     vec4 world_position = uModel * vec4(a_Position, 1.0);
@@ -35,6 +36,7 @@ void main() {
     v_Normal = mat3(transpose(inverse(uModel))) * a_Normal;
     v_ViewPos = inverse(uView)[3].xyz;
     v_Color = a_Color;
+    v_TexCoord = a_TexCoord;
     v_LightSpacePos = uLightSpaceMatrix * world_position;
     gl_Position = uProj * uView * world_position;
 }
@@ -51,6 +53,7 @@ layout(location = 2) in vec3 v_Normal;
 layout(location = 3) in vec3 v_FragPos;
 layout(location = 4) in vec4 v_LightSpacePos;
 layout(location = 5) in float f_SpecularStrenght;
+layout(location = 6) in vec2 v_TexCoord;
 
 // Lighting uniforms
 layout(std140, binding = 2) uniform LightingData {
@@ -64,8 +67,9 @@ layout(std140, binding = 2) uniform LightingData {
     float uAORadius;
 };
 
-// Shadow map sampler
-layout(binding = 3) uniform sampler2D uShadowMap;
+// Texture samplers
+layout(binding = 0) uniform sampler2D uTexture;
+layout(binding = 7) uniform sampler2D uShadowMap; // Moved to slot 7
 
 float CalculateAmbientOcclusion(vec3 normal, vec3 viewDir, vec3 fragPos) {
     float ao = 1.0;
@@ -128,7 +132,11 @@ float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
 void main() {
     vec3 normal = normalize(v_Normal);
     vec3 lightDir = normalize(uLightDirection);
-    vec3 objectColor = v_Color;
+    
+    // Sample texture and combine with vertex color
+    vec4 texColor = texture(uTexture, v_TexCoord);
+    vec3 objectColor = v_Color * texColor.rgb;
+    
     float diff = max(dot(normal, lightDir), 0.0);
 
     vec3 viewDir = normalize(v_ViewPos - v_FragPos);

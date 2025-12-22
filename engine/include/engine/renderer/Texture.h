@@ -10,7 +10,7 @@ namespace se {
 class Texture {
    public:
     Texture(const std::string& path);
-    Texture(uint32_t width, uint32_t height, RHI::TextureFormat format = RHI::TextureFormat::RGBA8);
+    Texture(uint32_t width, uint32_t height, RHI::TextureFormat format = RHI::TextureFormat::RGBA8, const void* data = nullptr);
     ~Texture();
 
     void Bind(uint32_t slot = 0) const;
@@ -27,6 +27,7 @@ class Texture {
 
     static std::shared_ptr<Texture> Create(const std::string& path);
     static std::shared_ptr<Texture> Create(uint32_t width, uint32_t height, RHI::TextureFormat format = RHI::TextureFormat::RGBA8);
+    static std::shared_ptr<Texture> CreateWhiteTexture();
 
    private:
     uint32_t           width_  = 0;

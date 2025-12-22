@@ -80,3 +80,16 @@ void Mesh::draw() const {
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices_.size()), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
+
+float Mesh::CalculateBoundingRadius() const {
+    float maxDistSq = 0.0f;
+    // Stride is 11 floats. Position is at offset 0 (3 floats).
+    for (size_t i = 0; i < vertices_.size(); i += 11) {
+        float x      = vertices_[i];
+        float y      = vertices_[i + 1];
+        float z      = vertices_[i + 2];
+        float distSq = x * x + y * y + z * z;
+        if (distSq > maxDistSq) { maxDistSq = distSq; }
+    }
+    return std::sqrt(maxDistSq);
+}

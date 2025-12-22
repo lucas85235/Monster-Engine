@@ -420,7 +420,7 @@ void SceneRenderer::RenderShadowPass() {
 void SceneRenderer::RenderScenePass() {
     // glActiveTexture(GL_TEXTURE0) - RHI BindTexture takes slot
     if (sceneData_.ShadowsEnabled && sceneData_.ShadowDepthTexture) {
-        sceneData_.ShadowDepthTexture->Bind(0);
+        sceneData_.ShadowDepthTexture->Bind(7);  // Moved to slot 7 to avoid conflict with Albedo (slot 0)
     } else {
         if (auto* device = GetDevice()) device->BindTexture(0, {0});
     }
@@ -480,7 +480,7 @@ void SceneRenderer::RenderScenePass() {
         shader->setFloat("uLightIntensity", sceneData_.directional_light.Active ? sceneData_.directional_light.Intensity : 0.0f);
         shader->setFloat("uAmbientStrength", sceneData_.AmbientStrength);
         shader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
-        shader->setInt("uShadowMap", 0);
+        shader->setInt("uShadowMap", 7);  // Using slot 7 for shadows
         shader->setFloat("uReceiveShadows", submission.ReceiveShadows ? 1.0f : 0.0f);
         shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
@@ -576,7 +576,7 @@ void SceneRenderer::RenderScenePass() {
         shader->setFloat("uLightIntensity", sceneData_.directional_light.Active ? sceneData_.directional_light.Intensity : 0.0f);
         shader->setFloat("uAmbientStrength", sceneData_.AmbientStrength);
         shader->setMat4("uLightSpaceMatrix", sceneData_.LightSpaceMatrix);
-        shader->setInt("uShadowMap", 0);
+        shader->setInt("uShadowMap", 7);  // Using slot 7 for shadows
         shader->setFloat("uReceiveShadows", instanced.receiveShadows ? 1.0f : 0.0f);
         shader->setFloat("uShadowsEnabled", sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
@@ -593,8 +593,8 @@ void SceneRenderer::RenderScenePass() {
         if (indexBuffer) { stats_.TriangleCount += (indexBuffer->GetCount() / 3) * instanceCount; }
     }
 
-    // Unbind shadow map from slot 0
-    if (auto* device = GetDevice()) { device->BindTexture(0, {0}); }
+    // Unbind shadow map from slot 7
+    if (auto* device = GetDevice()) { device->BindTexture(7, {0}); }
 }
 
 }  // namespace se

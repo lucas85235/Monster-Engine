@@ -23,7 +23,15 @@ void MaterialManager::Init() {
         throw std::runtime_error("Failed to create default shader");
     }
 
+    // Create default white texture
+    whiteTexture_ = Texture::CreateWhiteTexture();
+
+    // Create default material and assign white texture
     defaultMaterial_ = std::make_shared<Material>(defaultShader_);
+
+    // Assign White Texture to Default Material to ensure untextured objects render white (not black)
+    // if default shader is updated to support textures.
+    if (defaultMaterial_ && whiteTexture_) { defaultMaterial_->SetTexture("uTexture", whiteTexture_->GetHandle()); }
 
     SE_LOG_INFO("MaterialManager initialized successfully");
     initialized_ = true;
@@ -137,4 +145,12 @@ void MaterialManager::ClearCache() {
     shaderCache_.clear();
     SE_LOG_INFO("MaterialManager cache cleared");
 }
+
+std::shared_ptr<Texture> MaterialManager::GetWhiteTexture() {
+    if (!whiteTexture_) { whiteTexture_ = Texture::CreateWhiteTexture(); }
+    return whiteTexture_;
+}
+
+std::shared_ptr<Texture> MaterialManager::whiteTexture_ = nullptr;
+
 }  // namespace se
