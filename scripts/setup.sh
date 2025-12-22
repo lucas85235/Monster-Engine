@@ -41,7 +41,7 @@ sudo apt install -y \
     libvulkan1 \
     vulkan-tools \
     vulkan-validationlayers \
-    vulkan-validationlayers-dev \
+    vulkan-utility-libraries-dev \
     libvulkan-volk-dev || echo "Some Vulkan packages may not be available"
 
 # ============================================
@@ -56,15 +56,22 @@ sudo apt install -y \
     spirv-headers \
     glslang-tools \
     glslang-dev \
-    shaderc || echo "Some shader tools not available - installing alternatives..."
+    libshaderc-dev || echo "Some shader tools not available - installing alternatives..."
 
 # Alternative: Try installing from Vulkan SDK LunarG PPA if packages are missing
-if ! command -v glslangValidator &> /dev/null; then
+if ! command -v glslangValidator &> /dev/null || ! command -v glslc &> /dev/null; then
     echo "Installing Vulkan SDK from LunarG PPA..."
+    UBUNTU_CODENAME=$(lsb_release -cs)
     wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-    sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+    # Try current Ubuntu version first, fallback to jammy if not available
+    if wget -q --spider "https://packages.lunarg.com/vulkan/lunarg-vulkan-${UBUNTU_CODENAME}.list"; then
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan.list "https://packages.lunarg.com/vulkan/lunarg-vulkan-${UBUNTU_CODENAME}.list"
+    else
+        echo "Using jammy repository as fallback..."
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+    fi
     sudo apt update
-    sudo apt install -y vulkan-sdk || echo "Vulkan SDK installation failed - manual install may be required"
+    sudo apt install -y shaderc vulkan-sdk || echo "Vulkan SDK installation failed - manual install may be required"
 fi
 
 # ============================================
@@ -73,7 +80,9 @@ fi
 echo "[5/9] Installing Wayland..."
 sudo apt install -y \
     libwayland-dev \
-    wayland-protocols
+    wayland-protocols \
+    libdecor-0-dev \
+    libdecor-0-plugin-1-gtk
 
 # ============================================
 # X11 and XKB (X11 support)

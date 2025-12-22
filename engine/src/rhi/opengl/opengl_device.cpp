@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "engine/rhi/shader_cross_compiler.h"
+
 namespace RHI {
 
 OpenGLDevice::~OpenGLDevice() {
@@ -629,7 +630,7 @@ SamplerHandle OpenGLDevice::CreateSampler(const SamplerDescriptor& desc) {
     glSamplerParameteri(sampler.id, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(desc.minFilter));
     glSamplerParameteri(sampler.id, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(desc.magFilter));
 
-    if (desc.anisotropy > 1.0f) { glSamplerParameterf(sampler.id, GL_TEXTURE_MAX_ANISOTROPY, desc.anisotropy); }
+    if (desc.anisotropy > 1.0f) { glSamplerParameterf(sampler.id, GL_TEXTURE_MAX_ANISOTROPY_EXT, desc.anisotropy); }
 
     SamplerHandle handle{nextId++};
     samplers[handle.id] = sampler;

@@ -72,10 +72,13 @@ void Window::Init() {
     if (spec_.Api == RHI::API::Vulkan) {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     } else {
-        // Set OpenGL version hints
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        // Set OpenGL version hints (4.3+ required for debug output)
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef DEBUG
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
+#endif
     }
 
 #ifdef __APPLE__

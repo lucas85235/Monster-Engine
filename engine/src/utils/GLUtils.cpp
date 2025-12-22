@@ -68,7 +68,20 @@ static void GLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severi
 }
 
 void InitOpenGLDebugMessageCallback() {
+    // Check if debug output is supported (requires OpenGL 4.3+ or GL_KHR_debug extension)
+    if (!glDebugMessageCallback) {
+        SE_LOG_WARN("OpenGL debug output not supported (glDebugMessageCallback not available). OpenGL 4.3+ or GL_KHR_debug extension required.");
+        return;
+    }
+    
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(GLDebugCallback, nullptr);
+    
+    // Disable notifications to reduce noise
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+    
+    SE_LOG_INFO("OpenGL debug output enabled");
 }
 
 }  // namespace Renderer::Utils
