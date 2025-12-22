@@ -76,6 +76,7 @@ add_subdirectory(${rmlui_DIR})
 
 find_package(OpenGL REQUIRED)
 find_package(Vulkan REQUIRED)
+find_package(assimp REQUIRED)
 
 # SPIRV-Cross (Optional - for cross-compiling SPIR-V to GLSL)
 option(USE_SPIRV_CROSS "Enable SPIRV-Cross for shader cross-compilation" ON)
@@ -141,6 +142,7 @@ target_link_libraries(simple_engine PUBLIC
         BulletDynamics
         BulletCollision
         LinearMath
+        assimp
 )
 
 # Adiciona definições de compilação necessárias

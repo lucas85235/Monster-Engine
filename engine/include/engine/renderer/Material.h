@@ -28,6 +28,7 @@ class Material {
     void SetVector3(const std::string& name, const Vector3& value);
     void SetVector4(const std::string& name, const Vector4& value);
     void SetMatrix4(const std::string& name, const Matrix4& value);
+    void SetTexture(const std::string& name, RHI::TextureHandle texture);
 
     std::shared_ptr<Shader> GetShader() const {
         return shader_;
@@ -42,8 +43,8 @@ class Material {
     std::shared_ptr<Shader> shader_;
     // Buffer storage for UBO data (CPU side)
     // Key: Binding/Set, Value: Vector of bytes
-    std::unordered_map<uint32_t, std::vector<uint8_t>>              uniformBuffers_;
-    std::unordered_map<std::string, std::shared_ptr<RHI::ITexture>> textures_;
+    std::unordered_map<uint32_t, std::vector<uint8_t>>  uniformBuffers_;
+    std::unordered_map<std::string, RHI::TextureHandle> textures_;
 
     void InvalidUniform(const std::string& name);
 };

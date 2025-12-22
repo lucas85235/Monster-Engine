@@ -45,11 +45,11 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
         normals[i2][2] += nz;
     }
 
-    // create new interleaved vertex array with normals
+    // create new interleaved vertex array with normals and default tex coords
     std::vector<float> newVerts;
-    newVerts.reserve(vertexCount * 9);
+    newVerts.reserve(vertexCount * 11);  // Stride 11
     for (size_t i = 0; i < vertexCount; ++i) {
-        // copy position and color
+        // copy position and color (6 floats)
         newVerts.push_back(vertices[i * 6]);
         newVerts.push_back(vertices[i * 6 + 1]);
         newVerts.push_back(vertices[i * 6 + 2]);
@@ -70,6 +70,10 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
         newVerts.push_back(nx);
         newVerts.push_back(ny);
         newVerts.push_back(nz);
+
+        // texcoords (2 floats) - default to (0,0)
+        newVerts.push_back(0.0f);
+        newVerts.push_back(0.0f);
     }
 
     vertices.swap(newVerts);

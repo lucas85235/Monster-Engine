@@ -5,10 +5,11 @@
 layout(location = 0) in vec3 a_Position;
 layout(location = 1) in vec3 a_Color;
 layout(location = 2) in vec3 a_Normal;
+layout(location = 3) in vec2 a_TexCoord;
 
-// Per-instance data (Mat4 uses locations 3-6, Color uses 7)
-layout(location = 3) in mat4 a_InstanceTransform;
-layout(location = 7) in vec4 a_InstanceColor;
+// Per-instance data (Mat4 uses locations 4-7, Color uses 8)
+layout(location = 4) in mat4 a_InstanceTransform;
+layout(location = 8) in vec4 a_InstanceColor;
 
 // Uniform block for per-frame data
 layout(std140, binding = 0) uniform PerFrameData {

@@ -67,7 +67,17 @@ void Material::Bind() const {
         }
     }
 
-    // Bind Textures? TODO
+    // Bind Textures
+    int slot = 0;
+    for (const auto& [name, handle] : textures_) {
+        if (RHI::IsValid(handle)) {
+            // Activate and bind texture
+            device->BindTexture(slot, handle);
+            // Set sampler uniform to slot index
+            shader_->setInt(name.c_str(), slot);
+            slot++;
+        }
+    }
 }
 
 RHI::PipelineHandle Material::GetPipeline(const BufferLayout& layout) {
@@ -196,4 +206,11 @@ void Material::SetMatrix4(const std::string& name, const Matrix4& value) {
     auto [binding, offset] = FindUniformMember(shader_->GetReflectionData(), name);
     if (binding != -1) { memcpy(uniformBuffers_[binding].data() + offset, &value, sizeof(Matrix4)); }
 }
+
+void Material::SetTexture(const std::string& name, RHI::TextureHandle texture) {
+    if (!shader_) return;
+    // We store the texture handle mapped to the uniform name
+    textures_[name] = texture;
+}
+
 }  // namespace se
