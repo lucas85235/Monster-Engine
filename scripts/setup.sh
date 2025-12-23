@@ -37,10 +37,12 @@ sudo apt install -y \
 # ============================================
 echo "[3/9] Installing Vulkan SDK..."
 sudo apt install -y \
+    vulkan-headers \
     libvulkan-dev \
     libvulkan1 \
     vulkan-tools \
     vulkan-validationlayers \
+    vulkan-validationlayers-dev \
     vulkan-utility-libraries-dev \
     libvulkan-volk-dev || echo "Some Vulkan packages may not be available"
 
@@ -56,13 +58,13 @@ sudo apt install -y \
     spirv-headers \
     glslang-tools \
     glslang-dev \
-    libshaderc-dev || echo "Some shader tools not available - installing alternatives..."
+    shaderc || echo "Some shader tools not available - installing alternatives..."
 
-# Alternative: Try installing from Vulkan SDK LunarG PPA if packages are missing
-if ! command -v glslangValidator &> /dev/null || ! command -v glslc &> /dev/null; then
-    echo "Installing Vulkan SDK from LunarG PPA..."
+# Verify Vulkan headers are installed
+if [ ! -f "/usr/include/vulkan/vulkan.h" ]; then
+    echo "WARNING: Vulkan headers not found. Attempting to install from LunarG PPA..."
     UBUNTU_CODENAME=$(lsb_release -cs)
-    wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+    wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
     # Try current Ubuntu version first, fallback to jammy if not available
     if wget -q --spider "https://packages.lunarg.com/vulkan/lunarg-vulkan-${UBUNTU_CODENAME}.list"; then
         sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan.list "https://packages.lunarg.com/vulkan/lunarg-vulkan-${UBUNTU_CODENAME}.list"
@@ -71,7 +73,13 @@ if ! command -v glslangValidator &> /dev/null || ! command -v glslc &> /dev/null
         sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
     fi
     sudo apt update
-    sudo apt install -y shaderc vulkan-sdk || echo "Vulkan SDK installation failed - manual install may be required"
+    sudo apt install -y vulkan-headers vulkan-sdk || echo "Vulkan SDK installation failed - manual install may be required"
+fi
+
+# Alternative: Install shader tools if missing
+if ! command -v glslangValidator &> /dev/null || ! command -v glslc &> /dev/null; then
+    echo "Installing additional shader compiler tools..."
+    sudo apt install -y shaderc || echo "Shader compiler tools not fully available"
 fi
 
 # ============================================
@@ -81,8 +89,9 @@ echo "[5/9] Installing Wayland..."
 sudo apt install -y \
     libwayland-dev \
     wayland-protocols \
+    libdecor-0-0 \
     libdecor-0-dev \
-    libdecor-0-plugin-1-gtk
+    libdecor-0-plugin-1-cairo
 
 # ============================================
 # X11 and XKB (X11 support)
@@ -132,6 +141,37 @@ echo
 echo "=================================================="
 echo "  Setup complete!"
 echo "=================================================="
+echo
+echo "Verifying critical dependencies..."
+echo -n "  • Vulkan headers: "
+if [ -f "/usr/include/vulkan/vulkan.h" ]; then
+    echo "✓ Found"
+else
+    echo "✗ Missing (CMake will fail)"
+    echo "    Run: sudo apt install vulkan-headers"
+fi
+
+echo -n "  • Vulkan library: "
+if pkg-config --exists vulkan; then
+    echo "✓ Found ($(pkg-config --modversion vulkan))"
+else
+    echo "✗ Missing"
+fi
+
+echo -n "  • OpenGL: "
+if pkg-config --exists gl; then
+    echo "✓ Found"
+else
+    echo "✗ Missing"
+fi
+
+echo -n "  • Assimp: "
+if pkg-config --exists assimp; then
+    echo "✓ Found ($(pkg-config --modversion assimp))"
+else
+    echo "⚠ Not found (project may use bundled version)"
+fi
+
 echo
 echo "To build the project, run:"
 echo "  ./scripts/run.sh"
