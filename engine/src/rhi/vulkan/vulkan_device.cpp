@@ -1863,8 +1863,13 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
             rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     }
 
-    // Vulkan Y-axis is flipped vs OpenGL, so we invert the frontFace
-    rasterizer.frontFace       = (desc.rasterizer.frontFace == FrontFace::Clockwise) ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE;
+    // With Y-flip in projection, use CCW as front face (standard OpenGL convention)
+    rasterizer.frontFace       = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    
+    // TEMP DEBUG: Force no culling to test visibility
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    SE_LOG_DEBUG("[Vulkan] CreatePipeline: Forcing CULL_MODE_NONE for debug");
+    
     rasterizer.depthBiasEnable = VK_FALSE;
 
     // Multisampling
@@ -1982,8 +1987,15 @@ void VulkanDevice::DestroyPipeline(PipelineHandle pipeline) {
 VertexArrayHandle VulkanDevice::CreateVertexArray(const VertexArrayDescriptor& desc) {
     VulkanVertexArray vao;
     for (const auto& binding : desc.bindings) {
-        vao.vertexBuffers.push_back(binding.buffer);
-        vao.strides.push_back(binding.layout.stride);
+        if (binding.divisor == 0) {
+            // Regular vertex buffer (per-vertex data)
+            vao.vertexBuffers.push_back(binding.buffer);
+            vao.strides.push_back(binding.layout.stride);
+        } else {
+            // Instance buffer (per-instance data)
+            vao.instanceBuffers.push_back(binding.buffer);
+            vao.instanceStrides.push_back(binding.layout.stride);
+        }
     }
     vao.indexBuffer = desc.indexBuffer;
 
@@ -2267,47 +2279,33 @@ void VulkanDevice::BindTexture(uint32_t slot, TextureHandle texture) {
     // Support texture slots 0-5 mapping to shader bindings 1-6
     // Slot 0=diffuse(binding 1), 1=normal(2), 2=metallic(3), 3=roughness(4),
     // 4=ao(5), 5=emission(6)
+    // Slot 7=shadow map (not implemented in Vulkan yet)
     constexpr uint32_t MAX_TEXTURE_SLOTS = 6;
     if (slot >= MAX_TEXTURE_SLOTS) {
-        SE_LOG_ERROR("[Vulkan] BindTexture: slot {} out of range", slot);
+        // Shadow map slot (7) not implemented yet - silently ignore
+        return;
+    }
+
+    // Texture ID 0 is invalid, silently ignore
+    if (texture.id == 0) {
         return;
     }
 
     auto texIt = textures.find(texture.id);
     if (texIt == textures.end()) {
-        SE_LOG_ERROR("[Vulkan] BindTexture: texture id={} not found", texture.id);
+        // Texture may not be loaded yet or doesn't exist - silently ignore
         return;
     }
 
-    SE_LOG_DEBUG("[Vulkan] BindTexture: slot={} -> binding={}, texId={}", slot, (1 + slot), texture.id);
-
-    // Use dummySampler which is configured for 2D textures with REPEAT mode
-    // Don't use samplers.begin() because it might return cubemap sampler with
-    // CLAMP_TO_EDGE
-    VkSampler texSampler = dummySampler;
-    if (texSampler == VK_NULL_HANDLE) {
-        SE_LOG_ERROR("[Vulkan] BindTexture: dummySampler not initialized" );
-        return;
+    // Cache the texture binding - will be applied in applyPendingTextureUpdates()
+    // This avoids calling vkUpdateDescriptorSets during command buffer recording
+    if (pendingTextures[slot].id != texture.id) {
+        pendingTextures[slot] = texture;
+        textureSlotDirty[slot] = true;
+        SE_LOG_DEBUG("[Vulkan] BindTexture: slot={} -> pending texId={}", slot, texture.id);
     }
 
-    // Update descriptor set - slot 0 goes to binding 1, etc.
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfo.imageView   = texIt->second.imageView;
-    imageInfo.sampler     = texSampler;
-
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet          = descriptorSets[currentFrame];
-    descriptorWrite.dstBinding      = 1 + slot;  // slot 0 -> binding 1, slot 1 -> binding 2, etc.
-    descriptorWrite.dstArrayElement = 0;
-    descriptorWrite.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pImageInfo      = &imageInfo;
-
-    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
-
-    // Set texture flag based on slot
+    // Set texture flag based on slot (this is safe during recording)
     uint32_t currentFlags = static_cast<uint32_t>(cachedPushConstants.materialProps[3]);
     currentFlags |= (1u << slot);  // FLAG_HAS_DIFFUSE=1, NORMAL=2, METALLIC=4, etc.
     cachedPushConstants.materialProps[3] = static_cast<float>(currentFlags);
@@ -2500,10 +2498,13 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
         }
     } else if (nameLower.find("proj") != std::string::npos) {
         memcpy(cachedUbo.proj, matrix, sizeof(float) * 16);
+        // Vulkan has inverted Y compared to OpenGL - flip Y axis in projection matrix
+        // Element [1][1] is at index 5 in column-major order
+        cachedUbo.proj[5] *= -1.0f;
         // Debug: Print projection matrix to verify values
         static bool firstProj = true;
         if (firstProj) {
-            SE_LOG_DEBUG("[Vulkan] First Proj Matrix: [{}, {}, {}, {}]", matrix[0], matrix[5], matrix[10], matrix[14]);
+            SE_LOG_DEBUG("[Vulkan] First Proj Matrix (Y-flipped): [{}, {}, {}, {}]", cachedUbo.proj[0], cachedUbo.proj[5], cachedUbo.proj[10], cachedUbo.proj[14]);
             firstProj = false;
         }
     } else {
@@ -2574,6 +2575,13 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     auto vaoIt = vertexArrays.find(currentVAO.id);
     if (vaoIt == vertexArrays.end()) {
         SE_LOG_WARN("[Vulkan] DrawIndexed: VAO id={} not found!", currentVAO.id);
+    } else {
+        static int vaoLogCount = 0;
+        if (vaoLogCount < 10) {
+            SE_LOG_INFO("[Vulkan] DrawIndexed: VAO id={}, vbCount={}, ibId={}", 
+                currentVAO.id, vaoIt->second.vertexBuffers.size(), vaoIt->second.indexBuffer.id);
+            vaoLogCount++;
+        }
     }
     
     bool hasIndexBuffer = false;
@@ -2601,6 +2609,23 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
             SE_LOG_ERROR("[Vulkan] DrawIndexed: WARNING - No vertex buffers bound!" );
         }
 
+        // Bind instance buffers starting after vertex buffer bindings
+        if (!vaoIt->second.instanceBuffers.empty()) {
+            std::vector<VkBuffer>     ibs;
+            std::vector<VkDeviceSize> ibOffsets;
+            for (const auto& h : vaoIt->second.instanceBuffers) {
+                auto ibIt = buffers.find(h.id);
+                if (ibIt != buffers.end()) {
+                    ibs.push_back(ibIt->second.buffer);
+                    ibOffsets.push_back(0);
+                }
+            }
+            if (!ibs.empty()) {
+                uint32_t firstBinding = static_cast<uint32_t>(vaoIt->second.vertexBuffers.size());
+                vkCmdBindVertexBuffers(commandBuffers[currentFrame], firstBinding, static_cast<uint32_t>(ibs.size()), ibs.data(), ibOffsets.data());
+            }
+        }
+
         auto ibIt = buffers.find(vaoIt->second.indexBuffer.id);
         if (ibIt != buffers.end()) {
             VkIndexType indexType = (cmd.indexType == IndexType::UInt16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
@@ -2626,6 +2651,9 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     if (drawIndexedCount <= 5) {
         SE_LOG_DEBUG("[Vulkan] DrawIndexed #{}: indices={}, instances={}, pipeline={}, vao={}, hasIB={}", 
                   drawIndexedCount, cmd.indexCount, cmd.instanceCount, currentPipeline.id, currentVAO.id, hasIndexBuffer);
+        SE_LOG_INFO("[Vulkan] DrawIndexed #{}: Model pos=[{}, {}, {}], View pos=[{}, {}, {}]",
+                  drawIndexedCount, cachedPushConstants.model[12], cachedPushConstants.model[13], cachedPushConstants.model[14],
+                  cachedUbo.view[12], cachedUbo.view[13], cachedUbo.view[14]);
     }
 
     vkCmdDrawIndexed(commandBuffers[currentFrame], cmd.indexCount, cmd.instanceCount, cmd.firstIndex, cmd.vertexOffset, cmd.firstInstance);
@@ -2663,6 +2691,34 @@ bool VulkanDevice::BeginFrame() {
         descriptorWrites[i].pImageInfo      = &dummyImageInfo;
     }
     vkUpdateDescriptorSets(device, 7, descriptorWrites.data(), 0, nullptr);
+
+    // Apply pending texture updates BEFORE command buffer recording starts
+    // This ensures vkUpdateDescriptorSets is not called during recording
+    for (uint32_t slot = 0; slot < 6; slot++) {
+        if (textureSlotDirty[slot] && pendingTextures[slot].id != 0) {
+            auto texIt = textures.find(pendingTextures[slot].id);
+            if (texIt != textures.end()) {
+                VkDescriptorImageInfo imageInfo{};
+                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfo.imageView   = texIt->second.imageView;
+                imageInfo.sampler     = dummySampler;
+
+                VkWriteDescriptorSet texWrite{};
+                texWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                texWrite.dstSet          = descriptorSets[currentFrame];
+                texWrite.dstBinding      = 1 + slot;  // slot 0 -> binding 1, etc.
+                texWrite.dstArrayElement = 0;
+                texWrite.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                texWrite.descriptorCount = 1;
+                texWrite.pImageInfo      = &imageInfo;
+
+                vkUpdateDescriptorSets(device, 1, &texWrite, 0, nullptr);
+                boundTextures[slot] = pendingTextures[slot];
+                SE_LOG_DEBUG("[Vulkan] Applied pending texture slot={} texId={}", slot, pendingTextures[slot].id);
+            }
+            textureSlotDirty[slot] = false;
+        }
+    }
 
     // Reset material flags for this frame
     cachedPushConstants.materialProps[3] = 0.0f;

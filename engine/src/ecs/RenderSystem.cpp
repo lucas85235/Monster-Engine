@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "engine/core/Application.h"
 #include "engine/core/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/ecs/Scene.h"
@@ -173,11 +174,25 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         if (!material || !va) continue;
 
-        if (instances.size() == 1) {
-            // Single instance - use normal submit for simplicity
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, key.boundingRadius);
+        // Check if we should use instanced rendering
+        // Vulkan instanced pipeline not fully implemented yet - use individual submits
+        bool useInstancing = (instances.size() > 1);
+        if (Application::Get().GetGraphicsAPI() == RHI::API::Vulkan) {
+            useInstancing = false;  // Force individual draws for Vulkan until pipeline instancing works
+        }
+
+        if (!useInstancing) {
+            // Individual submit for each instance
+            static int logCount = 0;
+            if (logCount < 5) {
+                SE_LOG_INFO("RenderSystem: Submitting {} instances individually for batch (Vulkan fallback)", instances.size());
+                logCount++;
+            }
+            for (const auto& inst : instances) {
+                sceneRenderer.Submit(va, material, inst.Transform, true, true, key.boundingRadius);
+            }
         } else {
-            // Multiple instances - use instanced rendering
+            // Multiple instances - use instanced rendering (OpenGL path)
             instancedObjects += static_cast<uint32_t>(instances.size());
 
             // Get or create InstancedMesh for this batch
@@ -187,7 +202,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                 uint32_t maxInstances  = std::max(static_cast<uint32_t>(instances.size() * 2), 1000u);
                 auto     instancedMesh = std::make_shared<InstancedMesh>(va, maxInstances);
                 it                     = instancedMeshCache_.emplace(key, instancedMesh).first;
-                SE_LOG_INFO("Created InstancedMesh for batch with capacity {}", maxInstances);
+                SE_LOG_INFO("Created InstancedMesh for batch with capacity {} (API={}, should not happen for Vulkan!)", 
+                    maxInstances, (int)Application::Get().GetGraphicsAPI());
             }
 
             auto& instancedMesh = it->second;

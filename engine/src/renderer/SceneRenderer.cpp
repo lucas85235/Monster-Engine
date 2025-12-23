@@ -499,6 +499,11 @@ void SceneRenderer::RenderScenePass() {
             RHI::DrawIndexedCommand cmd{};
             cmd.indexCount    = submission.vertex_array->GetIndexBuffer()->GetCount();
             cmd.instanceCount = 1;
+            static int drawLogCount = 0;
+            if (drawLogCount < 10) {
+                SE_LOG_INFO("SceneRenderer: renderObject calling DrawIndexed (indices={})", cmd.indexCount);
+                drawLogCount++;
+            }
             device->DrawIndexed(cmd);
         }
 

@@ -77,6 +77,9 @@ struct VulkanVertexArray {
     std::vector<BufferHandle> vertexBuffers;
     std::vector<uint32_t>     strides;  // Store stride per binding
     BufferHandle              indexBuffer;
+    // Instance buffer support (separate from vertex buffers)
+    std::vector<BufferHandle> instanceBuffers;
+    std::vector<uint32_t>     instanceStrides;
 };
 
 struct VulkanFramebuffer {
@@ -153,6 +156,11 @@ class VulkanDevice : public IDevice {
     FramebufferHandle currentFramebuffer;
     TextureHandle     boundTextures[16];
     SamplerHandle     boundSamplers[16];
+    
+    // Pending texture updates - applied before command buffer recording starts
+    TextureHandle     pendingTextures[16];
+    bool              textureSlotDirty[16] = {false};
+    
     ClearColor        clearColor      = {0.0f, 0.0f, 0.0f, 1.0f};
     float             clearDepthValue = 1.0f;
 

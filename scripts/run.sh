@@ -4,7 +4,7 @@
 BUILD_DIR="build"
 
 # Build type (Debug or Release)
-BUILD_TYPE="${1:-Release}"
+BUILD_TYPE="${1:-Debug}"
 
 # Valida o build type
 if [ "$BUILD_TYPE" != "Debug" ] && [ "$BUILD_TYPE" != "Release" ]; then

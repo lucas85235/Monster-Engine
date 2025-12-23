@@ -59,6 +59,7 @@ class Application {
     static Application& Get();
 
     float GetTime();
+    RHI::API GetGraphicsAPI() const { return specification_.GraphicsApi; }
 
    private:
     // Event handlers for the new EventBus system

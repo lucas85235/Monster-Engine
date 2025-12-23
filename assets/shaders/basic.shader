@@ -36,7 +36,9 @@ void main() {
     vec4 world_position = uModel * vec4(a_Position, 1.0);
     v_FragPos = world_position.xyz;
     f_SpecularStrenght = materialProps.x;  // Use roughness as specular for now
-    v_Normal = mat3(transpose(inverse(uModel))) * a_Normal;
+    // Transform normal to world space; negate Y to compensate for Vulkan Y-flip in projection
+    vec3 worldNormal = mat3(transpose(inverse(uModel))) * a_Normal;
+    v_Normal = vec3(worldNormal.x, -worldNormal.y, worldNormal.z);
     v_ViewPos = uViewPos.xyz;
     v_Color = a_Color;
     v_TexCoord = a_TexCoord;
