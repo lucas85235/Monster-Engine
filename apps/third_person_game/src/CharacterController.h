@@ -10,12 +10,15 @@ using namespace se;
 namespace FirstGame {
 class CharacterController : public Component {
    public:
+    CharacterController() = default;
+    CharacterController(Character* character, Scene* scene);
     ~CharacterController() override;
 
    private:
-    CharacterController() = default;
     void Update(float ts) override;
     void UpdateCamera();
+    void BindInput();
+    void UpdateInputs();
 
    private:
     bool       mouseCaptured_;

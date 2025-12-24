@@ -6,10 +6,20 @@
 #include "engine/physics/PhysicsSystem.h"
 
 namespace FirstGame {
+CharacterController::CharacterController(Character* character, Scene* scene)
+    : mouseCaptured_(false) {
+    character_ = character;
+    scene_     = scene;
+
+    BindInput();
+}
 CharacterController::~CharacterController() {}
 
 void CharacterController::Update(float ts) {
+    UpdateInputs();
     UpdateCamera();
+
+    SE_LOG_CRITICAL("UPDATED");
 }
 
 void CharacterController::UpdateCamera() {
@@ -73,6 +83,24 @@ void CharacterController::UpdateCamera() {
     camera_.SetPosition(camPos);
     camera_.SetYaw(-springArm.Yaw - 90.0f);
     camera_.SetPitch(-springArm.Pitch);
+}
+void CharacterController::BindInput() {
+    auto& input = InputManager::Get();
+    input.BindAction("ToggleMouse", Key::Tab);
+    input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
+    input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
+}
+void CharacterController::UpdateInputs() {
+    auto& input = InputManager::Get();
+
+    if (input.IsActionJustPressed("ToggleMouse")) {
+        auto& app      = Application::Get();
+        auto* window   = app.GetWindow().GetNativeWindow();
+        mouseCaptured_ = !mouseCaptured_;
+        glfwSetInputMode(window, GLFW_CURSOR,
+                         mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
+    }
 }
 
 }  // namespace FirstGame

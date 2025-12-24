@@ -30,6 +30,7 @@ void MainGameLayer::OnAttach() {
     camera_    = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
     scene_     = CreateScope<Scene>("Main Game");
     character_ = CreateRef<Character>(scene_->CreateEntity("Character"));
+    character_->GetEntity().AddComponent<CharacterController>(character_.get(), scene_.get());
 
     auto& springArm           = character_->GetEntity().AddComponent<SpringArmComponent>();
     springArm.TargetArmLength = 8.0f;
@@ -46,11 +47,6 @@ void MainGameLayer::OnAttach() {
     character_->GetEntity().AddComponent<MeshRenderComponent>(mesh, material_);
 
     scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
-
-    auto& input = InputManager::Get();
-    input.BindAction("ToggleMouse", Key::Tab);
-    input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
-    input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
 }
 
 void MainGameLayer::OnDetach() {
@@ -59,17 +55,6 @@ void MainGameLayer::OnDetach() {
 
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
-
-    auto& input = InputManager::Get();
-
-    if (input.IsActionJustPressed("ToggleMouse")) {
-        auto& app      = Application::Get();
-        auto* window   = app.GetWindow().GetNativeWindow();
-        mouseCaptured_ = !mouseCaptured_;
-        glfwSetInputMode(window, GLFW_CURSOR,
-                         mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
-        SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
-    }
 }
 
 void MainGameLayer::OnRender() {
