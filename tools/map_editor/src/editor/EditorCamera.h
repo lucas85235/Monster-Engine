@@ -23,27 +23,28 @@ class EditorCamera {
     void FocusOnPoint(const Vector3& point);
     void SetOrbitDistance(float distance);
 
-    float GetOrbitDistance() const { return orbitDistance_; }
+    // Movement methods for WASD control
+    void MoveForward(float delta);
+    void MoveRight(float delta);
+    void MoveUp(float delta);
+
     float GetYaw() const { return yaw_; }
     float GetPitch() const { return pitch_; }
+    Vector3 GetPosition() const { return camera_.GetPosition(); }
 
    private:
-    void UpdateCameraTransform();
-
     Camera  camera_;
-    Vector3 focusPoint_{0.0f, 0.0f, 0.0f};
-    float   orbitDistance_ = 15.0f;
-    float   yaw_           = 45.0f;
-    float   pitch_         = -30.0f;
+    float   yaw_   = -90.0f;  // Looking towards -Z initially
+    float   pitch_ = -15.0f;
 
-    float orbitSpeed_ = 0.3f;
-    float panSpeed_   = 0.02f;
-    float zoomSpeed_  = 1.5f;
+    float rotateSpeed_ = 0.2f;
+    float panSpeed_    = 0.01f;
+    float zoomSpeed_   = 2.0f;
+    float moveSpeed_   = 10.0f;
+    float focusDistance_ = 10.0f;
 
-    float minDistance_ = 1.0f;
-    float maxDistance_ = 100.0f;
-    float minPitch_    = -89.0f;
-    float maxPitch_    = 89.0f;
+    float minPitch_ = -89.0f;
+    float maxPitch_ = 89.0f;
 };
 
 }  // namespace mst

@@ -40,7 +40,6 @@ void MapEditorLayer::OnAttach() {
     SE_LOG_INFO("Editor light created");
     
     editorCamera_.FocusOnPoint({0.0f, 0.0f, 0.0f});
-    editorCamera_.SetOrbitDistance(15.0f);
 }
 
 void MapEditorLayer::OnDetach() {
@@ -168,7 +167,6 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     if (actions.toggleGrid) showGrid_ = !showGrid_;
     if (actions.resetCamera) {
         editorCamera_.FocusOnPoint({0.0f, 0.0f, 0.0f});
-        editorCamera_.SetOrbitDistance(15.0f);
     }
 }
 
@@ -221,7 +219,6 @@ void MapEditorLayer::ProcessKeyboardShortcuts() {
         if (entity.IsValid() && entity.HasComponent<se::TransformComponent>()) {
             auto& transform = entity.GetComponent<se::TransformComponent>();
             editorCamera_.FocusOnPoint(transform.Position);
-            editorCamera_.SetOrbitDistance(5.0f);  // Zoom in when focusing
             SE_LOG_INFO("Camera focused on entity at ({}, {}, {})", 
                 transform.Position.x, transform.Position.y, transform.Position.z);
         }
