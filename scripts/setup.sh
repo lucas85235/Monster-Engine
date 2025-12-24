@@ -4,7 +4,15 @@ set -e
 # Atualiza lista de pacotes
 sudo apt update
 
-sudo apt install pkg-config
+sudo apt install -y pkg-config
+
+# Instala Clang 17 e libc++ (para evitar bugs do libstdc++ do GCC 15 com C++23)
+sudo apt install -y \
+    clang-17 \
+    libc++-17-dev \
+    libc++abi-17-dev \
+    ninja-build \
+    cmake
 
 # Instala pacotes de OpenGL e utilitários
 sudo apt install -y \
@@ -14,6 +22,11 @@ sudo apt install -y \
     freeglut3-dev \
     mesa-utils
 
+# Vulkan SDK
+sudo apt install -y \
+    libvulkan-dev \
+    vulkan-tools \
+    vulkan-validationlayers
 
 # Wayland (wayland-scanner)
 sudo apt install -y \
@@ -46,3 +59,4 @@ sudo apt install -y \
 
 echo
 echo "Setup complete!"
+echo "Build is configured to use clang++-17 with libc++ for C++23 compatibility."

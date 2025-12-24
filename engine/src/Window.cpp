@@ -59,7 +59,7 @@ Window* Window::Create(const WindowSpec& specification) {
 }
 
 void Window::Init() {
-    event_bus_ = spec_.EventBus;
+    event_bus_ = spec_.event_bus;
 
     if (!s_GLFWInitialized) {
         int success = glfwInit();

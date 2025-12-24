@@ -127,12 +127,12 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        if (!meshRender.VertexArray || !meshRender.Material) {
+        if (!meshRender.vertex_array || !meshRender.material) {
             skippedCount++;
             continue;
         }
 
-        InstanceBatchKey key{meshRender.VertexArray.get(), meshRender.Material.get()};
+        InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
 
         InstanceData instanceData;
         instanceData.Transform = transform.GetTransform();
@@ -157,9 +157,9 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         // Search for matching material in entities (we need shared_ptr)
         for (auto entity : view) {
             auto& meshRender = view.get<MeshRenderComponent>(entity);
-            if (meshRender.VertexArray.get() == key.va && meshRender.Material.get() == key.mat) {
-                material = meshRender.Material;
-                va       = meshRender.VertexArray;
+            if (meshRender.vertex_array.get() == key.va && meshRender.material.get() == key.mat) {
+                material = meshRender.material;
+                va       = meshRender.vertex_array;
                 break;
             }
         }

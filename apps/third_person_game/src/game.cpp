@@ -1,5 +1,4 @@
 #include <iostream>
-
 #include "engine/Application.h"
 #include "layers/MainGameLayer.h"
 
@@ -13,7 +12,7 @@ int main() {
                                       .Resizable       = true};
 
     Application app{app_spec};
-    app.PushLayer<FirstGame::MainGameLayer>();
+    // app.PushLayer<FirstGame::MainGameLayer>();
     app.Run();
 
     return 0;

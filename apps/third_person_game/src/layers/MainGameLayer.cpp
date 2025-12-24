@@ -26,7 +26,7 @@ MainGameLayer::~MainGameLayer() = default;
 // TODO(rafael): Move some of these functionalities later to inside the CharacterController
 void MainGameLayer::OnAttach() {
     Layer::OnAttach();
-    camera_ = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
+    camera_    = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
     scene_     = CreateScope<Scene>("Main Game");
     character_ = CreateRef<Character>(scene_->CreateEntity("Character"));
     auto trans = character_->GetEntity().GetComponent<TransformComponent>();
@@ -38,7 +38,7 @@ void MainGameLayer::OnAttach() {
     springArm.SocketOffset    = {0.0f, 1.5f, 0.0f};
     springArm.Pitch           = -30.0f;
 
-    auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
     material_ = Utilities::LoadMaterial();
     if (!material_) {
         SE_LOG_ERROR("Material not loaded, retrying");
@@ -63,7 +63,7 @@ void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
 
     UpdateCamera();
-    auto& input     = InputManager::Get();
+    auto& input = InputManager::Get();
 
     if (input.IsActionJustPressed("ToggleMouse")) {
         auto& app      = Application::Get();
@@ -75,26 +75,7 @@ void MainGameLayer::OnUpdate(float ts) {
     }
 }
 
-void MainGameLayer::OnRender() {
-    Layer::OnRender();
-
-    auto& window      = Application::Get().GetWindow();
-    float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
-
-    // Render scene (entities with built-in frustum and occlusion culling)
-    scene_->OnRender(camera_, aspectRatio);
-
-}
-
-void MainGameLayer::OnImGuiRender() {
-    Layer::OnImGuiRender();
-
-    ImguiDebug();
-}
-
-// TODO(rafael): Move this later to inside the CharacterController
 void MainGameLayer::UpdateCamera() {
-
     if (!mouseCaptured_) return;
     auto& input = InputManager::Get();
 
@@ -155,5 +136,21 @@ void MainGameLayer::UpdateCamera() {
     camera_.SetPosition(camPos);
     camera_.SetYaw(-springArm.Yaw - 90.0f);
     camera_.SetPitch(-springArm.Pitch);
+}
+
+void MainGameLayer::OnRender() {
+    Layer::OnRender();
+
+    auto& window      = Application::Get().GetWindow();
+    float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
+
+    // Render scene (entities with built-in frustum and occlusion culling)
+    scene_->OnRender(camera_, aspectRatio);
+}
+
+void MainGameLayer::OnImGuiRender() {
+    Layer::OnImGuiRender();
+
+    ImguiDebug();
 }
 }  // namespace FirstGame

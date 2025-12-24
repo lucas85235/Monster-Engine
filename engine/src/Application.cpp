@@ -37,7 +37,7 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.VSync      = specification.VSync;
     windowSpec.Resizable  = specification.Resizable;
     windowSpec.IconPath   = specification.IconPath;
-    windowSpec.EventBus   = event_bus_.get();
+    windowSpec.event_bus   = event_bus_.get();
 
     // Create window
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
