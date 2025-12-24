@@ -6,13 +6,11 @@
 #include "engine/physics/PhysicsSystem.h"
 
 namespace FirstGame {
-CharacterController::CharacterController(Character& character, Scene& scene)
-    : mouseCaptured_(false) {
-    scene_     = &scene;
-    character_ = &character;
-}
+CharacterController::~CharacterController() {}
 
-void CharacterController::Update(float ts) {}
+void CharacterController::Update(float ts) {
+    UpdateCamera();
+}
 
 void CharacterController::UpdateCamera() {
     if (!mouseCaptured_) return;

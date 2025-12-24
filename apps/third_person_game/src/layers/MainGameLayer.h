@@ -18,13 +18,12 @@ class MainGameLayer : public se::Layer {
     void OnRender() override;
 
     void OnImGuiRender() override;
-    void UpdateCamera();
 
    private:
     Ref<Character> character_;
     Scope<Scene>   scene_;
     Camera         camera_;
     Ref<Material>  material_;
-    bool           mouseCaptured_;
+    bool           mouseCaptured_ = false;
 };
 }  // namespace FirstGame

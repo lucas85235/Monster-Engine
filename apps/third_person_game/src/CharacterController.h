@@ -8,9 +8,13 @@
 using namespace se;
 
 namespace FirstGame {
-class CharacterController {
-    CharacterController(Character& character, Scene& scene);
-    void Update(float ts);
+class CharacterController : public Component {
+   public:
+    ~CharacterController() override;
+
+   private:
+    CharacterController() = default;
+    void Update(float ts) override;
     void UpdateCamera();
 
    private:
