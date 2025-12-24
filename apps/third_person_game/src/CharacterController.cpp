@@ -1,34 +1,38 @@
 #include "apps/third_person_game/src/CharacterController.h"
 
-#include "CharacterController.h"
 #include "engine/Application.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/physics/RigidbodyComponent.h"
 
 namespace FirstGame {
-CharacterController::CharacterController(Character* character, Scene* scene)
-    : mouseCaptured_(false) {
-    character_ = character;
-    scene_     = scene;
 
+void CharacterController::Awake() {
+    SE_LOG_INFO("CharacterController::Awake() - Binding input");
     BindInput();
 }
-CharacterController::~CharacterController() {}
 
-void CharacterController::Update(float ts) {
-    UpdateInputs();
-    UpdateCamera();
-
-    SE_LOG_CRITICAL("UPDATED");
+void CharacterController::Start() {
+    SE_LOG_INFO("CharacterController::Start() - Controller ready for entity {}",
+                GetEntity().GetID());
 }
 
-void CharacterController::UpdateCamera() {
-    if (!mouseCaptured_) return;
-    auto& input = InputManager::Get();
+void CharacterController::Update(float dt) {
+    UpdateInputs();
+    UpdateCamera(dt);
 
-    if (!character_->GetEntity().HasComponent<SpringArmComponent>()) return;
-    auto& springArm   = character_->GetEntity().GetComponent<SpringArmComponent>();
-    auto& playerTrans = character_->GetEntity().GetComponent<TransformComponent>();
+    SE_LOG_CRITICAL("Character controller update");
+}
+
+void CharacterController::UpdateCamera(float dt) {
+    if (!mouseCaptured_) return;
+
+    Entity entity = GetEntity();
+    auto&  input  = InputManager::Get();
+
+    if (!entity.HasComponent<SpringArmComponent>()) return;
+    auto& springArm   = entity.GetComponent<SpringArmComponent>();
+    auto& playerTrans = entity.GetComponent<TransformComponent>();
 
     float mouseX = input.GetAxis("CameraRotateX");
     float mouseY = input.GetAxis("CameraRotateY");
@@ -54,10 +58,11 @@ void CharacterController::UpdateCamera() {
 
     float desiredArmLength = springArm.TargetArmLength;
 
-    if (springArm.DoCollisionTest && scene_->GetPhysicsSystem()) {
+    Scene* scene = GetScene();
+    if (springArm.DoCollisionTest && scene && scene->GetPhysicsSystem()) {
         btRigidBody* playerBody = nullptr;
-        if (character_->GetEntity().HasComponent<RigidbodyComponent>()) {
-            playerBody = character_->GetEntity().GetComponent<RigidbodyComponent>().GetRigidbody();
+        if (entity.HasComponent<RigidbodyComponent>()) {
+            playerBody = entity.GetComponent<RigidbodyComponent>().GetRigidbody();
         }
 
         glm::vec3 rayStart = targetPos;
@@ -66,7 +71,7 @@ void CharacterController::UpdateCamera() {
         glm::vec3 hitPoint, hitNormal;
 
         bool hit =
-            scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, playerBody);
+            scene->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, playerBody);
 
         if (hit) {
             float hitDistance = glm::length(hitPoint - rayStart) - springArm.ProbeSize;
@@ -76,7 +81,7 @@ void CharacterController::UpdateCamera() {
 
     float lerpSpeed            = (desiredArmLength < springArm.CurrentArmLength) ? 15.0f : 5.0f;
     springArm.CurrentArmLength = glm::mix(springArm.CurrentArmLength, desiredArmLength,
-                                          glm::clamp(lerpSpeed * (1.0f / 60.0f), 0.0f, 1.0f));
+                                          glm::clamp(lerpSpeed * dt, 0.0f, 1.0f));
 
     glm::vec3 camPos = targetPos + direction * springArm.CurrentArmLength;
 
@@ -84,12 +89,15 @@ void CharacterController::UpdateCamera() {
     camera_.SetYaw(-springArm.Yaw - 90.0f);
     camera_.SetPitch(-springArm.Pitch);
 }
+
 void CharacterController::BindInput() {
     auto& input = InputManager::Get();
     input.BindAction("ToggleMouse", Key::Tab);
     input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
     input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
+    SE_LOG_CRITICAL("CharacterController: Input binded");
 }
+
 void CharacterController::UpdateInputs() {
     auto& input = InputManager::Get();
 

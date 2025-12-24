@@ -1,29 +1,36 @@
 #pragma once
 
 #include "Engine.h"
-#include "apps/third_person_game/src/Character.h"
 #include "engine/Camera.h"
-#include "engine/ecs/Scene.h"
 #include "engine/input/InputManager.h"
-using namespace se;
 
 namespace FirstGame {
+
+using namespace se;
+
+/**
+ * CharacterController - Component that handles player input and camera control.
+ * 
+ * This demonstrates the new Component system with automatic lifecycle methods.
+ * Awake() is called when added, Start() before first Update, Update() every frame.
+ */
 class CharacterController : public Component {
    public:
     CharacterController() = default;
-    CharacterController(Character* character, Scene* scene);
-    ~CharacterController() override;
+    ~CharacterController() override = default;
+
+    void Awake() override;
+    void Start() override;
+    void Update(float dt) override;
 
    private:
-    void Update(float ts) override;
-    void UpdateCamera();
+    void UpdateCamera(float dt);
     void BindInput();
     void UpdateInputs();
 
    private:
-    bool       mouseCaptured_;
-    Character* character_;
-    Camera     camera_;
-    Scene*     scene_;
+    bool   mouseCaptured_ = false;
+    Camera camera_;
 };
+
 }  // namespace FirstGame

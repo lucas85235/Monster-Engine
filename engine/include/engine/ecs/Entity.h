@@ -2,19 +2,26 @@
 
 #include <cstdint>
 #include <entt.hpp>
+#include <type_traits>
 
 namespace se {
 
-// Forward declaration
+// Forward declarations
 class Scene;
+class Component;
 
 class Entity {
    public:
     Entity() = default;
     Entity(entt::entity handle, Scene* scene) : entityHandle_(handle), scene_(scene) {}
     Entity(const Entity& other) = default;
+    Entity& operator=(const Entity& other) = default;
 
-    // Add component to entity
+    /**
+     * Add a component to entity.
+     * If T inherits from Component, the lifecycle system is used (Awake/Start/Update called automatically).
+     * Otherwise, it's added as a pure ECS data component.
+     */
     template <typename T, typename... Args>
     T& AddComponent(Args&&... args);
 
@@ -29,6 +36,18 @@ class Entity {
     // Remove component from entity
     template <typename T>
     void RemoveComponent();
+
+    // Get a lifecycle-managed component by type (if added via Component inheritance)
+    template <typename T>
+    T* GetScript();
+
+    // Check if entity has a specific lifecycle-managed component
+    template <typename T>
+    bool HasScript();
+
+    // Remove a lifecycle-managed component by type
+    template <typename T>
+    void RemoveScript();
 
     // Get entity ID
     uint32_t GetID() const {
@@ -71,6 +90,14 @@ class Entity {
    private:
     entt::entity entityHandle_{entt::null};
     Scene*       scene_ = nullptr;
+
+    // Internal helper for adding lifecycle components
+    template <typename T, typename... Args>
+    T& AddLifecycleComponent(Args&&... args);
+
+    // Internal helper for adding data components
+    template <typename T, typename... Args>
+    T& AddDataComponent(Args&&... args);
 
     friend class Scene;
 };

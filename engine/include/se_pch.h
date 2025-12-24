@@ -31,4 +31,5 @@
 #include <vector>
 
 #include "engine/Log.h"
+#include "Engine.h"
 #include "imgui.h"

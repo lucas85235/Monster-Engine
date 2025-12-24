@@ -1,5 +1,5 @@
 #pragma once
-#include "engine/ecs/Entity.h"
+
 #include "se_pch.h"
 
 struct GLFWwindow;
@@ -8,7 +8,7 @@ struct GLFWcursor;
 
 namespace se {
 
-// Math Types
+// Math Types - must be defined before other includes that use them
 using Vector2    = glm::vec2;
 using Vector3    = glm::vec3;
 using Vector4    = glm::vec4;
@@ -70,3 +70,8 @@ constexpr Ref<T> CreateRef(Args&&... args) {
 #define DEBUG
 
 }  // namespace se
+
+// ECS includes - must come after se namespace types are defined
+#include "engine/ecs/Component.h"
+#include "engine/ecs/Entity.h"
+#include "engine/ecs/Scene.h"

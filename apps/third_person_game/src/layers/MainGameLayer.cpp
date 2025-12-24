@@ -3,6 +3,7 @@
 #include "apps/sandbox/src/SampleUtilities.h"
 #include "apps/third_person_game/src/CharacterController.h"
 #include "engine/Application.h"
+#include "engine/Camera.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/input/InputManager.h"
 #include "engine/physics/PhysicsDebugDraw.h"
@@ -30,7 +31,10 @@ void MainGameLayer::OnAttach() {
     camera_    = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
     scene_     = CreateScope<Scene>("Main Game");
     character_ = CreateRef<Character>(scene_->CreateEntity("Character"));
-    character_->GetEntity().AddComponent<CharacterController>(character_.get(), scene_.get());
+    
+    // AddComponent automatically detects if CharacterController inherits from Component
+    // and uses the lifecycle system (Awake/Start/Update called automatically)
+    character_->GetEntity().AddComponent<CharacterController>();
 
     auto& springArm           = character_->GetEntity().AddComponent<SpringArmComponent>();
     springArm.TargetArmLength = 8.0f;
@@ -55,6 +59,8 @@ void MainGameLayer::OnDetach() {
 
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
+    
+    scene_->OnUpdate(ts);
 }
 
 void MainGameLayer::OnRender() {
