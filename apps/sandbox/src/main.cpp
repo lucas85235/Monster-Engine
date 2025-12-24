@@ -21,6 +21,6 @@ int main() {
     appSpec.GraphicsApi  = RHI::API::Vulkan;  // Enable Vulkan for testing
 
     Application application(appSpec);
-    application.PushLayer<InstancedCubesLayer>();
+    application.PushLayer<ThirdPersonLayer>();
     application.Run();
 }

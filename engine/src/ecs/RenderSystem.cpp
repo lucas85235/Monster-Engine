@@ -32,8 +32,8 @@ void RenderSystem::EnsureInstancedMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "instanced.vert";
-    fs::path fragPath = assetsPath / "shaders" / "instanced.frag";
+    fs::path vertPath = assetsPath / "shaders" / "test_vulkan_instanced.vert";
+    fs::path fragPath = assetsPath / "shaders" / "test_vulkan_instanced.frag";
 
     // Check removed: loading handled by Shader::CreateFromFiles (supports SPIR-V)
     // if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
@@ -175,11 +175,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         if (!material || !va) continue;
 
         // Check if we should use instanced rendering
-        // Vulkan instanced pipeline not fully implemented yet - use individual submits
+        // Vulkan instancing now works (verified with InstancedCubesLayer)
         bool useInstancing = (instances.size() > 1);
-        if (Application::Get().GetGraphicsAPI() == RHI::API::Vulkan) {
-            useInstancing = false;  // Force individual draws for Vulkan until pipeline instancing works
-        }
 
         if (!useInstancing) {
             // Individual submit for each instance
