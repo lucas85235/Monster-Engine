@@ -17,8 +17,9 @@ struct MenuBarActions {
     bool deleteSelected    = false;
     bool duplicateSelected = false;
 
-    bool toggleGrid  = false;
-    bool resetCamera = false;
+    bool toggleGrid         = false;
+    bool toggleColliderDebug = false;
+    bool resetCamera         = false;
 
     void Reset() { *this = MenuBarActions{}; }
 };

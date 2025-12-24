@@ -24,26 +24,27 @@ target_link_libraries(map_editor PRIVATE
     ImGui
 )
 
-# Copy assets
-set(ASSETS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets")
-if(EXISTS "${ASSETS_SOURCE_DIR}")
-    file(GLOB_RECURSE SHADER_FILES
-        "${ASSETS_SOURCE_DIR}/shaders/*.vert"
-        "${ASSETS_SOURCE_DIR}/shaders/*.frag"
-    )
+# Copy assets from both global assets and local map_editor assets
+set(GLOBAL_ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
+set(LOCAL_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
-    add_custom_target(copy_map_editor_assets ALL DEPENDS ${SHADER_FILES})
+file(GLOB_RECURSE SHADER_FILES
+    "${GLOBAL_ASSETS_DIR}/shaders/*.vert"
+    "${GLOBAL_ASSETS_DIR}/shaders/*.frag"
+    "${LOCAL_ASSETS_DIR}/shaders/*.vert"
+    "${LOCAL_ASSETS_DIR}/shaders/*.frag"
+)
 
-    add_custom_command(
-        TARGET copy_map_editor_assets
-        COMMAND ${CMAKE_COMMAND} -E echo "Copying assets to map_editor binary dir..."
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${ASSETS_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/assets"
-        COMMENT "Copying assets directory for map_editor"
-        VERBATIM
-    )
+add_custom_target(copy_map_editor_assets ALL DEPENDS ${SHADER_FILES})
 
-    add_dependencies(map_editor copy_map_editor_assets)
-else()
-    message(WARNING "Assets dir not found: ${ASSETS_SOURCE_DIR}")
-endif()
+add_custom_command(
+    TARGET copy_map_editor_assets
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying assets to map_editor binary dir..."
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${GLOBAL_ASSETS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${LOCAL_ASSETS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/assets"
+    COMMENT "Copying assets directory for map_editor"
+    VERBATIM
+)
+
+add_dependencies(map_editor copy_map_editor_assets)

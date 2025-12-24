@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <imgui.h>
 
 #include "core/MapData.h"
 #include "core/MapSerializer.h"
@@ -9,6 +10,7 @@
 #include "editor/EditorCamera.h"
 #include "editor/EditorFramebuffer.h"
 #include "editor/EditorGrid.h"
+#include "editor/ColliderDebugRenderer.h"
 #include "editor/GizmoController.h"
 #include "editor/SelectionManager.h"
 #include "engine/Layer.h"
@@ -38,6 +40,7 @@ class MapEditorLayer : public se::Layer {
     // Framebuffer for viewport rendering
     Scope<EditorFramebuffer> framebuffer_;
     Scope<EditorGrid> editorGrid_;
+    Scope<ColliderDebugRenderer> colliderDebug_;
     uint32_t viewportWidth_ = 1280;
     uint32_t viewportHeight_ = 720;
 
@@ -60,10 +63,13 @@ class MapEditorLayer : public se::Layer {
 
     // Grid
     bool showGrid_ = true;  // Press G to toggle grid
+    bool showColliderDebug_ = false;  // Press C to toggle collider debug
 
     // Viewport state
     bool viewportHovered_ = false;
     bool viewportFocused_ = false;
+    ImVec2 viewportPos_ = {0, 0};
+    ImVec2 viewportSize_ = {0, 0};
 
     // Input state
     float lastMouseX_ = 0.0f;
@@ -73,10 +79,13 @@ class MapEditorLayer : public se::Layer {
     bool wasKeyFPressed_ = false;
     bool wasKeyGPressed_ = false;
     bool wasKeyDeletePressed_ = false;
+    bool wasKeyCPressed_ = false;
+    bool wasMouseLeftPressed_ = false;
 
     void ProcessMenuActions(const MenuBarActions& actions);
     void ProcessHierarchyActions();
     void ProcessKeyboardShortcuts();
+    void ProcessMousePicking();
 
     void CreatePrimitive(PrimitiveType type);
     void DuplicateSelected();
@@ -91,6 +100,12 @@ class MapEditorLayer : public se::Layer {
     void RenderGrid(const Matrix4& view, const Matrix4& projection);
     void RenderViewport();
     void RenderStatusBar();
+    
+    // Picking
+    Vector3 ScreenToWorldRay(float mouseX, float mouseY, float aspectRatio);
+    se::Entity PickEntity(const Vector3& rayOrigin, const Vector3& rayDir);
+    bool RayIntersectsAABB(const Vector3& rayOrigin, const Vector3& rayDir,
+                           const Vector3& boxMin, const Vector3& boxMax, float& t);
 };
 
 }  // namespace mst

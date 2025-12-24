@@ -28,6 +28,9 @@ void MapEditorLayer::OnAttach() {
     // Create grid renderer
     editorGrid_ = CreateScope<EditorGrid>();
     
+    // Create collider debug renderer
+    colliderDebug_ = CreateScope<ColliderDebugRenderer>();
+    
     scene_ = CreateScope<se::Scene>("Editor Scene", se::SceneSettings{.EnablePhysics = false});
     se::Application::Get().SetActiveScene(scene_.get());
     
@@ -125,6 +128,13 @@ void MapEditorLayer::OnRender() {
         
         scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
         
+        // Render collider debug wireframes
+        if (showColliderDebug_ && colliderDebug_) {
+            Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
+            Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
+            colliderDebug_->Render(view, projection, *scene_);
+        }
+        
         framebuffer_->Unbind();
     }
     
@@ -187,6 +197,10 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     if (actions.deleteSelected) DeleteSelected();
     if (actions.duplicateSelected) DuplicateSelected();
     if (actions.toggleGrid) showGrid_ = !showGrid_;
+    if (actions.toggleColliderDebug) {
+        showColliderDebug_ = !showColliderDebug_;
+        SE_LOG_INFO("Collider Debug: {}", showColliderDebug_ ? "ON" : "OFF");
+    }
     if (actions.resetCamera) {
         editorCamera_.FocusOnPoint({0.0f, 0.0f, 0.0f});
     }
@@ -254,6 +268,14 @@ void MapEditorLayer::ProcessKeyboardShortcuts() {
         SE_LOG_INFO("Grid: {}", showGrid_ ? "ON" : "OFF");
     }
     wasKeyGPressed_ = gPressed;
+    
+    // Collider debug toggle (C) - one-shot
+    bool cPressed = input.IsKeyDown(GLFW_KEY_C);
+    if (cPressed && !wasKeyCPressed_) {
+        showColliderDebug_ = !showColliderDebug_;
+        SE_LOG_INFO("Collider Debug: {}", showColliderDebug_ ? "ON" : "OFF");
+    }
+    wasKeyCPressed_ = cPressed;
     
     // Export (Ctrl+E)
     if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) && input.IsKeyDown(GLFW_KEY_E)) {
@@ -481,10 +503,13 @@ void MapEditorLayer::RenderViewport() {
                          ImVec2(0, 1), ImVec2(1, 0));
         }
         
+        // Save viewport position for picking
+        viewportPos_ = ImGui::GetItemRectMin();
+        viewportSize_ = viewportSize;
+        
         // Setup ImGuizmo for this viewport (overlay on top of image)
-        ImVec2 viewportPos = ImGui::GetItemRectMin();
         ImGuizmo::SetDrawlist();
-        ImGuizmo::SetRect(viewportPos.x, viewportPos.y, viewportSize.x, viewportSize.y);
+        ImGuizmo::SetRect(viewportPos_.x, viewportPos_.y, viewportSize_.x, viewportSize_.y);
         
         float aspectRatio = viewportSize.x / viewportSize.y;
         
@@ -497,6 +522,9 @@ void MapEditorLayer::RenderViewport() {
                 gizmo_.Manipulate(editorCamera_.GetCamera(), aspectRatio, transform);
             }
         }
+        
+        // Process mouse clicking for object selection
+        ProcessMousePicking();
     }
     
     ImGui::End();
@@ -511,8 +539,142 @@ void MapEditorLayer::RenderStatusBar() {
     ImGui::SameLine(); ImGui::Text(" | ");
     ImGui::SameLine(); ImGui::Text("Grid: %s", showGrid_ ? "ON" : "OFF");
     ImGui::SameLine(); ImGui::Text(" | ");
+    ImGui::SameLine(); ImGui::Text("Colliders: %s", showColliderDebug_ ? "ON" : "OFF");
+    ImGui::SameLine(); ImGui::Text(" | ");
     ImGui::SameLine(); ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
     ImGui::End();
 }
 
+void MapEditorLayer::ProcessMousePicking() {
+    // Only process when viewport is hovered and left mouse is clicked
+    if (!viewportHovered_) return;
+    
+    bool isLeftMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    bool leftMouseJustPressed = isLeftMouseDown && !wasMouseLeftPressed_;
+    wasMouseLeftPressed_ = isLeftMouseDown;
+    
+    if (!leftMouseJustPressed) return;
+    
+    // Don't pick if gizmo is being used
+    if (ImGuizmo::IsOver()) return;
+    
+    // Get mouse position relative to viewport
+    ImVec2 mousePos = ImGui::GetMousePos();
+    float relX = mousePos.x - viewportPos_.x;
+    float relY = mousePos.y - viewportPos_.y;
+    
+    // Check if mouse is inside viewport
+    if (relX < 0 || relY < 0 || relX > viewportSize_.x || relY > viewportSize_.y) return;
+    
+    float aspectRatio = viewportSize_.x / viewportSize_.y;
+    
+    // Calculate ray direction from camera through mouse position
+    Vector3 rayDir = ScreenToWorldRay(relX, relY, aspectRatio);
+    Vector3 rayOrigin = editorCamera_.GetCamera().GetPosition();
+    
+    // Pick the entity
+    se::Entity pickedEntity = PickEntity(rayOrigin, rayDir);
+    
+    if (pickedEntity.IsValid()) {
+        selection_.ClearSelection();
+        selection_.Select(pickedEntity);
+        SE_LOG_INFO("Picked entity: {}", pickedEntity.GetComponent<se::NameComponent>().Name);
+    } else {
+        // Click on empty space clears selection
+        selection_.ClearSelection();
+    }
+}
+
+Vector3 MapEditorLayer::ScreenToWorldRay(float mouseX, float mouseY, float aspectRatio) {
+    // Convert screen coordinates to normalized device coordinates (-1 to 1)
+    float ndcX = (2.0f * mouseX / viewportSize_.x) - 1.0f;
+    float ndcY = 1.0f - (2.0f * mouseY / viewportSize_.y);  // Flip Y for OpenGL
+    
+    // Get camera matrices
+    Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
+    Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
+    
+    // Inverse view-projection matrix
+    Matrix4 invVP = glm::inverse(projection * view);
+    
+    // Near and far points in clip space
+    Vector4 nearPoint = invVP * Vector4(ndcX, ndcY, -1.0f, 1.0f);
+    Vector4 farPoint = invVP * Vector4(ndcX, ndcY, 1.0f, 1.0f);
+    
+    // Perspective divide
+    nearPoint /= nearPoint.w;
+    farPoint /= farPoint.w;
+    
+    // Ray direction
+    Vector3 rayDir = glm::normalize(Vector3(farPoint) - Vector3(nearPoint));
+    
+    return rayDir;
+}
+
+se::Entity MapEditorLayer::PickEntity(const Vector3& rayOrigin, const Vector3& rayDir) {
+    se::Entity closestEntity;
+    float closestT = std::numeric_limits<float>::max();
+    
+    auto view = scene_->GetAllEntitiesWith<se::NameComponent, se::TransformComponent>();
+    
+    for (auto entityHandle : view) {
+        se::Entity entity(entityHandle, scene_.get());
+        
+        // Skip editor light
+        auto& name = entity.GetComponent<se::NameComponent>().Name;
+        if (name == "Editor Light") continue;
+        
+        auto& transform = entity.GetComponent<se::TransformComponent>();
+        Vector3 pos = transform.Position;
+        Vector3 scale = transform.Scale;
+        
+        // Simple AABB based on scale (approximate bounding box)
+        Vector3 halfSize = scale * 0.5f;
+        Vector3 boxMin = pos - halfSize;
+        Vector3 boxMax = pos + halfSize;
+        
+        float t = 0.0f;
+        if (RayIntersectsAABB(rayOrigin, rayDir, boxMin, boxMax, t)) {
+            if (t < closestT && t > 0.0f) {
+                closestT = t;
+                closestEntity = entity;
+            }
+        }
+    }
+    
+    return closestEntity;
+}
+
+bool MapEditorLayer::RayIntersectsAABB(const Vector3& rayOrigin, const Vector3& rayDir,
+                                        const Vector3& boxMin, const Vector3& boxMax, float& t) {
+    float tmin = 0.0f;
+    float tmax = std::numeric_limits<float>::max();
+    
+    for (int i = 0; i < 3; ++i) {
+        if (std::abs(rayDir[i]) < 1e-8f) {
+            // Ray is parallel to slab
+            if (rayOrigin[i] < boxMin[i] || rayOrigin[i] > boxMax[i]) {
+                return false;
+            }
+        } else {
+            float invD = 1.0f / rayDir[i];
+            float t1 = (boxMin[i] - rayOrigin[i]) * invD;
+            float t2 = (boxMax[i] - rayOrigin[i]) * invD;
+            
+            if (t1 > t2) std::swap(t1, t2);
+            
+            tmin = std::max(tmin, t1);
+            tmax = std::min(tmax, t2);
+            
+            if (tmin > tmax) {
+                return false;
+            }
+        }
+    }
+    
+    t = tmin;
+    return true;
+}
+
 }  // namespace mst
+

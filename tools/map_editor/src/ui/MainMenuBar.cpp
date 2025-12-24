@@ -86,6 +86,9 @@ void MainMenuBar::RenderViewMenu(MenuBarActions& actions) {
         if (ImGui::MenuItem("Toggle Grid", "G")) {
             actions.toggleGrid = true;
         }
+        if (ImGui::MenuItem("Show Colliders", "C")) {
+            actions.toggleColliderDebug = true;
+        }
         if (ImGui::MenuItem("Reset Camera", "F")) {
             actions.resetCamera = true;
         }
