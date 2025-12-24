@@ -163,6 +163,9 @@ class VulkanDevice : public IDevice {
     
     ClearColor        clearColor      = {0.0f, 0.0f, 0.0f, 1.0f};
     float             clearDepthValue = 1.0f;
+    
+    // Draw call statistics per frame
+    uint32_t frameDrawCallCount_ = 0;
 
     // Cached viewport/scissor for deferred application
     Viewport cachedViewport = {0.0f, 0.0f, 800, 600, 0.0f, 1.0f};
@@ -356,6 +359,10 @@ class VulkanDevice : public IDevice {
     uint32_t GetGraphicsQueueFamily() const;
     uint32_t GetMinImageCount() const { return MAX_FRAMES_IN_FLIGHT; }
     uint32_t GetImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
+    
+    // Draw call statistics
+    uint32_t GetDrawCallCount() const { return frameDrawCallCount_; }
+    void ResetDrawCallCount() { frameDrawCallCount_ = 0; }
 };
 
 // Debug callback

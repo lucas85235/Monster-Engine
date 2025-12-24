@@ -1797,13 +1797,17 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertStageInfo, fragStageInfo};
 
-    // Vertex input
-    VkVertexInputBindingDescription bindingDesc{};
-    bindingDesc.binding   = 0;
-    bindingDesc.stride    = layout.stride;
-    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    // Vertex input - binding 0 for vertex data
+    std::vector<VkVertexInputBindingDescription> bindingDescs;
+    
+    VkVertexInputBindingDescription vertexBindingDesc{};
+    vertexBindingDesc.binding   = 0;
+    vertexBindingDesc.stride    = layout.stride;
+    vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    bindingDescs.push_back(vertexBindingDesc);
 
     std::vector<VkVertexInputAttributeDescription> attrDescs;
+    uint32_t maxLocation = 0;
     for (const auto& attr : layout.attributes) {
         VkVertexInputAttributeDescription attrDesc{};
         attrDesc.binding  = 0;
@@ -1811,12 +1815,48 @@ PipelineHandle VulkanDevice::CreatePipeline(const PipelineDescriptor& desc, Shad
         attrDesc.format   = getVkFormat(attr.type);
         attrDesc.offset   = attr.offset;
         attrDescs.push_back(attrDesc);
+        maxLocation = std::max(maxLocation, attr.location);
+    }
+    
+    // Detect if this is instanced rendering: if max vertex location is 3 (Position, Color, Normal, TexCoord)
+    // we automatically add instance buffer binding for instanced shaders
+    // Instance data layout: Mat4 (locations 4-7) + Vec4 (location 8)
+    bool hasInstanceBinding = false;
+    if (maxLocation <= 3) {
+        // Check if we might be using an instanced shader by looking for VAOs with instance buffers
+        // For now, always add instance binding support to enable instancing
+        SE_LOG_INFO("[Vulkan] CreatePipeline: Adding instance buffer binding (locations 4-8) for instanced rendering support");
+        
+        VkVertexInputBindingDescription instanceBindingDesc{};
+        instanceBindingDesc.binding   = 1;
+        instanceBindingDesc.stride    = sizeof(float) * 16 + sizeof(float) * 4;  // Mat4 (64 bytes) + Vec4 (16 bytes) = 80 bytes
+        instanceBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+        bindingDescs.push_back(instanceBindingDesc);
+        hasInstanceBinding = true;
+        
+        // Mat4 a_InstanceTransform at locations 4, 5, 6, 7 (binding 1)
+        for (uint32_t i = 0; i < 4; ++i) {
+            VkVertexInputAttributeDescription matAttr{};
+            matAttr.binding  = 1;
+            matAttr.location = 4 + i;
+            matAttr.format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+            matAttr.offset   = i * sizeof(float) * 4;  // Each vec4 row is 16 bytes
+            attrDescs.push_back(matAttr);
+        }
+        
+        // Vec4 a_InstanceColor at location 8 (binding 1)
+        VkVertexInputAttributeDescription colorAttr{};
+        colorAttr.binding  = 1;
+        colorAttr.location = 8;
+        colorAttr.format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+        colorAttr.offset   = sizeof(float) * 16;  // After Mat4
+        attrDescs.push_back(colorAttr);
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount   = 1;
-    vertexInputInfo.pVertexBindingDescriptions      = &bindingDesc;
+    vertexInputInfo.vertexBindingDescriptionCount   = static_cast<uint32_t>(bindingDescs.size());
+    vertexInputInfo.pVertexBindingDescriptions      = bindingDescs.data();
     vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
     vertexInputInfo.pVertexAttributeDescriptions    = attrDescs.data();
 
@@ -2520,6 +2560,7 @@ void VulkanDevice::SetUniformMatrix4(ShaderHandle shader, const std::string& nam
 void VulkanDevice::Draw(const DrawCommand& cmd) {
     static uint32_t drawCallCount = 0;
     drawCallCount++;
+    frameDrawCallCount_++;
     
     if (currentPipeline.id == 0) {
         SE_LOG_ERROR("[Vulkan] Draw: ERROR - No pipeline bound!" );
@@ -2566,6 +2607,7 @@ void VulkanDevice::Draw(const DrawCommand& cmd) {
 void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     static uint32_t drawIndexedCount = 0;
     drawIndexedCount++;
+    frameDrawCallCount_++;
     
     if (currentPipeline.id == 0) {
         SE_LOG_ERROR("[Vulkan] DrawIndexed: ERROR - No pipeline bound!" );
@@ -2578,8 +2620,8 @@ void VulkanDevice::DrawIndexed(const DrawIndexedCommand& cmd) {
     } else {
         static int vaoLogCount = 0;
         if (vaoLogCount < 10) {
-            SE_LOG_INFO("[Vulkan] DrawIndexed: VAO id={}, vbCount={}, ibId={}", 
-                currentVAO.id, vaoIt->second.vertexBuffers.size(), vaoIt->second.indexBuffer.id);
+            SE_LOG_INFO("[Vulkan] DrawIndexed: VAO id={}, vbCount={}, instBuffCount={}, ibId={}", 
+                currentVAO.id, vaoIt->second.vertexBuffers.size(), vaoIt->second.instanceBuffers.size(), vaoIt->second.indexBuffer.id);
             vaoLogCount++;
         }
     }
@@ -2720,8 +2762,9 @@ bool VulkanDevice::BeginFrame() {
         }
     }
 
-    // Reset material flags for this frame
+    // Reset material flags and draw call counter for this frame
     cachedPushConstants.materialProps[3] = 0.0f;
+    frameDrawCallCount_ = 0;
 
     vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 

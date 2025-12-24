@@ -7,17 +7,20 @@
 // Full engine layers
 #include "ThirdPersonLayer.h"
 
+// Instancing test
+#include "InstancedCubesLayer.h"
+
 using namespace std;
 using namespace se;
 
 int main() {
     ApplicationSpecification appSpec;
-    appSpec.Name         = "Simple engine - Vulkan ThirdPerson Test";
+    appSpec.Name         = "Monster Engine - Instanced Cubes Test";
     appSpec.WindowWidth  = 1280;
     appSpec.WindowHeight = 720;
     appSpec.GraphicsApi  = RHI::API::Vulkan;  // Enable Vulkan for testing
 
     Application application(appSpec);
-    application.PushLayer<ThirdPersonLayer>();
+    application.PushLayer<InstancedCubesLayer>();
     application.Run();
 }

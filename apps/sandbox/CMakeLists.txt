@@ -6,6 +6,8 @@ add_executable(sandbox
         src/ThirdPersonLayer.h
         src/VulkanTestLayer.cpp
         src/VulkanTestLayer.h
+        src/InstancedCubesLayer.cpp
+        src/InstancedCubesLayer.h
         src/input_sample/InputSampleLayer.h
         src/input_sample/InputSampleLayer.cpp
         src/event_sample/EventSampleLayer.h
