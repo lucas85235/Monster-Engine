@@ -1,23 +1,29 @@
 #include "apps/third_person_game/src/components/Character.h"
 
 #include "engine/ecs/Scene.h"
+#include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
 void Character::Awake() {
-    RigidbodyData data{.mass = 0.0f,
-                       .gravityScale = 1.0f,
-                       .material = PhysicsMaterial(0.8f, 0.8f),
-                       .freezeRotationX = true,
-                       .freezeRotationZ = true};
-    auto rb = GetEntity().AddComponent<RigidbodyComponent>(data);
-    rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
-
+    // IMPORTANT: Add collider BEFORE RigidbodyComponent!
+    // RigidbodyComponent::Awake() calls AddRigidBody which checks for existing colliders.
     CapsuleCollider collider;
     collider.Height = specs_.character_height_;
     collider.Radius = specs_.character_radius_;
     GetEntity().AddComponent<CapsuleCollider>(collider);
 
-    SE_LOG_INFO("Character::Awake() - Physics components added");
+    // Now add the rigidbody - it will detect the CapsuleCollider
+    RigidbodyData data{.mass = 0.0f,
+                       .gravityScale = 1.0f,
+                       .material = PhysicsMaterial(0.8f, 0.8f),
+                       .freezeRotationX = true,
+                       .freezeRotationZ = true};
+
+    auto& rb = GetEntity().AddComponent<RigidbodyComponent>();
+    rb.SetData(data);
+    rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
+
+    SE_LOG_INFO("Character::Awake() - Physics initialized (CapsuleCollider + RigidbodyComponent)");
 }
 
 void Character::Start() {
@@ -25,6 +31,9 @@ void Character::Start() {
 }
 
 void Character::Update(float dt) {
-    // Character-specific update logic here
+    // Character-specific update logic (e.g., animation state, abilities)
+    auto& trans = GetEntity().GetComponent<TransformComponent>();
+    SE_LOG_CRITICAL("Character Position: ({},{},{})", trans.Position.x, trans.Position.y,
+                    trans.Position.x);
 }
 } // namespace FirstGame

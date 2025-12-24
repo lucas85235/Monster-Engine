@@ -9,12 +9,6 @@
 #include "engine/physics/PhysicsSystem.h"
 
 namespace se {
-
-RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data) : data_(data) {
-    // Note: GetEntity()/GetScene() are not available in constructor
-    // Physics registration happens in Awake() after InitializeInternal() is called
-}
-
 void RigidbodyComponent::Awake() {
     // Now GetEntity() and GetScene() are available
     if (GetScene() && GetScene()->GetPhysicsSystem()) {

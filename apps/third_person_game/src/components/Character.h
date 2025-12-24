@@ -23,7 +23,9 @@ public:
     ~Character() override = default;
 
     void Awake() override;
+
     void Start() override;
+
     void Update(float dt) override;
 
     const CharacterSpecs& GetSpecs() const { return specs_; }

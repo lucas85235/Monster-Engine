@@ -39,11 +39,6 @@ void MainGameLayer::OnAttach() {
     character_entity_.AddComponent<Character>();
     character_entity_.AddComponent<CharacterController>();
     character_entity_.AddComponent<CharacterRender>();
-
-    // Enable physics debug wireframe rendering
-    if (scene_->GetPhysicsSystem()) {
-        scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
-    }
 }
 
 void MainGameLayer::OnDetach() {

@@ -20,8 +20,7 @@ struct RigidbodyData {
 class RigidbodyComponent : public Component {
 public:
     RigidbodyComponent() = default;
-    RigidbodyComponent(const RigidbodyData& data);
-    
+
     void Awake() override;
 
     btRigidBody* GetRigidbody() const {
@@ -30,6 +29,10 @@ public:
 
     const RigidbodyData& GetData() const {
         return data_;
+    }
+
+    void SetData(const RigidbodyData& data) {
+        data_ = data;
     }
 
     void AddForce(const btVector3& force, const btVector3& point);

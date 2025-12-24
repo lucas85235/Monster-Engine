@@ -10,7 +10,7 @@
 
 #include <gtc/matrix_transform.hpp>
 
-#include "MathUtils.h"
+#include "../../MathUtils.h"
 #include "../../SampleUtilities.h"
 #include "engine/physics/BoxCollider.h"
 #include "engine/physics/PhysicsDebugDraw.h"
@@ -179,11 +179,11 @@ void ThirdPersonLayer::CreateScene() {
         };
 
         std::vector<WallConfig> smallWalls = {
-            {{10.0f, 1.5f, 0.0f}, {5.0f, 3.0f, 0.5f}, 0.0f},     // Right of spawn
-            {{-10.0f, 1.5f, 5.0f}, {5.0f, 3.0f, 0.5f}, 45.0f},   // Left angled
-            {{0.0f, 1.5f, -12.0f}, {8.0f, 3.0f, 0.5f}, 0.0f},    // Behind spawn
-            {{15.0f, 1.5f, 15.0f}, {6.0f, 3.0f, 0.5f}, 30.0f},   // Far corner
-            {{-8.0f, 1.5f, -8.0f}, {4.0f, 3.0f, 0.5f}, -45.0f},  // Diagonal
+            {{10.0f, 1.5f, 0.0f}, {5.0f, 3.0f, 0.5f}, 0.0f},    // Right of spawn
+            {{-10.0f, 1.5f, 5.0f}, {5.0f, 3.0f, 0.5f}, 45.0f},  // Left angled
+            {{0.0f, 1.5f, -12.0f}, {8.0f, 3.0f, 0.5f}, 0.0f},   // Behind spawn
+            {{15.0f, 1.5f, 15.0f}, {6.0f, 3.0f, 0.5f}, 30.0f},  // Far corner
+            {{-8.0f, 1.5f, -8.0f}, {4.0f, 3.0f, 0.5f}, -45.0f}, // Diagonal
         };
 
         for (size_t i = 0; i < smallWalls.size(); i++) {
@@ -202,7 +202,7 @@ void ThirdPersonLayer::CreateScene() {
             wall.AddComponent<BoxCollider>(glm::vec3(1.0f));
 
             RigidbodyData data;
-            data.mass = 0.0f;  // Static
+            data.mass = 0.0f; // Static
             wall.AddComponent<RigidbodyComponent>(data, wall);
         }
 
@@ -223,7 +223,7 @@ void ThirdPersonLayer::CleanupBullets() {
 void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
     UpdateGrabSystem(ts);
-    CleanupBullets();  // Only removes invalid references, not actual bullets
+    CleanupBullets(); // Only removes invalid references, not actual bullets
     scene_->OnUpdate(ts);
     UpdateCamera();
 }
@@ -266,10 +266,8 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
             // If signs match, we are good. If signs differ, we might be flipping.
             // Force diff to have the same sign as lastRotationDiff_
             if ((diff > 0 && lastRotationDiff_ < 0) || (diff < 0 && lastRotationDiff_ > 0)) {
-                if (diff > 0)
-                    diff -= 360.0f;
-                else
-                    diff += 360.0f;
+                if (diff > 0) diff -= 360.0f;
+                else diff += 360.0f;
             }
         }
         lastRotationDiff_ = diff;
@@ -288,17 +286,17 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
     }
 
     // Ground Check using Raycast
-    glm::vec3 rayStart = transform.Position + glm::vec3(0.0f, 1.0f, 0.0f);   // Center of capsule
-    glm::vec3 rayEnd   = transform.Position + glm::vec3(0.0f, -1.2f, 0.0f);  // Below feet
+    glm::vec3 rayStart = transform.Position + glm::vec3(0.0f, 1.0f, 0.0f);  // Center of capsule
+    glm::vec3 rayEnd   = transform.Position + glm::vec3(0.0f, -1.2f, 0.0f); // Below feet
     glm::vec3 hitPoint, hitNormal;
 
-    bool hit    = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal,
-                                                      rb.GetRigidbody());
+    bool hit = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal,
+                                                   rb.GetRigidbody());
     isGrounded_ = hit;
 
     // Jumping
     if (input.IsActionJustPressed("Jump") && isGrounded_) {
-        desiredVelocity.setY(5.0f);  // Jump impulse/velocity
+        desiredVelocity.setY(5.0f); // Jump impulse/velocity
     }
 
     // Apply Velocity
@@ -329,7 +327,8 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
     rb.SetLinearVelocity(desiredVelocity);
 
     // Shooting
-    if (input.IsMouseButtonDown(0)) {  // Left Mouse Button
+    if (input.IsMouseButtonDown(0)) {
+        // Left Mouse Button
         Shoot();
     }
 
@@ -349,7 +348,7 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
 void ThirdPersonLayer::Shoot() {
     float time = (float)glfwGetTime();
-    if (time - lastShootTime_ < 0.02f) return;  // 0.2s cooldown
+    if (time - lastShootTime_ < 0.02f) return; // 0.2s cooldown
     lastShootTime_ = time;
 
     // Get camera forward
@@ -367,7 +366,7 @@ void ThirdPersonLayer::Shoot() {
     // Create Entity with red color
     auto      box         = scene_->CreateEntity("BulletBox");
     auto      mesh        = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-    glm::vec4 bulletColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);  // Red
+    glm::vec4 bulletColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
     box.AddComponent<MeshRenderComponent>(mesh, material_, bulletColor);
     box.AddComponent<BoxCollider>(glm::vec3(1.0f));
 
@@ -380,7 +379,7 @@ void ThirdPersonLayer::Shoot() {
 
     // Apply impulse
     btVector3 impulse(forward.x, forward.y, forward.z);
-    impulse *= 50.0f;  // Force
+    impulse *= 50.0f; // Force
     rb.GetRigidbody()->applyCentralImpulse(impulse);
 
     // Track bullet for cleanup
@@ -425,7 +424,7 @@ void ThirdPersonLayer::UpdateCamera() {
         }
 
         glm::vec3 rayStart = targetPos;
-        glm::vec3 rayEnd =
+        glm::vec3 rayEnd   =
             targetPos + direction * (springArm.TargetArmLength + springArm.ProbeSize);
         glm::vec3 hitPoint, hitNormal;
 
@@ -520,7 +519,7 @@ void ThirdPersonLayer::UpdateGrabSystem(float ts) {
     auto& input  = InputManager::Get();
     float scroll = input.GetAxis("ScrollWheel");
     if (std::abs(scroll) > 0.01f) {
-        grabDistance_ -= scroll * 2.0f;  // Scroll up = closer
+        grabDistance_ -= scroll * 2.0f; // Scroll up = closer
         grabDistance_ = glm::clamp(grabDistance_, grabMinDistance_, grabMaxDistance_);
     }
 
