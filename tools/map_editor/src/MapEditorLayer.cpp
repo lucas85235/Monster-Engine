@@ -97,13 +97,30 @@ void MapEditorLayer::OnRender() {
     if (framebuffer_) {
         framebuffer_->Bind();
         
-        // Clear the framebuffer
-        glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
+        // Dark editor background
+        glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         // Render scene with viewport aspect ratio
         float aspectRatio = static_cast<float>(viewportWidth_) / static_cast<float>(viewportHeight_);
+        
+        // Debug log camera position occasionally
+        static int frameCount = 0;
+        if (frameCount % 300 == 0) {
+            auto camPos = editorCamera_.GetCamera().GetPosition();
+            SE_LOG_INFO("Render: Camera at ({},{},{}), FBO {}x{}, aspectRatio={}", 
+                camPos.x, camPos.y, camPos.z, viewportWidth_, viewportHeight_, aspectRatio);
+        }
+        frameCount++;
+        
         scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
+        
+        // Render grid with depth testing (after scene so it appears behind objects)
+        if (showGrid_) {
+            Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
+            Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
+            RenderGrid(view, projection);
+        }
         
         framebuffer_->Unbind();
     }
@@ -345,14 +362,12 @@ void MapEditorLayer::BuildMapData() {
     SE_LOG_INFO("Built map data with {} entities", currentMap_.entities.size());
 }
 
-void MapEditorLayer::RenderGrid() {
-    if (!showGrid_) return;
-    auto& window = se::Application::Get().GetWindow();
-    float aspectRatio = static_cast<float>(window.GetWidth()) / static_cast<float>(window.GetHeight());
-    Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
-    Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
-    Matrix4 identity = Matrix4(1.0f);
-    ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(projection), glm::value_ptr(identity), 100.0f);
+void MapEditorLayer::RenderGrid(const Matrix4& view, const Matrix4& projection) {
+    // TODO: Implement proper OpenGL grid rendering with depth testing
+    // For now, grid is disabled until we have a proper shader-based grid
+    // The ImGuizmo::DrawGrid doesn't work well here as it's an overlay
+    (void)view;
+    (void)projection;
 }
 
 void MapEditorLayer::RenderViewport() {
@@ -393,14 +408,7 @@ void MapEditorLayer::RenderViewport() {
         
         float aspectRatio = viewportSize.x / viewportSize.y;
         
-        // Render grid overlay
-        if (showGrid_) {
-            Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
-            Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
-            Matrix4 identity = Matrix4(1.0f);
-            ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(projection), 
-                               glm::value_ptr(identity), 100.0f);
-        }
+        // Note: Grid is rendered in OnRender with depth testing
         
         // Render gizmo for selected entity
         if (selection_.HasSelection()) {

@@ -3,12 +3,23 @@
 #include <algorithm>
 #include <cmath>
 
+#include "engine/Log.h"
+
 namespace mst {
 
 EditorCamera::EditorCamera() {
+    // Position camera at (0, 5, 15) looking towards origin
     camera_.SetPosition({0.0f, 5.0f, 15.0f});
-    camera_.SetYaw(-90.0f);  // Looking towards -Z
-    camera_.SetPitch(-15.0f);
+    
+    // Camera convention: yaw=0 looks at +X, yaw=-90 looks at -Z
+    yaw_ = -90.0f;  // Looking towards -Z (towards origin from positive Z)
+    pitch_ = -18.0f;  // Slight downward angle
+    
+    camera_.SetYaw(yaw_);
+    camera_.SetPitch(pitch_);
+    
+    SE_LOG_INFO("EditorCamera initialized at ({}, {}, {}), yaw={}, pitch={}", 
+        0.0f, 5.0f, 15.0f, yaw_, pitch_);
 }
 
 void EditorCamera::Update(float deltaTime) {
@@ -48,27 +59,36 @@ void EditorCamera::OnMouseScroll(float delta) {
 }
 
 void EditorCamera::FocusOnPoint(const Vector3& point) {
-    // Move camera to look at the point from a reasonable distance
-    Vector3 toPoint = point - camera_.GetPosition();
+    // Calculate direction from camera to point
+    Vector3 cameraPos = camera_.GetPosition();
+    Vector3 toPoint = point - cameraPos;
     float dist = glm::length(toPoint);
     
     if (dist < 0.01f) {
-        // Already at the point, just set position behind it
-        camera_.SetPosition(point - camera_.GetFront() * focusDistance_);
+        // Already at the point, move back
+        camera_.SetPosition(point + Vector3(0, 5, 15));
+        yaw_ = -90.0f;
+        pitch_ = -18.0f;
     } else {
         // Calculate yaw and pitch to look at the point
+        // Camera: front.x = cos(yaw) * cos(pitch), front.z = sin(yaw) * cos(pitch)
         Vector3 dir = glm::normalize(toPoint);
         
-        yaw_ = glm::degrees(std::atan2(dir.x, -dir.z));
-        pitch_ = glm::degrees(std::asin(dir.y));
+        // atan2(z, x) gives the angle where cos(angle)=x, sin(angle)=z
+        yaw_ = glm::degrees(std::atan2(dir.z, dir.x));
+        pitch_ = glm::degrees(std::asin(glm::clamp(dir.y, -1.0f, 1.0f)));
         pitch_ = std::clamp(pitch_, minPitch_, maxPitch_);
-        
-        camera_.SetYaw(yaw_);
-        camera_.SetPitch(pitch_);
-        
-        // Move camera to focus distance from the point
-        camera_.SetPosition(point - camera_.GetFront() * focusDistance_);
     }
+    
+    camera_.SetYaw(yaw_);
+    camera_.SetPitch(pitch_);
+    
+    // Position camera at focus distance from the target
+    Vector3 newFront = camera_.GetFront();
+    camera_.SetPosition(point - newFront * focusDistance_);
+    
+    SE_LOG_INFO("FocusOnPoint: target=({},{},{}), yaw={}, pitch={}", 
+        point.x, point.y, point.z, yaw_, pitch_);
 }
 
 void EditorCamera::SetOrbitDistance(float distance) {

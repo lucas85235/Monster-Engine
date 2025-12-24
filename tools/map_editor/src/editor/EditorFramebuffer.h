@@ -16,6 +16,7 @@ class EditorFramebuffer {
     void Resize(uint32_t width, uint32_t height);
 
     uint32_t GetColorAttachment() const { return colorAttachment_; }
+    uint32_t GetFBO() const { return fbo_; }
     uint32_t GetWidth() const { return width_; }
     uint32_t GetHeight() const { return height_; }
 

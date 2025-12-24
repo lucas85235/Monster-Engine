@@ -67,6 +67,7 @@ void EditorFramebuffer::Destroy() {
 void EditorFramebuffer::Bind() {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
     glViewport(0, 0, width_, height_);
+    glEnable(GL_DEPTH_TEST);
 }
 
 void EditorFramebuffer::Unbind() {

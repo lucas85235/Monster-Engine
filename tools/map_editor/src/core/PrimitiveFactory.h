@@ -32,6 +32,7 @@ class PrimitiveFactory {
 
    private:
     static uint32_t primitiveCounter_;
+    static std::shared_ptr<se::Material> cachedMaterial_;
 };
 
 }  // namespace mst

@@ -55,7 +55,7 @@ class MapEditorLayer : public se::Layer {
     char        exportFileName_[256] = "untitled";
 
     // Grid
-    bool showGrid_ = true;
+    bool showGrid_ = false;  // Press G to toggle grid
 
     // Viewport state
     bool viewportHovered_ = false;
@@ -82,7 +82,7 @@ class MapEditorLayer : public se::Layer {
     void ExportMap(const std::string& filename);
 
     void BuildMapData();
-    void RenderGrid();
+    void RenderGrid(const Matrix4& view, const Matrix4& projection);
     void RenderViewport();
     void RenderStatusBar();
 };
