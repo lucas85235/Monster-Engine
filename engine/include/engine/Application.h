@@ -61,6 +61,17 @@ class Application {
         return *event_bus_;
     }
 
+    // Active scene management
+    void SetActiveScene(Scene* scene) {
+        active_scene_ = scene;
+    }
+    Scene* GetActiveScene() {
+        return active_scene_;
+    }
+    const Scene* GetActiveScene() const {
+        return active_scene_;
+    }
+
     static Application& Get();
 
     float GetTime();
@@ -84,6 +95,7 @@ class Application {
     bool minimized_ = false;
 
     static Application* s_Instance;
+    Scene*              active_scene_ = nullptr;
 
     std::unique_ptr<EventBus> event_bus_ = std::make_unique<EventBus>();
 };

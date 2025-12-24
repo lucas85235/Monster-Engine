@@ -13,10 +13,8 @@ namespace se {
 template <typename T, typename... Args>
 T& Entity::AddComponent(Args&&... args) {
     if constexpr (std::is_base_of_v<Component, T>) {
-        SE_LOG_CRITICAL("AddComponent: Using LIFECYCLE path for entity {}", GetID());
         return AddLifecycleComponent<T>(std::forward<Args>(args)...);
     } else {
-        SE_LOG_CRITICAL("AddComponent: Using DATA path for entity {}", GetID());
         return AddDataComponent<T>(std::forward<Args>(args)...);
     }
 }

@@ -11,8 +11,6 @@ namespace se {
 
 template <typename T, typename... Args>
 T& Entity::AddLifecycleComponent(Args&&... args) {
-    SE_LOG_CRITICAL("Entity::AddLifecycleComponent called for entity {}", GetID());
-
     // Ensure ScriptComponent exists on the entity
     if (!HasComponent<ScriptComponent>()) {
         scene_->registry_.emplace<ScriptComponent>(entityHandle_);

@@ -29,7 +29,7 @@ void Component::InitializeInternal(uint32_t entity_id, Scene* scene) {
     owner_entity_id_ = entity_id;
     scene_           = scene;
     
-    SE_LOG_CRITICAL("Component::InitializeInternal for entity {}", entity_id);
+    SE_LOG_INFO("Component initialized for entity {}", entity_id);
     Awake();
 }
 

@@ -25,7 +25,6 @@ ComponentSystem::~ComponentSystem() {
 }
 
 void ComponentSystem::ProcessPendingStarts() {
-    SE_LOG_CRITICAL("ProcessPendingStarts: {} components pending", pending_start_.size());
     if (pending_start_.empty()) return;
 
     std::vector<Component*> to_start = std::move(pending_start_);
@@ -38,7 +37,7 @@ void ComponentSystem::ProcessPendingStarts() {
             component->OnEnable();
             component->Start();
             component->MarkAsStarted();
-            SE_LOG_CRITICAL("Component started for entity {}", component->GetEntityID());
+            SE_LOG_INFO("Component started for entity {}", component->GetEntityID());
         }
 
         active_components_.push_back(component);
@@ -99,7 +98,7 @@ void ComponentSystem::RegisterComponent(Component* component) {
     if (it_pending != pending_start_.end()) return;
 
     pending_start_.push_back(component);
-    SE_LOG_CRITICAL("Component registered for entity {}, pending start", component->GetEntityID());
+    SE_LOG_INFO("Component registered for entity {}, pending start", component->GetEntityID());
 }
 
 void ComponentSystem::UnregisterComponent(Component* component) {

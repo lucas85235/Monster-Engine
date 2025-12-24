@@ -30,6 +30,10 @@ void MainGameLayer::OnAttach() {
     Layer::OnAttach();
     camera_    = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
     scene_     = CreateScope<Scene>("Main Game");
+    
+    // Set as active scene so Components can access it via Application::Get().GetActiveScene()
+    Application::Get().SetActiveScene(scene_.get());
+    
     character_ = CreateRef<Character>(scene_->CreateEntity("Character"));
     
     // AddComponent automatically detects if CharacterController inherits from Component
@@ -54,6 +58,7 @@ void MainGameLayer::OnAttach() {
 }
 
 void MainGameLayer::OnDetach() {
+    Application::Get().SetActiveScene(nullptr);
     Layer::OnDetach();
 }
 

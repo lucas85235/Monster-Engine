@@ -20,8 +20,6 @@ void CharacterController::Start() {
 void CharacterController::Update(float dt) {
     UpdateInputs();
     UpdateCamera(dt);
-
-    SE_LOG_CRITICAL("Character controller update");
 }
 
 void CharacterController::UpdateCamera(float dt) {
@@ -95,7 +93,6 @@ void CharacterController::BindInput() {
     input.BindAction("ToggleMouse", Key::Tab);
     input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
     input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
-    SE_LOG_CRITICAL("CharacterController: Input binded");
 }
 
 void CharacterController::UpdateInputs() {
