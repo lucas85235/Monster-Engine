@@ -24,6 +24,10 @@ void MainMenuBar::RenderFileMenu(MenuBarActions& actions) {
         if (ImGui::MenuItem("New Map", "Ctrl+N")) {
             actions.newMap = true;
         }
+        
+        if (ImGui::MenuItem("Open Map...", "Ctrl+O")) {
+            actions.openMap = true;
+        }
 
         ImGui::Separator();
 

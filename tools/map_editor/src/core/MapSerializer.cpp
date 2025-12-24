@@ -73,4 +73,103 @@ void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity
     }
 }
 
+bool MapSerializer::Import(MapData& data, const std::filesystem::path& path) {
+    SE_LOG_INFO("MapSerializer: Importing map from '{}'", path.string());
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        SE_LOG_ERROR("MapSerializer: Failed to open file for reading: {}", path.string());
+        return false;
+    }
+
+    uint32_t entityCount = 0;
+    if (!ReadHeader(file, data, entityCount)) {
+        SE_LOG_ERROR("MapSerializer: Failed to read header from: {}", path.string());
+        return false;
+    }
+
+    if (!ReadString(file, data.mapName)) {
+        SE_LOG_ERROR("MapSerializer: Failed to read map name from: {}", path.string());
+        return false;
+    }
+
+    data.entities.clear();
+    data.entities.reserve(entityCount);
+
+    for (uint32_t i = 0; i < entityCount; ++i) {
+        MapEntityData entity;
+        if (!ReadEntity(file, entity)) {
+            SE_LOG_ERROR("MapSerializer: Failed to read entity {} from: {}", i, path.string());
+            return false;
+        }
+        data.entities.push_back(std::move(entity));
+    }
+
+    file.close();
+
+    SE_LOG_INFO("MapSerializer: Successfully imported {} entities from '{}'", 
+                data.entities.size(), path.string());
+    return true;
+}
+
+bool MapSerializer::ReadString(std::ifstream& file, std::string& str) {
+    uint32_t length = 0;
+    file.read(reinterpret_cast<char*>(&length), sizeof(length));
+    if (file.fail() || length > 10000) return false;  // Sanity check
+    
+    str.resize(length);
+    file.read(str.data(), length);
+    return !file.fail();
+}
+
+bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& entityCount) {
+    uint32_t magic = 0;
+    file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    if (magic != MapData::MAGIC) {
+        SE_LOG_ERROR("MapSerializer: Invalid file magic: expected 0x{:08X}, got 0x{:08X}", 
+                     MapData::MAGIC, magic);
+        return false;
+    }
+
+    uint32_t version = 0;
+    file.read(reinterpret_cast<char*>(&version), sizeof(version));
+    if (version != MapData::VERSION) {
+        SE_LOG_WARN("MapSerializer: Version mismatch: expected {}, got {}", 
+                    MapData::VERSION, version);
+        // Continue anyway for now
+    }
+
+    file.read(reinterpret_cast<char*>(&entityCount), sizeof(entityCount));
+    
+    uint32_t reserved = 0;
+    file.read(reinterpret_cast<char*>(&reserved), sizeof(reserved));
+
+    return !file.fail();
+}
+
+bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity) {
+    if (!ReadString(file, entity.name)) return false;
+
+    file.read(reinterpret_cast<char*>(&entity.primitiveType), sizeof(entity.primitiveType));
+
+    file.read(reinterpret_cast<char*>(&entity.position), sizeof(Vector3));
+    file.read(reinterpret_cast<char*>(&entity.rotation), sizeof(Vector3));
+    file.read(reinterpret_cast<char*>(&entity.scale), sizeof(Vector3));
+    file.read(reinterpret_cast<char*>(&entity.color), sizeof(Vector4));
+
+    uint8_t hasCollision = 0;
+    file.read(reinterpret_cast<char*>(&hasCollision), sizeof(hasCollision));
+    entity.hasCollision = (hasCollision != 0);
+
+    if (entity.hasCollision) {
+        file.read(reinterpret_cast<char*>(&entity.colliderType), sizeof(entity.colliderType));
+        file.read(reinterpret_cast<char*>(&entity.colliderSize), sizeof(Vector3));
+        file.read(reinterpret_cast<char*>(&entity.colliderRadius), sizeof(float));
+        file.read(reinterpret_cast<char*>(&entity.colliderHeight), sizeof(float));
+    }
+
+    return !file.fail();
+}
+
 }  // namespace mst
+

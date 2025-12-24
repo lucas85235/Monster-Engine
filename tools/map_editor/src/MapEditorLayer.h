@@ -8,6 +8,7 @@
 #include "core/PrimitiveFactory.h"
 #include "editor/EditorCamera.h"
 #include "editor/EditorFramebuffer.h"
+#include "editor/EditorGrid.h"
 #include "editor/GizmoController.h"
 #include "editor/SelectionManager.h"
 #include "engine/Layer.h"
@@ -36,6 +37,7 @@ class MapEditorLayer : public se::Layer {
 
     // Framebuffer for viewport rendering
     Scope<EditorFramebuffer> framebuffer_;
+    Scope<EditorGrid> editorGrid_;
     uint32_t viewportWidth_ = 1280;
     uint32_t viewportHeight_ = 720;
 
@@ -52,10 +54,12 @@ class MapEditorLayer : public se::Layer {
     MapData     currentMap_;
     std::string currentFilePath_;
     bool        showExportDialog_ = false;
+    bool        showOpenDialog_ = false;
     char        exportFileName_[256] = "untitled";
+    char        openFileName_[256] = "";
 
     // Grid
-    bool showGrid_ = false;  // Press G to toggle grid
+    bool showGrid_ = true;  // Press G to toggle grid
 
     // Viewport state
     bool viewportHovered_ = false;
@@ -79,7 +83,9 @@ class MapEditorLayer : public se::Layer {
     void DeleteSelected();
 
     void ShowExportDialog();
+    void ShowOpenDialog();
     void ExportMap(const std::string& filename);
+    void LoadMap(const std::string& filename);
 
     void BuildMapData();
     void RenderGrid(const Matrix4& view, const Matrix4& projection);

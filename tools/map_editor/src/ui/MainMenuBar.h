@@ -4,6 +4,7 @@ namespace mst {
 
 struct MenuBarActions {
     bool newMap    = false;
+    bool openMap   = false;
     bool exportMap = false;
     bool exitApp   = false;
 

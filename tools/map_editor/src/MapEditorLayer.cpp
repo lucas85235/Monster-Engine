@@ -25,6 +25,9 @@ void MapEditorLayer::OnAttach() {
     // Create framebuffer for viewport
     framebuffer_ = CreateScope<EditorFramebuffer>(viewportWidth_, viewportHeight_);
     
+    // Create grid renderer
+    editorGrid_ = CreateScope<EditorGrid>();
+    
     scene_ = CreateScope<se::Scene>("Editor Scene", se::SceneSettings{.EnablePhysics = false});
     se::Application::Get().SetActiveScene(scene_.get());
     
@@ -113,14 +116,14 @@ void MapEditorLayer::OnRender() {
         }
         frameCount++;
         
-        scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
-        
-        // Render grid with depth testing (after scene so it appears behind objects)
+        // Render grid first (so objects render on top)
         if (showGrid_) {
             Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
             Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
             RenderGrid(view, projection);
         }
+        
+        scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
         
         framebuffer_->Unbind();
     }
@@ -161,6 +164,7 @@ void MapEditorLayer::OnImGuiRender() {
     RenderViewport();
     RenderStatusBar();
     if (showExportDialog_) ShowExportDialog();
+    if (showOpenDialog_) ShowOpenDialog();
     ProcessKeyboardShortcuts();
 }
 
@@ -172,6 +176,7 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
         currentMap_.mapName = "Untitled Map";
         SE_LOG_INFO("New map created");
     }
+    if (actions.openMap) showOpenDialog_ = true;
     if (actions.exportMap) showExportDialog_ = true;
     if (actions.exitApp) se::Application::Get().Close();
     if (actions.createCube) CreatePrimitive(PrimitiveType::Cube);
@@ -336,6 +341,83 @@ void MapEditorLayer::ExportMap(const std::string& filename) {
     }
 }
 
+void MapEditorLayer::ShowOpenDialog() {
+    ImGui::OpenPopup("Open Map");
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal("Open Map", &showOpenDialog_, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Open a .mstmap file");
+        ImGui::Separator();
+        ImGui::InputText("File Name", openFileName_, sizeof(openFileName_));
+        ImGui::Text("(Enter filename without extension, file must be in current directory)");
+        ImGui::Separator();
+        if (ImGui::Button("Open", ImVec2(120, 0))) {
+            LoadMap(std::string(openFileName_) + ".mstmap");
+            showOpenDialog_ = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) showOpenDialog_ = false;
+        ImGui::EndPopup();
+    }
+}
+
+void MapEditorLayer::LoadMap(const std::string& filename) {
+    MapData loadedData;
+    std::filesystem::path path = filename;
+    
+    if (!MapSerializer::Import(loadedData, path)) {
+        SE_LOG_ERROR("Failed to load map from '{}'", filename);
+        return;
+    }
+    
+    // Clear current scene
+    selection_.ClearSelection();
+    scene_->Clear();
+    
+    // Recreate the light
+    auto sunEntity = scene_->CreateEntity("Editor Light");
+    auto& sunTransform = sunEntity.GetComponent<se::TransformComponent>();
+    sunTransform.SetPosition({0.0f, 10.0f, 10.0f});
+    sunTransform.SetRotation({-45.0f, 0.0f, 0.0f});
+    auto& sunLight = sunEntity.AddComponent<se::DirectionalLightComponent>();
+    sunLight.Color = {1.0f, 0.98f, 0.9f};
+    sunLight.Intensity = 1.5f;
+    sunLight.CastShadows = true;
+    
+    // Create entities from loaded data
+    for (const auto& entityData : loadedData.entities) {
+        // Create primitive with the saved name
+        se::Entity entity = PrimitiveFactory::CreatePrimitive(*scene_, entityData.primitiveType, entityData.name);
+        
+        // Apply transform
+        auto& transform = entity.GetComponent<se::TransformComponent>();
+        transform.SetPosition(entityData.position);
+        transform.SetRotation(entityData.rotation);
+        transform.SetScale(entityData.scale);
+        
+        // Apply color if has mesh render
+        if (entity.HasComponent<se::MeshRenderComponent>()) {
+            entity.GetComponent<se::MeshRenderComponent>().Color = entityData.color;
+        }
+        
+        // Update editor metadata
+        if (entity.HasComponent<PrimitiveFactory::EditorMetadata>()) {
+            auto& metadata = entity.GetComponent<PrimitiveFactory::EditorMetadata>();
+            metadata.hasCollision = entityData.hasCollision;
+            metadata.colliderType = entityData.colliderType;
+            metadata.colliderSize = entityData.colliderSize;
+            metadata.colliderRadius = entityData.colliderRadius;
+            metadata.colliderHeight = entityData.colliderHeight;
+        }
+    }
+    
+    currentMap_ = std::move(loadedData);
+    strncpy(exportFileName_, currentMap_.mapName.c_str(), sizeof(exportFileName_) - 1);
+    
+    SE_LOG_INFO("Map '{}' loaded successfully with {} entities", 
+                currentMap_.mapName, currentMap_.entities.size());
+}
+
 void MapEditorLayer::BuildMapData() {
     currentMap_.entities.clear();
     auto view = scene_->GetAllEntitiesWith<se::NameComponent, se::TransformComponent, PrimitiveFactory::EditorMetadata>();
@@ -363,11 +445,9 @@ void MapEditorLayer::BuildMapData() {
 }
 
 void MapEditorLayer::RenderGrid(const Matrix4& view, const Matrix4& projection) {
-    // TODO: Implement proper OpenGL grid rendering with depth testing
-    // For now, grid is disabled until we have a proper shader-based grid
-    // The ImGuizmo::DrawGrid doesn't work well here as it's an overlay
-    (void)view;
-    (void)projection;
+    if (editorGrid_) {
+        editorGrid_->Render(view, projection);
+    }
 }
 
 void MapEditorLayer::RenderViewport() {
@@ -408,8 +488,7 @@ void MapEditorLayer::RenderViewport() {
         
         float aspectRatio = viewportSize.x / viewportSize.y;
         
-        // Note: Grid is rendered in OnRender with depth testing
-        
+        // Grid is rendered in OnRender with proper depth testing
         // Render gizmo for selected entity
         if (selection_.HasSelection()) {
             auto entity = selection_.GetPrimarySelection();
