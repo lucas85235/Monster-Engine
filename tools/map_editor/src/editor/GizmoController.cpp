@@ -53,15 +53,7 @@ bool GizmoController::Manipulate(const Camera& camera, float aspectRatio,
     Matrix4 model      = transform.GetTransform();
 
     ImGuizmo::SetOrthographic(false);
-    ImGuizmo::SetDrawlist();
-
-    ImGuiIO& io    = ImGui::GetIO();
-    float    viewX = 0.0f;
-    float    viewY = 0.0f;
-    float    viewW = io.DisplaySize.x;
-    float    viewH = io.DisplaySize.y;
-
-    ImGuizmo::SetRect(viewX, viewY, viewW, viewH);
+    // Note: SetDrawlist and SetRect are called in MapEditorLayer::RenderViewport
 
     float deltaMatrix[16];
     float snapValues[3] = {0.0f, 0.0f, 0.0f};

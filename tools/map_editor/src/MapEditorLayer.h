@@ -7,6 +7,7 @@
 #include "core/MapSerializer.h"
 #include "core/PrimitiveFactory.h"
 #include "editor/EditorCamera.h"
+#include "editor/EditorFramebuffer.h"
 #include "editor/GizmoController.h"
 #include "editor/SelectionManager.h"
 #include "engine/Layer.h"
@@ -33,6 +34,11 @@ class MapEditorLayer : public se::Layer {
     Scope<se::Scene> scene_;
     EditorCamera     editorCamera_;
 
+    // Framebuffer for viewport rendering
+    Scope<EditorFramebuffer> framebuffer_;
+    uint32_t viewportWidth_ = 1280;
+    uint32_t viewportHeight_ = 720;
+
     // Selection & gizmo
     SelectionManager selection_;
     GizmoController  gizmo_;
@@ -51,9 +57,18 @@ class MapEditorLayer : public se::Layer {
     // Grid
     bool showGrid_ = true;
 
+    // Viewport state
+    bool viewportHovered_ = false;
+    bool viewportFocused_ = false;
+
     // Input state
     float lastMouseX_ = 0.0f;
     float lastMouseY_ = 0.0f;
+    
+    // Key state tracking for one-shot actions
+    bool wasKeyFPressed_ = false;
+    bool wasKeyGPressed_ = false;
+    bool wasKeyDeletePressed_ = false;
 
     void ProcessMenuActions(const MenuBarActions& actions);
     void ProcessHierarchyActions();

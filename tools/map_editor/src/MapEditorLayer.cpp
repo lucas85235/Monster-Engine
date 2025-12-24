@@ -1,5 +1,6 @@
 #include "MapEditorLayer.h"
 
+#include <glad/glad.h>
 #include <ImGuizmo.h>
 #include <imgui.h>
 #include <gtc/type_ptr.hpp>
@@ -20,14 +21,31 @@ MapEditorLayer::~MapEditorLayer() = default;
 void MapEditorLayer::OnAttach() {
     Layer::OnAttach();
     SE_LOG_INFO("MapEditorLayer::OnAttach");
+    
+    // Create framebuffer for viewport
+    framebuffer_ = CreateScope<EditorFramebuffer>(viewportWidth_, viewportHeight_);
+    
     scene_ = CreateScope<se::Scene>("Editor Scene", se::SceneSettings{.EnablePhysics = false});
     se::Application::Get().SetActiveScene(scene_.get());
+    
+    // Add directional light for scene illumination
+    auto sunEntity = scene_->CreateEntity("Editor Light");
+    auto& sunTransform = sunEntity.GetComponent<se::TransformComponent>();
+    sunTransform.SetPosition({0.0f, 10.0f, 10.0f});
+    sunTransform.SetRotation({-45.0f, 0.0f, 0.0f});
+    auto& sunLight = sunEntity.AddComponent<se::DirectionalLightComponent>();
+    sunLight.Color = {1.0f, 0.98f, 0.9f};
+    sunLight.Intensity = 1.5f;
+    sunLight.CastShadows = true;
+    SE_LOG_INFO("Editor light created");
+    
     editorCamera_.FocusOnPoint({0.0f, 0.0f, 0.0f});
     editorCamera_.SetOrbitDistance(15.0f);
 }
 
 void MapEditorLayer::OnDetach() {
     SE_LOG_INFO("MapEditorLayer::OnDetach");
+    framebuffer_.reset();
     se::Application::Get().SetActiveScene(nullptr);
     scene_.reset();
     Layer::OnDetach();
@@ -36,33 +54,71 @@ void MapEditorLayer::OnDetach() {
 void MapEditorLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
     auto& input = se::InputManager::Get();
+    
+    // Calculate mouse delta
     float mouseX = input.GetMousePosition().x;
     float mouseY = input.GetMousePosition().y;
     float dx = mouseX - lastMouseX_;
     float dy = mouseY - lastMouseY_;
     lastMouseX_ = mouseX;
     lastMouseY_ = mouseY;
-    bool leftButton = input.IsMouseButtonDown(0);
-    bool middleButton = input.IsMouseButtonDown(2);
-    bool rightButton = input.IsMouseButtonDown(1);
-    if (!gizmo_.IsUsing() && !ImGui::GetIO().WantCaptureMouse) {
-        editorCamera_.OnMouseMove(dx, dy, leftButton, middleButton, rightButton);
+    
+    // Camera controls only when viewport is hovered and not using gizmo
+    if (viewportHovered_ && !gizmo_.IsUsing()) {
+        bool altPressed = input.IsKeyDown(GLFW_KEY_LEFT_ALT) || input.IsKeyDown(GLFW_KEY_RIGHT_ALT);
+        bool leftButton = input.IsMouseButtonDown(0);
+        bool middleButton = input.IsMouseButtonDown(2);
+        bool rightButton = input.IsMouseButtonDown(1);
+        
+        // Alt+Left = Orbit, Middle = Pan, Alt+Right or Right = Orbit
+        bool orbiting = (altPressed && leftButton) || rightButton;
+        bool panning = middleButton || (altPressed && middleButton);
+        
+        if (orbiting) {
+            editorCamera_.OnMouseMove(dx, dy, false, false, true);
+        } else if (panning) {
+            editorCamera_.OnMouseMove(dx, dy, false, true, false);
+        }
+        
+        // Scroll to zoom
+        float scroll = ImGui::GetIO().MouseWheel;
+        if (scroll != 0.0f) {
+            editorCamera_.OnMouseScroll(scroll);
+        }
     }
+    
     editorCamera_.Update(ts);
     scene_->OnUpdate(ts);
 }
 
 void MapEditorLayer::OnRender() {
     Layer::OnRender();
+    
+    // Render scene to framebuffer
+    if (framebuffer_) {
+        framebuffer_->Bind();
+        
+        // Clear the framebuffer
+        glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // Render scene with viewport aspect ratio
+        float aspectRatio = static_cast<float>(viewportWidth_) / static_cast<float>(viewportHeight_);
+        scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
+        
+        framebuffer_->Unbind();
+    }
+    
+    // Restore main window viewport
     auto& window = se::Application::Get().GetWindow();
-    float aspectRatio = static_cast<float>(window.GetWidth()) / static_cast<float>(window.GetHeight());
-    scene_->OnRender(editorCamera_.GetCamera(), aspectRatio);
+    glViewport(0, 0, window.GetWidth(), window.GetHeight());
 }
 
 void MapEditorLayer::OnImGuiRender() {
     Layer::OnImGuiRender();
     ImGuizmo::BeginFrame();
     
+    // Standard dockspace setup
     ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None;
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
     ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -123,22 +179,72 @@ void MapEditorLayer::ProcessHierarchyActions() {
 }
 
 void MapEditorLayer::ProcessKeyboardShortcuts() {
-    if (ImGui::GetIO().WantCaptureKeyboard) return;
     auto& input = se::InputManager::Get();
-    if (input.IsKeyDown(GLFW_KEY_W)) gizmo_.SetOperation(GizmoController::Operation::Translate);
-    if (input.IsKeyDown(GLFW_KEY_E)) gizmo_.SetOperation(GizmoController::Operation::Rotate);
-    if (input.IsKeyDown(GLFW_KEY_R)) gizmo_.SetOperation(GizmoController::Operation::Scale);
-    if (input.IsKeyDown(GLFW_KEY_Q)) gizmo_.ToggleSpace();
-    if (input.IsKeyDown(GLFW_KEY_DELETE)) DeleteSelected();
-    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) && input.IsKeyDown(GLFW_KEY_D)) DuplicateSelected();
-    if (input.IsKeyDown(GLFW_KEY_F) && selection_.HasSelection()) {
-        auto entity = selection_.GetPrimarySelection();
-        auto& transform = entity.GetComponent<se::TransformComponent>();
-        editorCamera_.FocusOnPoint(transform.Position);
+    
+    // Gizmo mode switching (W/E/R) - only when viewport is hovered/focused
+    if (viewportHovered_ || viewportFocused_) {
+        if (input.IsKeyDown(GLFW_KEY_W) && !input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) {
+            gizmo_.SetOperation(GizmoController::Operation::Translate);
+        }
+        if (input.IsKeyDown(GLFW_KEY_E) && !input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) {
+            gizmo_.SetOperation(GizmoController::Operation::Rotate);
+        }
+        if (input.IsKeyDown(GLFW_KEY_R) && !input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) {
+            gizmo_.SetOperation(GizmoController::Operation::Scale);
+        }
+        if (input.IsKeyDown(GLFW_KEY_Q) && !input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) {
+            gizmo_.ToggleSpace();
+        }
     }
-    if (input.IsKeyDown(GLFW_KEY_G)) showGrid_ = !showGrid_;
-    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) && input.IsKeyDown(GLFW_KEY_E)) showExportDialog_ = true;
-    if (input.IsKeyDown(GLFW_KEY_ESCAPE)) selection_.ClearSelection();
+    
+    // Global shortcuts (work regardless of focus)
+    
+    // Delete - one-shot
+    bool deletePressed = input.IsKeyDown(GLFW_KEY_DELETE);
+    if (deletePressed && !wasKeyDeletePressed_) {
+        DeleteSelected();
+    }
+    wasKeyDeletePressed_ = deletePressed;
+    
+    // Duplicate (Ctrl+D)
+    static bool wasCtrlDPressed = false;
+    bool ctrlDPressed = input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) && input.IsKeyDown(GLFW_KEY_D);
+    if (ctrlDPressed && !wasCtrlDPressed) {
+        DuplicateSelected();
+    }
+    wasCtrlDPressed = ctrlDPressed;
+    
+    // Focus on selection (F) - one-shot
+    bool fPressed = input.IsKeyDown(GLFW_KEY_F);
+    if (fPressed && !wasKeyFPressed_ && selection_.HasSelection()) {
+        auto entity = selection_.GetPrimarySelection();
+        if (entity.IsValid() && entity.HasComponent<se::TransformComponent>()) {
+            auto& transform = entity.GetComponent<se::TransformComponent>();
+            editorCamera_.FocusOnPoint(transform.Position);
+            editorCamera_.SetOrbitDistance(5.0f);  // Zoom in when focusing
+            SE_LOG_INFO("Camera focused on entity at ({}, {}, {})", 
+                transform.Position.x, transform.Position.y, transform.Position.z);
+        }
+    }
+    wasKeyFPressed_ = fPressed;
+    
+    // Grid toggle (G) - one-shot
+    bool gPressed = input.IsKeyDown(GLFW_KEY_G);
+    if (gPressed && !wasKeyGPressed_) {
+        showGrid_ = !showGrid_;
+        SE_LOG_INFO("Grid: {}", showGrid_ ? "ON" : "OFF");
+    }
+    wasKeyGPressed_ = gPressed;
+    
+    // Export (Ctrl+E)
+    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) && input.IsKeyDown(GLFW_KEY_E)) {
+        showExportDialog_ = true;
+    }
+    
+    // Escape to deselect
+    if (input.IsKeyDown(GLFW_KEY_ESCAPE)) {
+        selection_.ClearSelection();
+    }
 }
 
 void MapEditorLayer::CreatePrimitive(PrimitiveType type) {
@@ -253,18 +359,64 @@ void MapEditorLayer::RenderGrid() {
 }
 
 void MapEditorLayer::RenderViewport() {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("Viewport");
-    auto& window = se::Application::Get().GetWindow();
-    float aspectRatio = static_cast<float>(window.GetWidth()) / static_cast<float>(window.GetHeight());
-    RenderGrid();
-    if (selection_.HasSelection()) {
-        auto entity = selection_.GetPrimarySelection();
-        if (entity.IsValid() && entity.HasComponent<se::TransformComponent>()) {
-            auto& transform = entity.GetComponent<se::TransformComponent>();
-            gizmo_.Manipulate(editorCamera_.GetCamera(), aspectRatio, transform);
+    
+    // Track viewport state for camera controls
+    viewportHovered_ = ImGui::IsWindowHovered();
+    viewportFocused_ = ImGui::IsWindowFocused();
+    
+    // Get viewport dimensions
+    ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+    
+    // Resize framebuffer if needed
+    if (viewportSize.x > 0 && viewportSize.y > 0) {
+        uint32_t newWidth = static_cast<uint32_t>(viewportSize.x);
+        uint32_t newHeight = static_cast<uint32_t>(viewportSize.y);
+        
+        if (newWidth != viewportWidth_ || newHeight != viewportHeight_) {
+            viewportWidth_ = newWidth;
+            viewportHeight_ = newHeight;
+            if (framebuffer_) {
+                framebuffer_->Resize(viewportWidth_, viewportHeight_);
+            }
+        }
+        
+        // Display framebuffer texture (flip UV vertically for OpenGL)
+        if (framebuffer_) {
+            uint64_t textureId = framebuffer_->GetColorAttachment();
+            ImGui::Image(reinterpret_cast<void*>(textureId), viewportSize, 
+                         ImVec2(0, 1), ImVec2(1, 0));
+        }
+        
+        // Setup ImGuizmo for this viewport (overlay on top of image)
+        ImVec2 viewportPos = ImGui::GetItemRectMin();
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect(viewportPos.x, viewportPos.y, viewportSize.x, viewportSize.y);
+        
+        float aspectRatio = viewportSize.x / viewportSize.y;
+        
+        // Render grid overlay
+        if (showGrid_) {
+            Matrix4 view = editorCamera_.GetCamera().getViewMatrix();
+            Matrix4 projection = editorCamera_.GetCamera().getProjectionMatrix(aspectRatio);
+            Matrix4 identity = Matrix4(1.0f);
+            ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(projection), 
+                               glm::value_ptr(identity), 100.0f);
+        }
+        
+        // Render gizmo for selected entity
+        if (selection_.HasSelection()) {
+            auto entity = selection_.GetPrimarySelection();
+            if (entity.IsValid() && entity.HasComponent<se::TransformComponent>()) {
+                auto& transform = entity.GetComponent<se::TransformComponent>();
+                gizmo_.Manipulate(editorCamera_.GetCamera(), aspectRatio, transform);
+            }
         }
     }
+    
     ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void MapEditorLayer::RenderStatusBar() {
