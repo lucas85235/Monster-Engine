@@ -15,7 +15,7 @@ class Renderer {
     void Init();
     void Shutdown();
 
-    void BeginFrame();
+    bool BeginFrame();
     void EndFrame();
 
     void Clear();

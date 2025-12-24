@@ -63,11 +63,13 @@ void Renderer::Shutdown() {
     initialized_ = false;
 }
 
-void Renderer::BeginFrame() {
+bool Renderer::BeginFrame() {
     // Start the frame on the RHI device (begins command buffer, render pass, etc.)
+    // Returns false if swap chain needs recreation (window resize)
     if (auto* device = GetDevice()) { 
-        device->BeginFrame(); 
+        return device->BeginFrame(); 
     }
+    return false;
 }
 
 void Renderer::EndFrame() {

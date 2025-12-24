@@ -172,7 +172,12 @@ void Window::FramebufferSizeCallback(WindowHandle window, int width, int height)
 
     if (event_bus_) { event_bus_->Invoke<WindowResizeEvent>(static_cast<uint32_t>(w), static_cast<uint32_t>(h)); }
 
-    glViewport(0, 0, w, h);
+    // Get Window instance to check API type
+    Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (win && win->spec_.Api == RHI::API::OpenGL) {
+        glViewport(0, 0, w, h);
+    }
+    // For Vulkan, swap chain recreation is handled by VulkanDevice
 }
 
 }  // namespace se

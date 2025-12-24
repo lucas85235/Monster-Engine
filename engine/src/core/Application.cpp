@@ -132,8 +132,11 @@ int Application::Run() {
         if (minimized_) continue;
 
         SE_LOG_DEBUG("BeginFrame...");
-        // Begin frame
-        renderer_->BeginFrame();
+        // Begin frame - may return false if swap chain needs recreation (window resize)
+        if (!renderer_->BeginFrame()) {
+            SE_LOG_DEBUG("BeginFrame returned false (swap chain recreation), skipping frame");
+            continue;
+        }
         SE_LOG_DEBUG("BeginFrame done");
 
         int width, height;

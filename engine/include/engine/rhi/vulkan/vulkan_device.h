@@ -246,6 +246,11 @@ class VulkanDevice : public IDevice {
     void                     createCommandPool();
     void                     createCommandBuffers();
     void                     createSyncObjects();
+    
+    // Swap chain recreation for window resize
+    void                     cleanupSwapChain();
+    void                     recreateSwapChain();
+    bool                     framebufferResized = false;
 
     QueueFamilyIndices      findQueueFamilies(VkPhysicalDevice device);
     bool                    isDeviceSuitable(VkPhysicalDevice device);

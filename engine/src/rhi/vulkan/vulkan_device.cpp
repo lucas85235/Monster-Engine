@@ -731,6 +731,65 @@ void VulkanDevice::createSyncObjects() {
     SE_LOG_INFO("[Vulkan] Sync objects created" );
 }
 
+void VulkanDevice::cleanupSwapChain() {
+    SE_LOG_INFO("[Vulkan] Cleaning up swap chain resources for resize");
+    
+    // Destroy depth resources
+    if (depthImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, depthImageView, nullptr);
+        depthImageView = VK_NULL_HANDLE;
+    }
+    if (depthImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, depthImage, nullptr);
+        depthImage = VK_NULL_HANDLE;
+    }
+    if (depthImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, depthImageMemory, nullptr);
+        depthImageMemory = VK_NULL_HANDLE;
+    }
+    
+    // Destroy framebuffers
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+    swapChainFramebuffers.clear();
+    
+    // Destroy image views
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+    swapChainImageViews.clear();
+    
+    // Destroy swap chain
+    if (swapChain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        swapChain = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanDevice::recreateSwapChain() {
+    SE_LOG_INFO("[Vulkan] Recreating swap chain...");
+    
+    // Wait for window to have valid size
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+    
+    vkDeviceWaitIdle(device);
+    
+    cleanupSwapChain();
+    
+    createSwapChain();
+    createImageViews();
+    createDepthResources();
+    createFramebuffers();
+    
+    SE_LOG_INFO("[Vulkan] Swap chain recreated ({}x{})", swapChainExtent.width, swapChainExtent.height);
+}
+
 void VulkanDevice::createDescriptorSetLayout() {
     // Binding 0: UBO for scene-wide data
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -2711,7 +2770,14 @@ bool VulkanDevice::BeginFrame() {
     VkResult result =
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &currentImageIndex);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) { return false; }
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        SE_LOG_INFO("[Vulkan] Swap chain out of date, recreating...");
+        recreateSwapChain();
+        return false;  // Skip this frame
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        SE_LOG_ERROR("[Vulkan] Failed to acquire swap chain image");
+        return false;
+    }
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
@@ -2865,7 +2931,16 @@ void VulkanDevice::EndFrame() {
     presentInfo.pSwapchains     = swapChains;
     presentInfo.pImageIndices   = &currentImageIndex;
 
-    vkQueuePresentKHR(presentQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        framebufferResized = false;
+        SE_LOG_INFO("[Vulkan] Swap chain needs recreation after present (result={}, resized={})", 
+                    static_cast<int>(result), framebufferResized);
+        recreateSwapChain();
+    } else if (result != VK_SUCCESS) {
+        SE_LOG_ERROR("[Vulkan] Failed to present swap chain image");
+    }
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
