@@ -1,8 +1,8 @@
 #include "MainGameLayer.h"
 
 #include "../../../SampleUtilities.h"
-#include "apps/third_person_game/src/CharacterController.h"
-#include "apps/third_person_game/src/CharacterRender.h"
+#include "../components/CharacterController.h"
+#include "../components/CharacterRender.h"
 #include "engine/Application.h"
 #include "engine/Camera.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -28,7 +28,7 @@ MainGameLayer::~MainGameLayer() = default;
 
 void MainGameLayer::OnAttach() {
     Layer::OnAttach();
-    scene_ = CreateScope<Scene>("Main Game");
+    scene_ = CreateScope<Scene>("Main Game", SceneSettings{.EnablePhysics = true});
 
     // Set as active scene so Components can access it via Application::Get().GetActiveScene()
     Application::Get().SetActiveScene(scene_.get());
@@ -40,7 +40,10 @@ void MainGameLayer::OnAttach() {
     character_entity_.AddComponent<CharacterController>();
     character_entity_.AddComponent<CharacterRender>();
 
-    scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
+    // Enable physics debug wireframe rendering
+    if (scene_->GetPhysicsSystem()) {
+        scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
+    }
 }
 
 void MainGameLayer::OnDetach() {

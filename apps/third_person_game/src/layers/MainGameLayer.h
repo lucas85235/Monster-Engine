@@ -1,5 +1,5 @@
 #pragma once
-#include "../Character.h"
+#include "../components/Character.h"
 #include "engine/Camera.h"
 #include "engine/Layer.h"
 #include "engine/ecs/Scene.h"
@@ -7,7 +7,7 @@
 
 namespace FirstGame {
 class MainGameLayer : public se::Layer {
-   public:
+public:
     ~MainGameLayer() override;
 
     void OnAttach() override;
@@ -20,9 +20,9 @@ class MainGameLayer : public se::Layer {
 
     void OnImGuiRender() override;
 
-   private:
+private:
     Entity        character_entity_;
     Scope<Scene>  scene_;
     Ref<Material> material_;
 };
-}  // namespace FirstGame
+} // namespace FirstGame

@@ -9,10 +9,20 @@
 #include "engine/physics/PhysicsSystem.h"
 
 namespace se {
+
 RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data) : data_(data) {
-    if (GetEntity().GetScene() && GetEntity().GetScene()->GetPhysicsSystem()) {
-        physics_system_ = GetEntity().GetScene()->GetPhysicsSystem();
-        body_           = physics_system_->AddRigidBody(GetEntity(), data);
+    // Note: GetEntity()/GetScene() are not available in constructor
+    // Physics registration happens in Awake() after InitializeInternal() is called
+}
+
+void RigidbodyComponent::Awake() {
+    // Now GetEntity() and GetScene() are available
+    if (GetScene() && GetScene()->GetPhysicsSystem()) {
+        physics_system_ = GetScene()->GetPhysicsSystem();
+        body_           = physics_system_->AddRigidBody(GetEntity(), data_);
+        SE_LOG_INFO("RigidbodyComponent::Awake() - Rigidbody added for entity {}", GetEntityID());
+    } else {
+        SE_LOG_ERROR("RigidbodyComponent::Awake() - PhysicsSystem not available!");
     }
 }
 

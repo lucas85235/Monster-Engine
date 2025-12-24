@@ -19,7 +19,10 @@ struct RigidbodyData {
 
 class RigidbodyComponent : public Component {
 public:
+    RigidbodyComponent() = default;
     RigidbodyComponent(const RigidbodyData& data);
+    
+    void Awake() override;
 
     btRigidBody* GetRigidbody() const {
         return body_;

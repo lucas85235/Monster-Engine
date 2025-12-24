@@ -1,4 +1,4 @@
-#include "apps/third_person_game/src/CharacterController.h"
+#include "CharacterController.h"
 
 #include "engine/Application.h"
 #include "engine/ecs/SimpleComponents.h"
