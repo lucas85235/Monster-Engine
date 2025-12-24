@@ -23,8 +23,6 @@ class MainGameLayer : public se::Layer {
    private:
     Ref<Character> character_;
     Scope<Scene>   scene_;
-    Camera         camera_;
     Ref<Material>  material_;
-    bool           mouseCaptured_ = false;
 };
 }  // namespace FirstGame

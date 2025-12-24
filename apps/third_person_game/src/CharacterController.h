@@ -23,14 +23,15 @@ class CharacterController : public Component {
     void Start() override;
     void Update(float dt) override;
 
+    Camera* GetCamera()const{ return camera_; }
+
    private:
     void UpdateCamera(float dt);
     void BindInput();
     void UpdateInputs();
 
-   private:
     bool   mouseCaptured_ = false;
-    Camera camera_;
+    Camera* camera_;
 };
 
 }  // namespace FirstGame

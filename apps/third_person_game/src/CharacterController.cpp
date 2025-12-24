@@ -9,10 +9,20 @@ namespace FirstGame {
 
 void CharacterController::Awake() {
     SE_LOG_INFO("CharacterController::Awake() - Binding input");
+    camera_    = new Camera(glm::vec3(0.0f, 5.0f, 10.0f));
+
+    auto& springArm           = GetEntity().AddComponent<SpringArmComponent>();
+    springArm.TargetArmLength = 8.0f;
+    springArm.SocketOffset    = {0.0f, 1.5f, 0.0f};
+    springArm.Pitch           = -30.0f;
+
     BindInput();
 }
 
 void CharacterController::Start() {
+    // Set this camera as the active camera for the scene
+    GetScene()->SetActiveCamera(camera_);
+    
     SE_LOG_INFO("CharacterController::Start() - Controller ready for entity {}",
                 GetEntity().GetID());
 }
@@ -29,6 +39,7 @@ void CharacterController::UpdateCamera(float dt) {
     auto&  input  = InputManager::Get();
 
     if (!entity.HasComponent<SpringArmComponent>()) return;
+
     auto& springArm   = entity.GetComponent<SpringArmComponent>();
     auto& playerTrans = entity.GetComponent<TransformComponent>();
 
@@ -83,9 +94,9 @@ void CharacterController::UpdateCamera(float dt) {
 
     glm::vec3 camPos = targetPos + direction * springArm.CurrentArmLength;
 
-    camera_.SetPosition(camPos);
-    camera_.SetYaw(-springArm.Yaw - 90.0f);
-    camera_.SetPitch(-springArm.Pitch);
+    camera_->SetPosition(camPos);
+    camera_->SetYaw(-springArm.Yaw - 90.0f);
+    camera_->SetPitch(-springArm.Pitch);
 }
 
 void CharacterController::BindInput() {

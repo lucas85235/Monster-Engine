@@ -49,12 +49,28 @@ class Scene {
     }
 
     void OnUpdate(float deltaTime);
+    
+    // Render with explicit camera
     void OnRender(const Camera& camera, float aspectRatio);
+    
+    // Render using the active camera (if set)
+    void OnRender();
 
     void Clear();
 
     size_t GetEntityCount() const {
         return registry_.storage<entt::entity>()->size();
+    }
+
+    // Active camera management
+    void SetActiveCamera(Camera* camera) {
+        active_camera_ = camera;
+    }
+    Camera* GetActiveCamera() {
+        return active_camera_;
+    }
+    const Camera* GetActiveCamera() const {
+        return active_camera_;
     }
 
     // Physics access - returns nullptr if physics not enabled
@@ -86,6 +102,7 @@ class Scene {
    private:
     std::string    name_;
     entt::registry registry_;
+    Camera*        active_camera_ = nullptr;
 
     // Systems owned by Scene
     std::unique_ptr<PhysicsSystem> physics_system_;

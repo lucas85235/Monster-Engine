@@ -1,6 +1,7 @@
 #include "engine/ecs/Scene.h"
 
 #include "engine/Application.h"
+#include "engine/Camera.h"
 #include "engine/Log.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/RenderSystem.h"
@@ -92,6 +93,18 @@ void Scene::OnRender(const Camera& camera, float aspectRatio) {
     RenderSystem::Render(*this, camera, aspectRatio);
 
     if (physics_system_) { physics_system_->RenderDebug(camera); }
+}
+
+void Scene::OnRender() {
+    if (!active_camera_) {
+        SE_LOG_WARN("Scene::OnRender() called but no active camera set!");
+        return;
+    }
+
+    auto& window      = Application::Get().GetWindow();
+    float aspectRatio = static_cast<float>(window.GetWidth()) / static_cast<float>(window.GetHeight());
+
+    OnRender(*active_camera_, aspectRatio);
 }
 
 void Scene::Clear() {

@@ -28,7 +28,6 @@ MainGameLayer::~MainGameLayer() = default;
 // TODO(rafael): Move some of these functionalities later to inside the CharacterController
 void MainGameLayer::OnAttach() {
     Layer::OnAttach();
-    camera_    = Camera(glm::vec3(0.0f, 5.0f, 10.0f));
     scene_     = CreateScope<Scene>("Main Game");
     
     // Set as active scene so Components can access it via Application::Get().GetActiveScene()
@@ -38,12 +37,7 @@ void MainGameLayer::OnAttach() {
     
     // AddComponent automatically detects if CharacterController inherits from Component
     // and uses the lifecycle system (Awake/Start/Update called automatically)
-    character_->GetEntity().AddComponent<CharacterController>();
-
-    auto& springArm           = character_->GetEntity().AddComponent<SpringArmComponent>();
-    springArm.TargetArmLength = 8.0f;
-    springArm.SocketOffset    = {0.0f, 1.5f, 0.0f};
-    springArm.Pitch           = -30.0f;
+    auto controller = character_->GetEntity().AddComponent<CharacterController>();
 
     auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
     material_ = Utilities::LoadMaterial();
@@ -70,12 +64,7 @@ void MainGameLayer::OnUpdate(float ts) {
 
 void MainGameLayer::OnRender() {
     Layer::OnRender();
-
-    auto& window      = Application::Get().GetWindow();
-    float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
-
-    // Render scene (entities with built-in frustum and occlusion culling)
-    scene_->OnRender(camera_, aspectRatio);
+    scene_->OnRender();
 }
 
 void MainGameLayer::OnImGuiRender() {
