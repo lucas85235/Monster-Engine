@@ -11,7 +11,7 @@
 #include <gtc/matrix_transform.hpp>
 
 #include "MathUtils.h"
-#include "SampleUtilities.h"
+#include "../../SampleUtilities.h"
 #include "engine/physics/BoxCollider.h"
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"

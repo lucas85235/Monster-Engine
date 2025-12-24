@@ -1,7 +1,8 @@
 #include "MainGameLayer.h"
 
-#include "apps/sandbox/src/SampleUtilities.h"
+#include "../../../SampleUtilities.h"
 #include "apps/third_person_game/src/CharacterController.h"
+#include "apps/third_person_game/src/CharacterRender.h"
 #include "engine/Application.h"
 #include "engine/Camera.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -25,28 +26,19 @@ void ImguiDebug() {
 
 MainGameLayer::~MainGameLayer() = default;
 
-// TODO(rafael): Move some of these functionalities later to inside the CharacterController
 void MainGameLayer::OnAttach() {
     Layer::OnAttach();
-    scene_     = CreateScope<Scene>("Main Game");
-    
+    scene_ = CreateScope<Scene>("Main Game");
+
     // Set as active scene so Components can access it via Application::Get().GetActiveScene()
     Application::Get().SetActiveScene(scene_.get());
-    
-    character_ = CreateRef<Character>(scene_->CreateEntity("Character"));
-    
-    // AddComponent automatically detects if CharacterController inherits from Component
-    // and uses the lifecycle system (Awake/Start/Update called automatically)
-    auto controller = character_->GetEntity().AddComponent<CharacterController>();
 
-    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-    material_ = Utilities::LoadMaterial();
-    if (!material_) {
-        SE_LOG_ERROR("Material not loaded, retrying");
-        material_ = Utilities::LoadMaterial();
-    }
-
-    character_->GetEntity().AddComponent<MeshRenderComponent>(mesh, material_);
+    // Create character entity and add Character + CharacterController components
+    // Both inherit from Component, so lifecycle methods are called automatically
+    character_entity_ = scene_->CreateEntity("Character");
+    character_entity_.AddComponent<Character>();
+    character_entity_.AddComponent<CharacterController>();
+    character_entity_.AddComponent<CharacterRender>();
 
     scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
 }
@@ -58,7 +50,6 @@ void MainGameLayer::OnDetach() {
 
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
-    
     scene_->OnUpdate(ts);
 }
 
@@ -69,7 +60,6 @@ void MainGameLayer::OnRender() {
 
 void MainGameLayer::OnImGuiRender() {
     Layer::OnImGuiRender();
-
     ImguiDebug();
 }
-}  // namespace FirstGame
+} // namespace FirstGame

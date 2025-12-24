@@ -6,10 +6,9 @@
 #include "engine/physics/RigidbodyComponent.h"
 
 namespace FirstGame {
-
 void CharacterController::Awake() {
     SE_LOG_INFO("CharacterController::Awake() - Binding input");
-    camera_    = new Camera(glm::vec3(0.0f, 5.0f, 10.0f));
+    camera_ = new Camera(glm::vec3(0.0f, 5.0f, 10.0f));
 
     auto& springArm           = GetEntity().AddComponent<SpringArmComponent>();
     springArm.TargetArmLength = 8.0f;
@@ -22,7 +21,7 @@ void CharacterController::Awake() {
 void CharacterController::Start() {
     // Set this camera as the active camera for the scene
     GetScene()->SetActiveCamera(camera_);
-    
+
     SE_LOG_INFO("CharacterController::Start() - Controller ready for entity {}",
                 GetEntity().GetID());
 }
@@ -75,7 +74,7 @@ void CharacterController::UpdateCamera(float dt) {
         }
 
         glm::vec3 rayStart = targetPos;
-        glm::vec3 rayEnd =
+        glm::vec3 rayEnd   =
             targetPos + direction * (springArm.TargetArmLength + springArm.ProbeSize);
         glm::vec3 hitPoint, hitNormal;
 
@@ -118,5 +117,4 @@ void CharacterController::UpdateInputs() {
         SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
     }
 }
-
-}  // namespace FirstGame
+} // namespace FirstGame

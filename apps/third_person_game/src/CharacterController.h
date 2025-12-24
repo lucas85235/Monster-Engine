@@ -5,7 +5,6 @@
 #include "engine/input/InputManager.h"
 
 namespace FirstGame {
-
 using namespace se;
 
 /**
@@ -15,23 +14,27 @@ using namespace se;
  * Awake() is called when added, Start() before first Update, Update() every frame.
  */
 class CharacterController : public Component {
-   public:
+public:
     CharacterController() = default;
+
     ~CharacterController() override = default;
 
     void Awake() override;
+
     void Start() override;
+
     void Update(float dt) override;
 
-    Camera* GetCamera()const{ return camera_; }
+    Camera* GetCamera() const { return camera_; }
 
-   private:
+private:
     void UpdateCamera(float dt);
+
     void BindInput();
+
     void UpdateInputs();
 
-    bool   mouseCaptured_ = false;
-    Camera* camera_;
+    bool    mouseCaptured_ = false;
+    Camera* camera_{};
 };
-
-}  // namespace FirstGame
+} // namespace FirstGame

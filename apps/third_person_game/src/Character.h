@@ -15,28 +15,20 @@ struct CharacterSpecs {
 };
 
 /**
- * Brief: This class is the representation of a character in the game. The character has a collider,
- * rigidbody and other features that simulates how a person behaves in real life.
- *
+ * Character component - represents a player character with physics.
+ * Uses Component lifecycle methods (Awake/Start/Update called automatically).
  */
-class Character {
-   public:
-    Character(Entity entity);
-    Entity GetEntity()const {
-        return entity_;
-    }
+class Character : public Component {
+public:
+    ~Character() override = default;
 
-   private:
-    /**
-     * Brief: One-line summary of what this function does.
-     *
-     * Details: Optional extra context (constraints, performance notes, units).
-     *
-     * @param dt Time step in seconds.
-     * @return True if the operation succeeded.
-     */
+    void Awake() override;
+    void Start() override;
+    void Update(float dt) override;
 
+    const CharacterSpecs& GetSpecs() const { return specs_; }
+
+private:
     CharacterSpecs specs_;
-    Entity         entity_;
 };
-}  // namespace FirstGame
+} // namespace FirstGame

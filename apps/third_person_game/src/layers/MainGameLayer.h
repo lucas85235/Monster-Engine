@@ -21,8 +21,8 @@ class MainGameLayer : public se::Layer {
     void OnImGuiRender() override;
 
    private:
-    Ref<Character> character_;
-    Scope<Scene>   scene_;
-    Ref<Material>  material_;
+    Entity        character_entity_;
+    Scope<Scene>  scene_;
+    Ref<Material> material_;
 };
 }  // namespace FirstGame

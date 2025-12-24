@@ -9,10 +9,10 @@
 #include "engine/physics/PhysicsSystem.h"
 
 namespace se {
-RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data, Entity entity) : data_(data) {
-    if (entity.GetScene() && entity.GetScene()->GetPhysicsSystem()) {
-        physics_system_ = entity.GetScene()->GetPhysicsSystem();
-        body_           = physics_system_->AddRigidBody(entity, data);
+RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data) : data_(data) {
+    if (GetEntity().GetScene() && GetEntity().GetScene()->GetPhysicsSystem()) {
+        physics_system_ = GetEntity().GetScene()->GetPhysicsSystem();
+        body_           = physics_system_->AddRigidBody(GetEntity(), data);
     }
 }
 
@@ -85,5 +85,4 @@ void RigidbodyComponent::SetKinematic(bool kinematic) {
         }
     }
 }
-
-}  // namespace se
+} // namespace se
