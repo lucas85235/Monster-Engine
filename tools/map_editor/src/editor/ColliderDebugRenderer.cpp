@@ -1,5 +1,6 @@
 #include "editor/ColliderDebugRenderer.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <vector>
 #include <glm.hpp>
@@ -256,14 +257,19 @@ void ColliderDebugRenderer::Render(const glm::mat4& view, const glm::mat4& proje
 
         switch (metadata.colliderType) {
             case ColliderType::Box:
-                RenderBox(viewProj, transform.Position, transform.Rotation, metadata.colliderSize);
+                RenderBox(viewProj, transform.Position, transform.Rotation, 
+                          metadata.colliderSize * transform.Scale);
                 break;
-            case ColliderType::Sphere:
-                RenderSphere(viewProj, transform.Position, metadata.colliderRadius);
+            case ColliderType::Sphere: {
+                // Use the largest scale component for sphere radius
+                float maxScale = std::max({transform.Scale.x, transform.Scale.y, transform.Scale.z});
+                RenderSphere(viewProj, transform.Position, metadata.colliderRadius * maxScale);
                 break;
+            }
             case ColliderType::Capsule:
                 RenderCapsule(viewProj, transform.Position, transform.Rotation, 
-                              metadata.colliderRadius, metadata.colliderHeight);
+                              metadata.colliderRadius * std::max(transform.Scale.x, transform.Scale.z),
+                              metadata.colliderHeight * transform.Scale.y);
                 break;
             default:
                 break;
