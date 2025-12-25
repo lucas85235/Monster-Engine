@@ -22,6 +22,6 @@ class InputSampleLayer : public se::Layer {
     void OnKeyPressed(const KeyPressedEvent& e);
     void OnMouseButtonPressed(const MouseButtonPressedEvent& e);
 
-    Scope<Scene> scene_ = nullptr;
-    EventBus* event_bus_ = nullptr;
+    Scope<Scene> scene_     = nullptr;
+    EventBus*    event_bus_ = nullptr;
 };

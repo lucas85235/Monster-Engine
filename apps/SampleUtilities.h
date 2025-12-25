@@ -1,8 +1,8 @@
 #pragma once
 #include "Engine.h"
 #include "engine/Log.h"
-#include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/Scene.h"
+#include "engine/ecs/SimpleComponents.h"
 #include "engine/renderer/Material.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
@@ -12,7 +12,8 @@ using namespace se;
 
 using EngineMaterial = Ref<Material>;
 
-inline Entity CreateCubeEntity(const std::string& name, const Vector3& position, const Vector3& scale, Scene* scene, const Ref<Material>& material) {
+inline Entity CreateCubeEntity(const std::string& name, const Vector3& position,
+                               const Vector3& scale, Scene* scene, const Ref<Material>& material) {
     SE_LOG_INFO("Creating cube entity: {}", name);
 
     auto entity = scene->CreateEntity(name);
@@ -31,7 +32,8 @@ inline Entity CreateCubeEntity(const std::string& name, const Vector3& position,
     transform.SetPosition(position);
     transform.SetScale(scale);
 
-    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y, position.z);
+    SE_LOG_INFO("Cube entity created successfully at ({}, {}, {})", position.x, position.y,
+                position.z);
 
     return entity;
 }
@@ -42,7 +44,8 @@ inline EngineMaterial LoadMaterial() {
     fs::path fragment_shader_location = assets_folder.value() / "shaders" / "basic.frag";
     fs::path vertex_shader_location   = assets_folder.value() / "shaders" / "basic.vert";
 
-    Ref<Shader> shader = MaterialManager::GetShader("DefaultShader", vertex_shader_location, fragment_shader_location);
+    Ref<Shader> shader = MaterialManager::GetShader("DefaultShader", vertex_shader_location,
+                                                    fragment_shader_location);
 
     EngineMaterial material = MaterialManager::CreateMaterial(shader);
     material->SetFloat("uSpecularStrength", 0.5f);

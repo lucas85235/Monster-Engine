@@ -11,7 +11,7 @@ add_executable(sandbox
         src/event_sample/events/Events.h
         src/physics_sample/PhysicsSampleLayer.h
         src/physics_sample/PhysicsSampleLayer.cpp
-        src/SampleUtilities.h
+        ../SampleUtilities.h
         src/main.cpp)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -24,7 +24,7 @@ target_compile_definitions(sandbox PUBLIC PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR
 
 set(ASSETS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets")
 
-if(EXISTS "${ASSETS_SOURCE_DIR}")
+if (EXISTS "${ASSETS_SOURCE_DIR}")
     file(GLOB_RECURSE SHADER_FILES
             "${ASSETS_SOURCE_DIR}/shaders/*.vert"
             "${ASSETS_SOURCE_DIR}/shaders/*.frag"
@@ -42,6 +42,6 @@ if(EXISTS "${ASSETS_SOURCE_DIR}")
     )
 
     add_dependencies(sandbox copy_assets)
-else()
+else ()
     message(WARNING "Assets dir not found: ${ASSETS_SOURCE_DIR}")
-endif()
+endif ()

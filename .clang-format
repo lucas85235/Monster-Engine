@@ -2,7 +2,7 @@ BasedOnStyle: Google
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 150
+ColumnLimit: 100
 
 # Alignment
 AlignAfterOpenBracket: Align
@@ -55,10 +55,6 @@ PointerAlignment: Left
 # Other
 SortIncludes: true
 
-# Opcional – só se o seu clang-format for >= 9
-# (se der "unknown key 'AlignConsecutiveMacros'", apaga isso)
 AlignConsecutiveMacros: Consecutive
 
-# Opcional – só se o seu clang-format for >= 11
-# (se reclamar de 'Always', troque por true/false ou remova)
 AllowShortBlocksOnASingleLine: Always

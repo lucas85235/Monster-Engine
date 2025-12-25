@@ -51,18 +51,14 @@ void Frustum::ExtractPlanes(const Matrix4& vp) {
 
 bool Frustum::IsPointInside(const Vector3& point) const {
     for (const auto& plane : planes_) {
-        if (plane.DistanceToPoint(point) < 0.0f) {
-            return false;
-        }
+        if (plane.DistanceToPoint(point) < 0.0f) { return false; }
     }
     return true;
 }
 
 bool Frustum::IsSphereInside(const Vector3& center, float radius) const {
     for (const auto& plane : planes_) {
-        if (plane.DistanceToPoint(center) < -radius) {
-            return false;
-        }
+        if (plane.DistanceToPoint(center) < -radius) { return false; }
     }
     return true;
 }
@@ -75,9 +71,7 @@ bool Frustum::IsBoxInside(const Vector3& min, const Vector3& max) const {
         pVertex.y = (plane.normal.y >= 0.0f) ? max.y : min.y;
         pVertex.z = (plane.normal.z >= 0.0f) ? max.z : min.z;
 
-        if (plane.DistanceToPoint(pVertex) < 0.0f) {
-            return false;
-        }
+        if (plane.DistanceToPoint(pVertex) < 0.0f) { return false; }
     }
     return true;
 }

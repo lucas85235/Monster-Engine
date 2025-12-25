@@ -5,7 +5,8 @@
 class Camera {
    public:
     // Camera constructor with vectors
-    Camera(se::Vector3 position = se::Vector3(0.0f, 0.0f, 10.0f), se::Vector3 up = se::Vector3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
+    Camera(se::Vector3 position = se::Vector3(0.0f, 0.0f, 10.0f),
+           se::Vector3 up = se::Vector3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 
     // Returns the view matrix calculated using Euler angles and the LookAt matrix
     se::Matrix4 getViewMatrix() const;
@@ -13,14 +14,7 @@ class Camera {
     // Returns the projection matrix
     se::Matrix4 getProjectionMatrix(float aspectRatio) const;
 
-    enum class CameraMovement {
-        FORWARD,
-        BACKWARD,
-        LEFT,
-        RIGHT,
-        UP,
-        DOWN
-    };
+    enum class CameraMovement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 
     // Processes input received from a keyboard-like input system
     void ProcessKeyboard(CameraMovement direction, float deltaTime);

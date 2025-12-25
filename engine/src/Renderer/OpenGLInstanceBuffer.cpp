@@ -18,7 +18,8 @@ static GLenum UsageToGL(InstanceBufferUsage usage) {
     return GL_DYNAMIC_DRAW;
 }
 
-OpenGLInstanceBuffer::OpenGLInstanceBuffer(uint32_t stride, uint32_t maxInstances, InstanceBufferUsage usage)
+OpenGLInstanceBuffer::OpenGLInstanceBuffer(uint32_t stride, uint32_t maxInstances,
+                                           InstanceBufferUsage usage)
     : stride_(stride), maxInstances_(maxInstances), usage_(usage) {
     glGenBuffers(1, &rendererId_);
     if (rendererId_ == 0) {
@@ -27,15 +28,15 @@ OpenGLInstanceBuffer::OpenGLInstanceBuffer(uint32_t stride, uint32_t maxInstance
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, rendererId_);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(stride) * maxInstances, nullptr, UsageToGL(usage));
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(stride) * maxInstances, nullptr,
+                 UsageToGL(usage));
 
     GLenum error = glGetError();
-    if (error != GL_NO_ERROR) {
-        SE_LOG_ERROR("GL error creating instance buffer: 0x{:X}", error);
-    }
+    if (error != GL_NO_ERROR) { SE_LOG_ERROR("GL error creating instance buffer: 0x{:X}", error); }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    SE_LOG_INFO("Created instance buffer (stride={}, maxInstances={}, handle={})", stride, maxInstances, rendererId_);
+    SE_LOG_INFO("Created instance buffer (stride={}, maxInstances={}, handle={})", stride,
+                maxInstances, rendererId_);
 }
 
 OpenGLInstanceBuffer::~OpenGLInstanceBuffer() {
@@ -73,7 +74,7 @@ void OpenGLInstanceBuffer::SetSubData(const void* data, uint32_t offset, uint32_
 }
 
 std::unique_ptr<IInstanceBuffer> CreateInstanceBuffer(uint32_t stride, uint32_t maxInstances,
-                                                       InstanceBufferUsage usage) {
+                                                      InstanceBufferUsage usage) {
     return std::make_unique<OpenGLInstanceBuffer>(stride, maxInstances, usage);
 }
 

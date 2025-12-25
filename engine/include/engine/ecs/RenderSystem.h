@@ -20,8 +20,8 @@ class Shader;
 // Key for grouping instances by mesh+material
 struct InstanceBatchKey {
     VertexArray* va;
-    Material* mat;
-    
+    Material*    mat;
+
     bool operator==(const InstanceBatchKey& other) const {
         return va == other.va && mat == other.mat;
     }
@@ -30,8 +30,7 @@ struct InstanceBatchKey {
 // Hash function for InstanceBatchKey
 struct InstanceBatchKeyHash {
     size_t operator()(const InstanceBatchKey& key) const {
-        return std::hash<void*>()(key.va) ^ 
-               (std::hash<void*>()(key.mat) << 1);
+        return std::hash<void*>()(key.va) ^ (std::hash<void*>()(key.mat) << 1);
     }
 };
 
@@ -42,30 +41,36 @@ class RenderSystem {
 
     // Render all entities with MeshRenderComponent in the scene
     static void Render(Scene& scene, const Camera& camera, float aspectRatio);
-    
+
     // Get instancing statistics
-    static uint32_t GetLastBatchCount() { return lastBatchCount_; }
-    static uint32_t GetLastInstancedObjects() { return lastInstancedObjects_; }
+    static uint32_t GetLastBatchCount() {
+        return lastBatchCount_;
+    }
+    static uint32_t GetLastInstancedObjects() {
+        return lastInstancedObjects_;
+    }
 
    private:
     RenderSystem() = delete;
     static bool initialized_;
-    
+
     // Instancing cache - reused each frame to avoid allocations
-    using InstanceBatchMap = std::unordered_map<InstanceBatchKey, std::vector<InstanceData>, InstanceBatchKeyHash>;
+    using InstanceBatchMap =
+        std::unordered_map<InstanceBatchKey, std::vector<InstanceData>, InstanceBatchKeyHash>;
     static InstanceBatchMap instanceBatches_;
-    
+
     // Cache of InstancedMesh objects per batch key
-    using InstancedMeshCache = std::unordered_map<InstanceBatchKey, std::shared_ptr<InstancedMesh>, InstanceBatchKeyHash>;
+    using InstancedMeshCache =
+        std::unordered_map<InstanceBatchKey, std::shared_ptr<InstancedMesh>, InstanceBatchKeyHash>;
     static InstancedMeshCache instancedMeshCache_;
-    
+
     // Stats
     static uint32_t lastBatchCount_;
     static uint32_t lastInstancedObjects_;
-    
+
     // Instanced rendering material (uses instanced.vert/frag shader)
     static std::shared_ptr<Material> instancedMaterial_;
-    static void EnsureInstancedMaterial();
+    static void                      EnsureInstancedMaterial();
 };
 
 }  // namespace se

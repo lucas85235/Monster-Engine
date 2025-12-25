@@ -10,15 +10,11 @@ namespace se {
 
 OpenGLOcclusionQuery::OpenGLOcclusionQuery() {
     glGenQueries(1, &queryId_);
-    if (queryId_ == 0) {
-        SE_LOG_ERROR("Failed to create occlusion query");
-    }
+    if (queryId_ == 0) { SE_LOG_ERROR("Failed to create occlusion query"); }
 }
 
 OpenGLOcclusionQuery::~OpenGLOcclusionQuery() {
-    if (queryId_) {
-        glDeleteQueries(1, &queryId_);
-    }
+    if (queryId_) { glDeleteQueries(1, &queryId_); }
 }
 
 void OpenGLOcclusionQuery::Begin() {
@@ -50,7 +46,7 @@ uint32_t OpenGLOcclusionQuery::GetResult() const {
     if (!IsResultAvailable()) {
         return cachedResult_;  // Return cached or 0
     }
-    
+
     GLuint result = 0;
     glGetQueryObjectuiv(queryId_, GL_QUERY_RESULT, &result);
     cachedResult_ = result;
@@ -91,7 +87,7 @@ std::shared_ptr<IOcclusionQuery> OpenGLOcclusionQueryPool::Acquire() {
         activeCount_++;
         return query;
     }
-    
+
     auto query = available_.front();
     available_.pop();
     activeCount_++;
@@ -104,12 +100,8 @@ void OpenGLOcclusionQueryPool::Release(std::shared_ptr<IOcclusionQuery> query) {
 }
 
 void OpenGLOcclusionQueryPool::ReleaseAll() {
-    while (!available_.empty()) {
-        available_.pop();
-    }
-    for (auto& query : allQueries_) {
-        available_.push(query);
-    }
+    while (!available_.empty()) { available_.pop(); }
+    for (auto& query : allQueries_) { available_.push(query); }
     activeCount_ = 0;
 }
 

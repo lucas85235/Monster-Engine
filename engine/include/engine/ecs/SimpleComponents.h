@@ -16,17 +16,18 @@ class VertexArray;
 struct TransformComponent {
     TransformComponent() = default;
 
-    TransformComponent(const TransformComponent& other) 
-        : Position(other.Position), Rotation(other.Rotation), Scale(other.Scale),
-          cachedTransform_(other.cachedTransform_), dirty_(other.dirty_) {}
+    TransformComponent(const TransformComponent& other)
+        : Position(other.Position),
+          Rotation(other.Rotation),
+          Scale(other.Scale),
+          cachedTransform_(other.cachedTransform_),
+          dirty_(other.dirty_) {}
 
     TransformComponent(const Vector3& position) : Position(position), dirty_(true) {}
 
     // Get the transformation matrix (uses cache when possible)
     Matrix4 GetTransform() const {
-        if (dirty_) {
-            UpdateCache();
-        }
+        if (dirty_) { UpdateCache(); }
         return cachedTransform_;
     }
 
@@ -34,15 +35,15 @@ struct TransformComponent {
     void SetPosition(const Vector3& position) {
         if (Position != position) {
             Position = position;
-            dirty_ = true;
+            dirty_   = true;
         }
     }
 
     // Set rotation in degrees (marks dirty)
     void SetRotation(const Vector3& rotation) {
         if (Rotation != rotation) {
-            Rotation = rotation;
-            dirty_ = true;
+            Rotation               = rotation;
+            dirty_                 = true;
             cachedQuaternionValid_ = false;
         }
     }
@@ -50,7 +51,7 @@ struct TransformComponent {
     // Set scale (marks dirty)
     void SetScale(const Vector3& scale) {
         if (Scale != scale) {
-            Scale = scale;
+            Scale  = scale;
             dirty_ = true;
         }
     }
@@ -64,7 +65,7 @@ struct TransformComponent {
     // Rotate by offset in degrees (marks dirty)
     void Rotate(const Vector3& offset) {
         Rotation += offset;
-        dirty_ = true;
+        dirty_                 = true;
         cachedQuaternionValid_ = false;
     }
 
@@ -86,30 +87,34 @@ struct TransformComponent {
     // Get quaternion representation
     Quaternion GetQuaternion() const {
         if (!cachedQuaternionValid_) {
-            cachedQuaternion_ = Quaternion(glm::radians(Rotation));
+            cachedQuaternion_      = Quaternion(glm::radians(Rotation));
             cachedQuaternionValid_ = true;
         }
         return cachedQuaternion_;
     }
 
     // Force cache invalidation (for external modifications to Position/Rotation/Scale)
-    void MarkDirty() { dirty_ = true; cachedQuaternionValid_ = false; }
+    void MarkDirty() {
+        dirty_                 = true;
+        cachedQuaternionValid_ = false;
+    }
 
     // Public transform data
     Vector3 Position = {0.0f, 0.0f, 0.0f};
     Vector3 Rotation = {0.0f, 0.0f, 0.0f};  // Euler angles in degrees
     Vector3 Scale    = {1.0f, 1.0f, 1.0f};
 
-private:
+   private:
     void UpdateCache() const {
         Matrix4 rotation = glm::toMat4(GetQuaternion());
-        cachedTransform_ = glm::translate(Matrix4(1.0f), Position) * rotation * glm::scale(Matrix4(1.0f), Scale);
+        cachedTransform_ =
+            glm::translate(Matrix4(1.0f), Position) * rotation * glm::scale(Matrix4(1.0f), Scale);
         dirty_ = false;
     }
 
     mutable Matrix4    cachedTransform_{1.0f};
     mutable Quaternion cachedQuaternion_;
-    mutable bool       dirty_ = true;
+    mutable bool       dirty_                 = true;
     mutable bool       cachedQuaternionValid_ = false;
 };
 
@@ -117,29 +122,34 @@ private:
 struct NameComponent {
     std::string Name;
 
-    NameComponent() = default;
+    NameComponent()                     = default;
     NameComponent(const NameComponent&) = default;
     NameComponent(const std::string& name) : Name(name) {}
 
-    operator const std::string&() const { return Name; }
-    operator std::string&() { return Name; }
+    operator const std::string&() const {
+        return Name;
+    }
+    operator std::string&() {
+        return Name;
+    }
 };
 
 // ==================== Mesh Render Component ====================
 struct MeshRenderComponent {
-    std::shared_ptr<VertexArray> VertexArray;
-    std::shared_ptr<Material>    Material;
+    std::shared_ptr<VertexArray> vertex_array;
+    std::shared_ptr<Material>    material;
     Vector4                      Color{1.0f, 1.0f, 1.0f, 1.0f};  // Per-instance color
     bool                         IsVisible      = true;
     bool                         CastShadows    = true;
     bool                         ReceiveShadows = true;
 
-    MeshRenderComponent() = default;
+    MeshRenderComponent()                           = default;
     MeshRenderComponent(const MeshRenderComponent&) = default;
-    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat) 
-        : VertexArray(va), Material(mat) {}
-    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat, const Vector4& color) 
-        : VertexArray(va), Material(mat), Color(color) {}
+    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat)
+        : vertex_array(va), material(mat) {}
+    MeshRenderComponent(std::shared_ptr<se::VertexArray> va, std::shared_ptr<se::Material> mat,
+                        const Vector4& color)
+        : vertex_array(va), material(mat), Color(color) {}
 };
 
 // ==================== Directional Light Component ====================
@@ -149,7 +159,7 @@ struct DirectionalLightComponent {
     bool    Enabled     = true;
     bool    CastShadows = true;
 
-    DirectionalLightComponent() = default;
+    DirectionalLightComponent()                                 = default;
     DirectionalLightComponent(const DirectionalLightComponent&) = default;
 };
 
@@ -170,7 +180,7 @@ struct SpringArmComponent {
 
     mutable float CurrentArmLength = 5.0f;
 
-    SpringArmComponent() = default;
+    SpringArmComponent()                          = default;
     SpringArmComponent(const SpringArmComponent&) = default;
 };
 

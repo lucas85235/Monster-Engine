@@ -10,7 +10,7 @@ void EventSampleLayer::OnDetach() {}
 
 void EventSampleLayer::OnAttach() {
     event_bus_ = &Application::Get().GetEventBus();
-    
+
     // System events
     event_bus_->AddListener<EnemySpawned>(SE_BIND_EVENT_FN(OnEnemySpawned));
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResized));
@@ -54,5 +54,6 @@ void EventSampleLayer::OnSingleInputEventTriggered(const SampleEventWithOneInput
 }
 
 void EventSampleLayer::OnTwoInputEventsTriggered(const SampleEventWithTwoInputs& e) {
-    SE_LOG_INFO("Two Inputs event triggered! (first input:{}, second input:{})", e.input_1, e.input_2);
+    SE_LOG_INFO("Two Inputs event triggered! (first input:{}, second input:{})", e.input_1,
+                e.input_2);
 }

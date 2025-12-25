@@ -1,18 +1,22 @@
 #include "engine/physics/RigidbodyComponent.h"
 
+#include <common.hpp>
+#include <gtc/quaternion.hpp>
+#include <trigonometric.hpp>
+
 #include "engine/Application.h"
 #include "engine/ecs/Scene.h"
 #include "engine/physics/PhysicsSystem.h"
 
-#include <gtc/quaternion.hpp>
-#include <common.hpp>
-#include <trigonometric.hpp>
-
 namespace se {
-RigidbodyComponent::RigidbodyComponent(const RigidbodyData& data, Entity entity) : data_(data) {
-    if (entity.GetScene() && entity.GetScene()->GetPhysicsSystem()) {
-        physics_system_ = entity.GetScene()->GetPhysicsSystem();
-        body_ = physics_system_->AddRigidBody(entity, data);
+void RigidbodyComponent::Awake() {
+    // Now GetEntity() and GetScene() are available
+    if (GetScene() && GetScene()->GetPhysicsSystem()) {
+        physics_system_ = GetScene()->GetPhysicsSystem();
+        body_           = physics_system_->AddRigidBody(GetEntity(), data_);
+        SE_LOG_INFO("RigidbodyComponent::Awake() - Rigidbody added for entity {}", GetEntityID());
+    } else {
+        SE_LOG_ERROR("RigidbodyComponent::Awake() - PhysicsSystem not available!");
     }
 }
 
@@ -58,32 +62,31 @@ void RigidbodyComponent::SetAngularFactor(const btVector3& factor) {
 void RigidbodyComponent::SetRotation(const glm::vec3& rotation) {
     if (body_ && physics_system_) {
         std::lock_guard<std::mutex> lock(physics_system_->GetMutex());
-        
+
         btTransform transform = body_->getWorldTransform();
-        glm::quat q = glm::quat(glm::radians(rotation));
+        glm::quat   q         = glm::quat(glm::radians(rotation));
         transform.setRotation(btQuaternion(q.x, q.y, q.z, q.w));
-        
+
         body_->setWorldTransform(transform);
-        if (body_->getMotionState()) {
-            body_->getMotionState()->setWorldTransform(transform);
-        }
+        if (body_->getMotionState()) { body_->getMotionState()->setWorldTransform(transform); }
     }
 }
 
 void RigidbodyComponent::SetKinematic(bool kinematic) {
     if (body_ && physics_system_) {
         std::lock_guard<std::mutex> lock(physics_system_->GetMutex());
-        
+
         if (kinematic) {
-            body_->setCollisionFlags(body_->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+            body_->setCollisionFlags(body_->getCollisionFlags() |
+                                     btCollisionObject::CF_KINEMATIC_OBJECT);
             body_->setActivationState(DISABLE_DEACTIVATION);
             data_.type = RigidbodyType::Kinematic;
         } else {
-            body_->setCollisionFlags(body_->getCollisionFlags() & ~btCollisionObject::CF_KINEMATIC_OBJECT);
+            body_->setCollisionFlags(body_->getCollisionFlags() &
+                                     ~btCollisionObject::CF_KINEMATIC_OBJECT);
             body_->setActivationState(ACTIVE_TAG);
             data_.type = RigidbodyType::Dynamic;
         }
     }
 }
-
-}  // namespace se
+} // namespace se

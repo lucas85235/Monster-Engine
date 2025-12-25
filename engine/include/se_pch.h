@@ -16,7 +16,6 @@
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include <cstdint>
 #include <entt.hpp>
 #include <filesystem>
@@ -32,4 +31,5 @@
 #include <vector>
 
 #include "engine/Log.h"
+#include "Engine.h"
 #include "imgui.h"

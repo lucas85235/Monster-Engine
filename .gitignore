@@ -5,3 +5,8 @@ build/
 logs/
 compile_commands.json
 .idea/
+!.idea/
+.idea/**
+
+!.idea/fileTemplates/
+!.idea/fileTemplates/**

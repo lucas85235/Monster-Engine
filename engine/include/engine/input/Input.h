@@ -3,6 +3,7 @@
 #include <glm.hpp>
 #include <unordered_map>
 
+#include "Engine.h"
 #include "engine/input/KeyCodes.h"
 
 struct GLFWwindow;

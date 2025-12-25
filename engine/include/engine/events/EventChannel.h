@@ -46,18 +46,16 @@ class EventChannel : public IEventChannel {
         pending_listeners_.clear();
 
         // remove current_listeners_
-        if (!pending_remove_listeners_.empty())
-        {
-            auto shouldRemove = [this](const auto& pair)
-            {
-                auto it = std::find(pending_remove_listeners_.begin(), pending_remove_listeners_.end(), pair.first);
+        if (!pending_remove_listeners_.empty()) {
+            auto shouldRemove = [this](const auto& pair) {
+                auto it = std::find(pending_remove_listeners_.begin(),
+                                    pending_remove_listeners_.end(), pair.first);
                 return it != pending_remove_listeners_.end();
             };
 
             current_listeners_.erase(
                 std::remove_if(current_listeners_.begin(), current_listeners_.end(), shouldRemove),
-                current_listeners_.end()
-            );
+                current_listeners_.end());
 
             pending_remove_listeners_.clear();
         }

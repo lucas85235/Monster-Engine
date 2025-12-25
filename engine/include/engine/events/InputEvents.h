@@ -39,4 +39,4 @@ struct MouseScrolledEvent {
     MouseScrolledEvent(float x, float y) : xOffset(x), yOffset(y) {}
 };
 
-}
+}  // namespace se

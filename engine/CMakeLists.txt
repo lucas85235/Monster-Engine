@@ -109,6 +109,7 @@ target_link_libraries(simple_engine PUBLIC
         OpenGL::GL
         glm
         ImGui
+        ImGuizmo
         spdlog
         stb
         Entt
