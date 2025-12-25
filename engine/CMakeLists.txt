@@ -67,11 +67,21 @@ add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
 add_subdirectory(${bullet_DIR})
 
+# FreeType Configuration
+set(freetype_DIR ${third_party_dir}/freetype)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+add_subdirectory(${freetype_DIR})
 
+# Create alias for RmlUI to find FreeType
+add_library(Freetype::Freetype ALIAS freetype)
 
 # RmlUi Configuration
 set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "none" CACHE STRING "" FORCE)
+set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
 add_subdirectory(${rmlui_DIR})
 
 find_package(OpenGL REQUIRED)
@@ -113,6 +123,7 @@ target_link_libraries(simple_engine PUBLIC
         spdlog
         stb
         Entt
+        freetype
         rmlui_core
         rmlui_debugger
         BulletDynamics

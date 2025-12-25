@@ -9,6 +9,7 @@ add_subdirectory(engine)
 #add_subdirectory(apps/sandbox)
 add_subdirectory(apps/third_person_game)
 add_subdirectory(tools/map_editor)
+add_subdirectory(tools/ui_editor)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTY VS_STARTUP_PROJECT sandbox)
