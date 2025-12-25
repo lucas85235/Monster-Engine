@@ -73,6 +73,10 @@ void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity
         file.write(reinterpret_cast<const char*>(&entity.colliderSize), sizeof(Vector3));
         file.write(reinterpret_cast<const char*>(&entity.colliderRadius), sizeof(float));
         file.write(reinterpret_cast<const char*>(&entity.colliderHeight), sizeof(float));
+        
+        // Rigidbody settings
+        file.write(reinterpret_cast<const char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
+        file.write(reinterpret_cast<const char*>(&entity.mass), sizeof(float));
     }
 }
 
@@ -175,6 +179,10 @@ bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity) {
         file.read(reinterpret_cast<char*>(&entity.colliderSize), sizeof(Vector3));
         file.read(reinterpret_cast<char*>(&entity.colliderRadius), sizeof(float));
         file.read(reinterpret_cast<char*>(&entity.colliderHeight), sizeof(float));
+        
+        // Rigidbody settings
+        file.read(reinterpret_cast<char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
+        file.read(reinterpret_cast<char*>(&entity.mass), sizeof(float));
     }
 
     return !file.fail();

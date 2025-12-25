@@ -455,6 +455,8 @@ void MapEditorLayer::LoadMap(const std::string& filename) {
             metadata.colliderSize = entityData.colliderSize;
             metadata.colliderRadius = entityData.colliderRadius;
             metadata.colliderHeight = entityData.colliderHeight;
+            metadata.rigidbodyType = entityData.rigidbodyType;
+            metadata.mass = entityData.mass;
         }
     }
     
@@ -501,6 +503,8 @@ void MapEditorLayer::BuildMapData() {
         data.colliderSize = metadata.colliderSize;
         data.colliderRadius = metadata.colliderRadius;
         data.colliderHeight = metadata.colliderHeight;
+        data.rigidbodyType = metadata.rigidbodyType;
+        data.mass = metadata.mass;
         if (entity.HasComponent<se::MeshRenderComponent>()) {
             data.color = entity.GetComponent<se::MeshRenderComponent>().Color;
         }

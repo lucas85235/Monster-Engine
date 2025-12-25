@@ -120,6 +120,10 @@ bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity) {
         file.read(reinterpret_cast<char*>(&entity.colliderSize), sizeof(Vector3));
         file.read(reinterpret_cast<char*>(&entity.colliderRadius), sizeof(float));
         file.read(reinterpret_cast<char*>(&entity.colliderHeight), sizeof(float));
+        
+        // Read rigidbody settings
+        file.read(reinterpret_cast<char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
+        file.read(reinterpret_cast<char*>(&entity.mass), sizeof(float));
     }
     
     return !file.fail();
@@ -153,36 +157,40 @@ void MapLoader::CreateSceneEntity(Scene& scene, const EntityData& data) {
     meshRender.Color = data.color;
     
     // Add collider component if has collision
+    // NOTE: Do NOT multiply by scale here - PhysicsSystem applies transform.Scale automatically
     if (data.hasCollision) {
         switch (data.colliderType) {
             case ColliderType::Box: {
                 auto& collider = entity.AddComponent<BoxCollider>();
-                collider.Size = data.colliderSize * data.scale;
+                collider.Size = data.colliderSize;
                 break;
             }
             case ColliderType::Sphere: {
                 auto& collider = entity.AddComponent<SphereCollider>();
-                float maxScale = std::max({data.scale.x, data.scale.y, data.scale.z});
-                collider.Radius = data.colliderRadius * maxScale;
+                collider.Radius = data.colliderRadius;
                 break;
             }
             case ColliderType::Capsule: {
                 auto& collider = entity.AddComponent<CapsuleCollider>();
-                collider.Radius = data.colliderRadius * std::max(data.scale.x, data.scale.z);
-                collider.Height = data.colliderHeight * data.scale.y;
+                collider.Radius = data.colliderRadius;
+                collider.Height = data.colliderHeight;
                 break;
             }
             default:
                 break;
         }
         
-        // Add static rigidbody for map geometry
+        // Add rigidbody with settings from map
         RigidbodyData rbData;
-        rbData.type = RigidbodyType::Static;
-        rbData.mass = 0.0f;
+        switch (data.rigidbodyType) {
+            case 0: rbData.type = RigidbodyType::Static; break;
+            case 1: rbData.type = RigidbodyType::Dynamic; break;
+            case 2: rbData.type = RigidbodyType::Kinematic; break;
+            default: rbData.type = RigidbodyType::Static; break;
+        }
+        rbData.mass = (rbData.type == RigidbodyType::Dynamic) ? data.mass : 0.0f;
         
-        auto& rigidbody = entity.AddComponent<RigidbodyComponent>();
-        rigidbody.SetData(rbData);
+        entity.AddComponent<RigidbodyComponent>(rbData);
     }
 }
 

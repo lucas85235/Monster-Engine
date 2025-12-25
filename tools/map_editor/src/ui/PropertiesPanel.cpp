@@ -122,6 +122,19 @@ void PropertiesPanel::RenderEditorMetadata(PrimitiveFactory::EditorMetadata& met
 
                 default: break;
             }
+            
+            ImGui::Separator();
+            ImGui::Text("Rigidbody");
+            
+            const char* rigidbodyTypes[] = {"Static", "Dynamic", "Kinematic"};
+            int currentRbType = static_cast<int>(metadata.rigidbodyType);
+            if (ImGui::Combo("Body Type", &currentRbType, rigidbodyTypes, 3)) {
+                metadata.rigidbodyType = static_cast<uint8_t>(currentRbType);
+            }
+            
+            if (metadata.rigidbodyType == 1) {  // Dynamic
+                ImGui::DragFloat("Mass", &metadata.mass, 0.1f, 0.01f, 1000.0f, "%.2f kg");
+            }
         }
     }
 }

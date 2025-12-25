@@ -21,6 +21,10 @@ class PrimitiveFactory {
         Vector3       colliderSize{1.0f, 1.0f, 1.0f};
         float         colliderRadius = 0.5f;
         float         colliderHeight = 1.0f;
+        
+        // Rigidbody settings
+        uint8_t       rigidbodyType = 0;  // 0=Static, 1=Dynamic, 2=Kinematic
+        float         mass = 1.0f;
     };
 
     static se::Entity CreatePrimitive(se::Scene& scene, PrimitiveType type,

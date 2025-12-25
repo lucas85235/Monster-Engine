@@ -51,6 +51,8 @@ class MapLoader {
         Vector3       colliderSize{1.0f, 1.0f, 1.0f};
         float         colliderRadius = 0.5f;
         float         colliderHeight = 1.0f;
+        uint8_t       rigidbodyType = 0;  // 0=Static, 1=Dynamic, 2=Kinematic
+        float         mass = 1.0f;
     };
 
     static bool ReadString(std::ifstream& file, std::string& str);

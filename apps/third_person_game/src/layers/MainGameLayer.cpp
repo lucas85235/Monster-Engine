@@ -38,7 +38,7 @@ void MainGameLayer::OnAttach() {
     Application::Get().SetActiveScene(scene_.get());
 
     // Load map from file
-    auto mapResult = se::MapLoader::Load(*scene_, "testmap.mstmap");
+    auto mapResult = se::MapLoader::Load(*scene_, "test.mstmap");
     if (mapResult.success) {
         SE_LOG_INFO("Loaded map with {} entities", mapResult.entityCount);
     } else {
