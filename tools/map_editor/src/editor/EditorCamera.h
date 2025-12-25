@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * EditorCamera.h - Orbital camera controller for the map editor.
+ *
+ * Supports orbit (right-click), pan (middle-click), and zoom (scroll) controls.
+ * Can focus on selected objects via FocusOnPoint().
+ */
 
 #include "Engine.h"
 #include "engine/Camera.h"

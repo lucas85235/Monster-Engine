@@ -1,4 +1,11 @@
 #pragma once
+/**
+ * PropertiesPanel.h - Entity inspector panel.
+ *
+ * Displays and edits transform, mesh renderer, and collision properties
+ * for the selected entity. Includes gizmo mode controls.
+ */
+
 
 #include "core/MapData.h"
 #include "core/PrimitiveFactory.h"

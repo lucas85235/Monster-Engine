@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * GizmoController.h - Transform manipulation gizmo wrapper.
+ *
+ * Wraps ImGuizmo for translate/rotate/scale operations.
+ * Supports world and local space modes with keyboard shortcuts.
+ */
 
 #include "Engine.h"
 #include "engine/Camera.h"

@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * MapSerializer.h - Binary map file I/O.
+ *
+ * Handles reading/writing .mstmap files with versioned format.
+ * Supports entity transforms, collision settings, and player start position.
+ */
 
 #include <filesystem>
 #include <string>

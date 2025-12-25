@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * EditorGrid.h - Infinite ground grid rendered via fragment shader.
+ *
+ * Displays grid lines with fade-out at distance and axis highlighting.
+ * Grid renders on Y=0 plane with configurable size and colors.
+ */
 
 #include <memory>
 #include <glad/glad.h>

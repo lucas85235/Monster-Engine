@@ -1,4 +1,14 @@
 #pragma once
+/**
+ * MapEditorLayer.h - Main layer for the map editor application.
+ *
+ * Provides:
+ * - Viewport rendering with framebuffer and grid
+ * - Entity manipulation via gizmos (translate/rotate/scale)
+ * - Mouse picking for object selection
+ * - Map serialization (export/import .mstmap files)
+ * - UI panels: hierarchy, properties, menu bar
+ */
 
 #include <memory>
 #include <string>

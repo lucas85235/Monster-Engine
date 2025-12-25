@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * EditorFramebuffer.h - Offscreen render target for editor viewport.
+ *
+ * Provides color and depth attachments for rendering the scene to a texture,
+ * which is then displayed in an ImGui window.
+ */
 
 #include <cstdint>
 #include <glad/glad.h>

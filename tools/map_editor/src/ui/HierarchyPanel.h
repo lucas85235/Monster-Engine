@@ -1,4 +1,11 @@
 #pragma once
+/**
+ * HierarchyPanel.h - Scene entity tree view panel.
+ *
+ * Displays all entities in a selectable list with context menu support
+ * for delete and duplicate operations.
+ */
+
 
 #include "editor/SelectionManager.h"
 #include "engine/ecs/Scene.h"

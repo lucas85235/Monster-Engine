@@ -1,4 +1,14 @@
 #pragma once
+/**
+ * MapData.h - Data structures for map serialization.
+ *
+ * Defines:
+ * - PrimitiveType/ColliderType enums for entity types
+ * - MapEntityData: per-entity transform, collision, and render data
+ * - MapData: container for all map entities and metadata
+ *
+ * File format: binary (.mstmap) with magic number and version control.
+ */
 
 #include <cstdint>
 #include <string>

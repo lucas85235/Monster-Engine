@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * ColliderDebugRenderer.h - Wireframe debug visualization for colliders.
+ *
+ * Renders box, sphere, and capsule collider shapes as colored wireframes
+ * using OpenGL lines for editor visualization.
+ */
 
 #include <memory>
 #include <glad/glad.h>

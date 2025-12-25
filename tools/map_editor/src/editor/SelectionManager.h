@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * SelectionManager.h - Entity selection state for the editor.
+ *
+ * Tracks selected entities and provides selection manipulation APIs.
+ * Supports single and multi-selection with toggle capability.
+ */
 
 #include <vector>
 

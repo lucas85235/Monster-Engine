@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * PrimitiveFactory.h - Factory for creating editor primitive entities.
+ *
+ * Creates cube, sphere, capsule, cylinder, and plane entities with
+ * mesh rendering and editor metadata for collision configuration.
+ */
 
 #include <memory>
 

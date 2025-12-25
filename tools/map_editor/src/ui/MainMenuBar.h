@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * MainMenuBar.h - Editor menu bar with File/Edit/Create/View menus.
+ *
+ * Returns MenuBarActions struct with flags for triggered actions.
+ */
+
 
 namespace mst {
 
