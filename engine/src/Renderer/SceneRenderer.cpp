@@ -319,6 +319,9 @@ void SceneRenderer::RenderShadowPass() {
     if (sceneData_.Submissions.empty() && instancedSubmissions_.empty()) return;
     if (!sceneData_.ShadowShader || !sceneData_.ShadowFramebuffer) return;
 
+    // Save current framebuffer and viewport
+    GLint previousFramebuffer = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
     GLint previousViewport[4];
     glGetIntegerv(GL_VIEWPORT, previousViewport);
 
@@ -367,7 +370,8 @@ void SceneRenderer::RenderShadowPass() {
     glCullFace(previousCullFaceMode);
     if (!wasCullEnabled) glDisable(GL_CULL_FACE);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // Restore previous framebuffer and viewport (not just 0!)
+    glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
     glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
 }
 

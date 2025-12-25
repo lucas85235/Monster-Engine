@@ -20,6 +20,7 @@ struct RigidbodyData {
 class RigidbodyComponent : public Component {
 public:
     RigidbodyComponent() = default;
+    explicit RigidbodyComponent(const RigidbodyData& data) : data_(data) {}
 
     void Awake() override;
 

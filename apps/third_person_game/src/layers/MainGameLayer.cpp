@@ -12,6 +12,7 @@
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/resources/MeshManager.h"
+#include "engine/resources/MapLoader.h"
 
 namespace FirstGame {
 
@@ -36,6 +37,14 @@ void MainGameLayer::OnAttach() {
 
     Application::Get().SetActiveScene(scene_.get());
 
+    // Load map from file
+    auto mapResult = se::MapLoader::Load(*scene_, "test.mstmap");
+    if (mapResult.success) {
+        SE_LOG_INFO("Loaded map with {} entities", mapResult.entityCount);
+    } else {
+        SE_LOG_WARN("Failed to load map, creating empty scene");
+    }
+
     // Create character entity with all components
     // Components are added in order and their Awake() is called immediately
     // Start() is called before first Update()
@@ -52,6 +61,17 @@ void MainGameLayer::OnAttach() {
 
     // 4. CharacterRender: Sets up mesh and materials
     character_entity_.AddComponent<CharacterRender>();
+
+    // 5. Position character at Player Start if available
+    if (mapResult.hasPlayerStart) {
+        auto& transform = character_entity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition(mapResult.playerStartPosition);
+        transform.SetRotation(mapResult.playerStartRotation);
+        SE_LOG_INFO("Character spawned at Player Start: ({}, {}, {})",
+                    mapResult.playerStartPosition.x,
+                    mapResult.playerStartPosition.y,
+                    mapResult.playerStartPosition.z);
+    }
 }
 
 void MainGameLayer::OnDetach() {
