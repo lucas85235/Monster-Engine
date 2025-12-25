@@ -61,6 +61,9 @@ class MapEditorLayer : public se::Layer {
     char        exportFileName_[256] = "untitled";
     char        openFileName_[256] = "";
 
+    // Player Start entity (only one allowed)
+    se::Entity playerStartEntity_;
+
     // Grid
     bool showGrid_ = true;  // Press G to toggle grid
     bool showColliderDebug_ = false;  // Press C to toggle collider debug
@@ -88,6 +91,7 @@ class MapEditorLayer : public se::Layer {
     void ProcessMousePicking();
 
     void CreatePrimitive(PrimitiveType type);
+    void CreatePlayerStart();
     void DuplicateSelected();
     void DeleteSelected();
 

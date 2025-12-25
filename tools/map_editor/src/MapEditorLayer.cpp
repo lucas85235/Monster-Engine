@@ -184,6 +184,7 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
         scene_->Clear();
         currentMap_.Clear();
         currentMap_.mapName = "Untitled Map";
+        playerStartEntity_ = se::Entity();  // Reset player start
         SE_LOG_INFO("New map created");
     }
     if (actions.openMap) showOpenDialog_ = true;
@@ -194,6 +195,7 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     if (actions.createCapsule) CreatePrimitive(PrimitiveType::Capsule);
     if (actions.createCylinder) CreatePrimitive(PrimitiveType::Cylinder);
     if (actions.createPlane) CreatePrimitive(PrimitiveType::Plane);
+    if (actions.createPlayerStart) CreatePlayerStart();
     if (actions.deleteSelected) DeleteSelected();
     if (actions.duplicateSelected) DuplicateSelected();
     if (actions.toggleGrid) showGrid_ = !showGrid_;
@@ -291,6 +293,29 @@ void MapEditorLayer::ProcessKeyboardShortcuts() {
 void MapEditorLayer::CreatePrimitive(PrimitiveType type) {
     se::Entity entity = PrimitiveFactory::CreatePrimitive(*scene_, type);
     selection_.Select(entity);
+}
+
+void MapEditorLayer::CreatePlayerStart() {
+    // Only allow one Player Start
+    if (playerStartEntity_.IsValid()) {
+        SE_LOG_WARN("Player Start already exists! Select and move it instead.");
+        selection_.Select(playerStartEntity_);
+        return;
+    }
+    
+    // Create Player Start entity with a capsule mesh for visualization
+    playerStartEntity_ = scene_->CreateEntity("Player Start");
+    auto& transform = playerStartEntity_.GetComponent<se::TransformComponent>();
+    transform.SetPosition({0.0f, 0.0f, 0.0f});
+    
+    // Add a visible mesh (capsule shape to represent player)
+    auto mesh = PrimitiveFactory::GetPrimitiveMesh(PrimitiveType::Capsule);
+    auto material = PrimitiveFactory::GetDefaultMaterial();
+    auto& meshRender = playerStartEntity_.AddComponent<se::MeshRenderComponent>(mesh, material);
+    meshRender.Color = {0.2f, 0.8f, 0.2f, 0.7f};  // Green semi-transparent
+    
+    selection_.Select(playerStartEntity_);
+    SE_LOG_INFO("Created Player Start");
 }
 
 void MapEditorLayer::DuplicateSelected() {
@@ -433,6 +458,24 @@ void MapEditorLayer::LoadMap(const std::string& filename) {
         }
     }
     
+    // Load Player Start if present
+    playerStartEntity_ = se::Entity();  // Reset first
+    if (loadedData.hasPlayerStart) {
+        playerStartEntity_ = scene_->CreateEntity("Player Start");
+        auto& transform = playerStartEntity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition(loadedData.playerStartPosition);
+        transform.SetRotation(loadedData.playerStartRotation);
+        
+        auto mesh = PrimitiveFactory::GetPrimitiveMesh(PrimitiveType::Capsule);
+        auto material = PrimitiveFactory::GetDefaultMaterial();
+        auto& meshRender = playerStartEntity_.AddComponent<se::MeshRenderComponent>(mesh, material);
+        meshRender.Color = {0.2f, 0.8f, 0.2f, 0.7f};
+        SE_LOG_INFO("Loaded Player Start at ({}, {}, {})", 
+                    loadedData.playerStartPosition.x, 
+                    loadedData.playerStartPosition.y, 
+                    loadedData.playerStartPosition.z);
+    }
+    
     currentMap_ = std::move(loadedData);
     strncpy(exportFileName_, currentMap_.mapName.c_str(), sizeof(exportFileName_) - 1);
     
@@ -463,7 +506,19 @@ void MapEditorLayer::BuildMapData() {
         }
         currentMap_.entities.push_back(data);
     }
-    SE_LOG_INFO("Built map data with {} entities", currentMap_.entities.size());
+    
+    // Save Player Start data
+    if (playerStartEntity_.IsValid()) {
+        auto& transform = playerStartEntity_.GetComponent<se::TransformComponent>();
+        currentMap_.hasPlayerStart = true;
+        currentMap_.playerStartPosition = transform.Position;
+        currentMap_.playerStartRotation = transform.Rotation;
+    } else {
+        currentMap_.hasPlayerStart = false;
+    }
+    
+    SE_LOG_INFO("Built map data with {} entities, PlayerStart: {}", 
+                currentMap_.entities.size(), currentMap_.hasPlayerStart ? "Yes" : "No");
 }
 
 void MapEditorLayer::RenderGrid(const Matrix4& view, const Matrix4& projection) {

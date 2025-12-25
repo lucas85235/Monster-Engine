@@ -47,14 +47,22 @@ struct MapEntityData {
 
 struct MapData {
     static constexpr uint32_t MAGIC   = 0x4D53544D;  // "MSTM"
-    static constexpr uint32_t VERSION = 1;
+    static constexpr uint32_t VERSION = 2;
 
     std::string                mapName;
     std::vector<MapEntityData> entities;
 
+    // Player Start
+    bool    hasPlayerStart = false;
+    Vector3 playerStartPosition{0.0f, 0.0f, 0.0f};
+    Vector3 playerStartRotation{0.0f, 0.0f, 0.0f};
+
     void Clear() {
         mapName.clear();
         entities.clear();
+        hasPlayerStart = false;
+        playerStartPosition = {0.0f, 0.0f, 0.0f};
+        playerStartRotation = {0.0f, 0.0f, 0.0f};
     }
 };
 

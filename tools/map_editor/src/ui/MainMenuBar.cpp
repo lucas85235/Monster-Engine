@@ -77,6 +77,12 @@ void MainMenuBar::RenderCreateMenu(MenuBarActions& actions) {
             actions.createPlane = true;
         }
 
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Player Start")) {
+            actions.createPlayerStart = true;
+        }
+
         ImGui::EndMenu();
     }
 }

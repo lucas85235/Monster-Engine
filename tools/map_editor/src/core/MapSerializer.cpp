@@ -47,8 +47,11 @@ void MapSerializer::WriteHeader(std::ofstream& file, const MapData& data) {
     uint32_t entityCount = static_cast<uint32_t>(data.entities.size());
     file.write(reinterpret_cast<const char*>(&entityCount), sizeof(entityCount));
 
-    uint32_t reserved = 0;
-    file.write(reinterpret_cast<const char*>(&reserved), sizeof(reserved));
+    // Player Start data
+    uint8_t hasPlayerStart = data.hasPlayerStart ? 1 : 0;
+    file.write(reinterpret_cast<const char*>(&hasPlayerStart), sizeof(hasPlayerStart));
+    file.write(reinterpret_cast<const char*>(&data.playerStartPosition), sizeof(Vector3));
+    file.write(reinterpret_cast<const char*>(&data.playerStartRotation), sizeof(Vector3));
 }
 
 void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity) {
@@ -133,16 +136,22 @@ bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& ent
 
     uint32_t version = 0;
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
-    if (version != MapData::VERSION) {
-        SE_LOG_WARN("MapSerializer: Version mismatch: expected {}, got {}", 
-                    MapData::VERSION, version);
-        // Continue anyway for now
-    }
-
+    
     file.read(reinterpret_cast<char*>(&entityCount), sizeof(entityCount));
     
-    uint32_t reserved = 0;
-    file.read(reinterpret_cast<char*>(&reserved), sizeof(reserved));
+    // Version 2+ has Player Start data
+    if (version >= 2) {
+        uint8_t hasPlayerStart = 0;
+        file.read(reinterpret_cast<char*>(&hasPlayerStart), sizeof(hasPlayerStart));
+        data.hasPlayerStart = (hasPlayerStart != 0);
+        file.read(reinterpret_cast<char*>(&data.playerStartPosition), sizeof(Vector3));
+        file.read(reinterpret_cast<char*>(&data.playerStartRotation), sizeof(Vector3));
+    } else {
+        // Version 1 had a reserved field
+        uint32_t reserved = 0;
+        file.read(reinterpret_cast<char*>(&reserved), sizeof(reserved));
+        data.hasPlayerStart = false;
+    }
 
     return !file.fail();
 }

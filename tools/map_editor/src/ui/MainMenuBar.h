@@ -13,6 +13,7 @@ struct MenuBarActions {
     bool createCapsule  = false;
     bool createCylinder = false;
     bool createPlane    = false;
+    bool createPlayerStart = false;
 
     bool deleteSelected    = false;
     bool duplicateSelected = false;
