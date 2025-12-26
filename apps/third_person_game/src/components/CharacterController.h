@@ -43,26 +43,29 @@ struct CameraInputBindings {
 class CharacterController : public Component {
 public:
     CharacterController() = default;
+
     ~CharacterController() override = default;
 
     // Lifecycle
     void Awake() override;
+
     void Start() override;
+
     void Update(float dt) override;
 
     // === State ===
     bool IsMouseCaptured() const { return mouseCaptured_; }
 
     // === Configuration ===
-    MovementInputConfig&  GetMovementConfig() { return movementConfig_; }
-    CameraInputBindings&  GetCameraBindings() { return cameraBindings_; }
+    MovementInputConfig& GetMovementConfig() { return movementConfig_; }
+    CameraInputBindings& GetCameraBindings() { return cameraBindings_; }
 
 private:
     void BindInputs();
     void CacheComponents();
-
-    void ProcessInput();
+    void ProcessInput(float dt);
     void HandleMouseToggle();
+    void SetMouseCaptured(bool captured);
     void ProcessMovementInput();
     void ProcessCameraInput();
 
@@ -77,5 +80,4 @@ private:
     // State
     bool mouseCaptured_ = false;
 };
-
 } // namespace FirstGame

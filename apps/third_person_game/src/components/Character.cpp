@@ -1,10 +1,10 @@
 #include "Character.h"
 
+#include "apps/MathUtils.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
-
 // ============================================================================
 // Lifecycle
 // ============================================================================
@@ -43,18 +43,17 @@ void Character::SetupPhysics() {
     GetEntity().AddComponent<CapsuleCollider>(collider);
 
     // Now add the rigidbody - it will detect the CapsuleCollider
+    // Freeze ALL physical rotations - rotation is controlled via code in RotateTowards()
     RigidbodyData rigidData{
         .mass            = physicsConfig_.mass,
         .gravityScale    = 1.0f,
-        .material        = PhysicsMaterial(0.5f, 0.3f),
+        .material        = PhysicsMaterial(0.5f, 0.0f),
         .freezeRotationX = true,
-        .freezeRotationY = false,
+        .freezeRotationY = true,
         .freezeRotationZ = true
     };
 
-    auto& rb = GetEntity().AddComponent<RigidbodyComponent>();
-    rb.SetData(rigidData);
-    rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
+    GetEntity().AddComponent<RigidbodyComponent>(rigidData);
 }
 
 // ============================================================================
@@ -68,6 +67,19 @@ void Character::Move(const Vector3& direction) {
     velocity.y       = GetVelocity().y; // Preserve vertical velocity
 
     SetVelocity(velocity);
+}
+
+void Character::RotateTowards(float targetYaw) {
+    if (!rigidbody_) return;
+
+    auto& transform  = GetComponent<TransformComponent>();
+    float currentYaw = Math::NormalizeAngle(transform.Rotation.y);
+    float diff       = Math::NormalizeAngle(targetYaw - currentYaw);
+
+    float t      = glm::clamp(movementConfig_.rotationSpeed * Time::DeltaTime(), 0.0f, 1.0f);
+    float newYaw = Math::NormalizeAngle(currentYaw + diff * t);
+
+    rigidbody_->SetRotation({0.0f, newYaw, 0.0f});
 }
 
 void Character::Jump() {
@@ -115,5 +127,4 @@ void Character::UpdateGroundedState() {
     // For now, consider grounded if vertical velocity is near zero
     isGrounded_ = std::abs(GetVelocity().y) < 0.1f;
 }
-
 } // namespace FirstGame

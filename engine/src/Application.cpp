@@ -7,6 +7,7 @@
 #include "Engine.h"
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
+#include "engine/core/Time.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
 
@@ -119,6 +120,9 @@ int Application::Run() {
         float currentTime = GetTime();
         float timestep    = glm::clamp(currentTime - lastTime, 0.001f, 0.1f);
         lastTime          = currentTime;
+
+        // Update global time
+        Time::Update(timestep);
 
         // Update Input Manager
         InputManager::Get().Update();

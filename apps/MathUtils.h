@@ -4,7 +4,6 @@
 #include <glm.hpp>
 
 namespace Math {
-
 /// Normalizes an angle to the [-180, 180] degree range
 inline float NormalizeAngle(float angle) {
     angle = std::fmod(angle + 180.0f, 360.0f);
@@ -25,9 +24,9 @@ inline float InterpolateYaw(float currentYaw, float targetYaw, float t) {
 
     float diff = targetYaw - currentYaw;
 
-    // Take shortest path
-    if (diff > 180.0f) diff -= 360.0f;
-    if (diff < -180.0f) diff += 360.0f;
+    // // Take shortest path
+    // if (diff > 180.0f) diff -= 360.0f;
+    // if (diff < -180.0f) diff += 360.0f;
 
     return currentYaw + diff * t;
 }
@@ -40,7 +39,7 @@ inline float CalculateYawFromDirection(float x, float z) {
     // Use std::atan2 for robust angle calculation
     // We use (-x, -z) to match the coordinate system where -Z is 0 degrees (Forward)
     // and +X is -90 degrees (Right).
-    float angle = std::atan2(-x, -z);
+    float angle = std::atan2(x, z);
     return glm::degrees(angle);
 }
-}  // namespace Math
+} // namespace Math

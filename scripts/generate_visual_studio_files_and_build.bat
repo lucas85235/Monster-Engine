@@ -20,6 +20,19 @@ set "C_BOLD=%ESC%[1m"
 :: Build and Run Script - SimpleEngine
 :: ===========================================
 
+:: ===========================================
+:: BUILD CONFIGURATION
+:: Change to "Release" for distribution builds
+:: ===========================================
+@REM set "BUILD_TYPE=Debug"
+set "BUILD_TYPE=Release"
+
+:: ===========================================
+:: GAME CONFIGURATION
+:: Name of the game (used for distribution folder)
+:: ===========================================
+set "GAME_NAME=ThirdPersonGame"
+
 :: Navigate to project root (parent folder of Scripts)
 cd /d "%~dp0\.."
 
@@ -32,7 +45,7 @@ echo.
 :: ===========================================
 :: STEP 1: Generate CMake Project
 :: ===========================================
-echo %C_BLUE%[STEP 1/4]%C_RESET% %C_YELLOW%Generating CMake project...%C_RESET%
+echo %C_BLUE%[STEP 1/5]%C_RESET% %C_YELLOW%Generating CMake project...%C_RESET%
 cmake -S . -B build -G "Visual Studio 17 2022" ^
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ^
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ^
@@ -50,7 +63,7 @@ echo.
 :: ===========================================
 :: STEP 2: Setup Visual Studio Environment
 :: ===========================================
-echo %C_BLUE%[STEP 2/4]%C_RESET% %C_YELLOW%Setting up Visual Studio 2022 environment...%C_RESET%
+echo %C_BLUE%[STEP 2/5]%C_RESET% %C_YELLOW%Setting up Visual Studio 2022 environment...%C_RESET%
 
 call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 
@@ -72,9 +85,9 @@ echo.
 :: ===========================================
 :: STEP 3: Build Project
 :: ===========================================
-echo %C_BLUE%[STEP 3/4]%C_RESET% %C_YELLOW%Building project (Debug x64)...%C_RESET%
+echo %C_BLUE%[STEP 3/5]%C_RESET% %C_YELLOW%Building project (%BUILD_TYPE% x64)...%C_RESET%
 echo.
-msbuild "build\SimpleEngineProject.sln" /p:Configuration=Debug /p:Platform=x64 /m /nologo /verbosity:minimal
+msbuild "build\SimpleEngineProject.sln" /p:Configuration=%BUILD_TYPE% /p:Platform=x64 /m /nologo /verbosity:minimal
 
 if %errorlevel% neq 0 (
     echo.
@@ -88,13 +101,15 @@ echo %C_GREEN%[OK] Build completed successfully%C_RESET%
 echo.
 
 :: ===========================================
-:: STEP 4: Find and Execute
+:: STEP 4: Find Executable
 :: ===========================================
-echo %C_BLUE%[STEP 4/4]%C_RESET% %C_YELLOW%Looking for executable...%C_RESET%
+echo %C_BLUE%[STEP 4/5]%C_RESET% %C_YELLOW%Looking for executable...%C_RESET%
 
 set "EXE_PATH="
-for /r "build" %%F in (*.exe) do (
+set "EXE_NAME="
+for /r "build\apps\third_person_game\%BUILD_TYPE%" %%F in (*.exe) do (
     set "EXE_PATH=%%F"
+    set "EXE_NAME=%%~nxF"
     goto :found_exe
 )
 
@@ -108,8 +123,50 @@ if not defined EXE_PATH (
 
 echo %C_GREEN%[OK] Found: %C_CYAN%!EXE_PATH!%C_RESET%
 echo.
+
+:: ===========================================
+:: STEP 5: Create Distribution Folder (Release only)
+:: ===========================================
+if /i not "%BUILD_TYPE%"=="Release" goto :skip_dist
+
+echo %C_BLUE%[STEP 5/5]%C_RESET% %C_YELLOW%Creating distribution folder...%C_RESET%
+
+set "DIST_DIR=dist\%GAME_NAME%"
+
+:: Clean and create distribution directory
+if exist "!DIST_DIR!" rmdir /s /q "!DIST_DIR!"
+mkdir "!DIST_DIR!"
+
+:: Copy executable
+echo   Copying executable...
+copy "!EXE_PATH!" "!DIST_DIR!\" >nul
+
+:: Copy assets folder
+if exist "assets" (
+    echo   Copying assets...
+    xcopy "assets" "!DIST_DIR!\assets\" /E /I /Q >nul
+)
+
+:: Copy any required DLLs from build folder
+for %%D in ("build\apps\third_person_game\%BUILD_TYPE%\*.dll") do (
+    echo   Copying %%~nxD...
+    copy "%%D" "!DIST_DIR!\" >nul 2>&1
+)
+
+echo.
+echo %C_GREEN%[OK] Distribution folder created: %C_CYAN%!DIST_DIR!%C_RESET%
+echo %C_YELLOW%    Ready to zip and distribute!%C_RESET%
+echo.
+goto :after_dist
+
+:skip_dist
+echo %C_BLUE%[STEP 5/5]%C_RESET% %C_YELLOW%Skipping distribution (Debug build)%C_RESET%
+echo.
+
+:after_dist
+
 echo %C_MAGENTA%========================================
-echo    LAUNCHING SIMPLE ENGINE
+echo    LAUNCHING %GAME_NAME%
 echo ========================================%C_RESET%
 echo.
 

@@ -90,3 +90,6 @@ constexpr Ref<T> CreateRef(Args&&... args) {
 #include "engine/ecs/Component.h"
 #include "engine/ecs/Entity.h"
 #include "engine/ecs/Scene.h"
+
+// Core utilities
+#include "engine/core/Time.h"

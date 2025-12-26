@@ -10,6 +10,10 @@
 
 namespace se {
 void RigidbodyComponent::Awake() {
+    SE_LOG_INFO("RigidbodyComponent::Awake() - mass={}, gravityScale={}, friction={}, freezeX/Y/Z={}/{}/{}",
+                data_.mass, data_.gravityScale, data_.material.Friction,
+                data_.freezeRotationX, data_.freezeRotationY, data_.freezeRotationZ);
+
     // Now GetEntity() and GetScene() are available
     if (GetScene() && GetScene()->GetPhysicsSystem()) {
         physics_system_ = GetScene()->GetPhysicsSystem();
