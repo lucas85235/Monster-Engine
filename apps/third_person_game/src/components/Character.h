@@ -24,15 +24,15 @@ using namespace se;
 struct CharacterMovementConfig {
     float acceleration     = 3.4f;
     float maxMovementSpeed = 5.0f;
-    float maxRotationSpeed = 180.0f;
+    float rotationSpeed    = 10.0f;
     float jumpForce        = 5.0f;
     float groundDrag       = 0.9f;
     float airDrag          = 0.98f;
 };
 
 struct CharacterPhysicsConfig {
-    float height = 1.8f;
-    float radius = 0.3f;
+    float height = 1.0f;
+    float radius = 0.5f;
     float mass   = 70.0f;
 };
 
@@ -43,26 +43,36 @@ struct CharacterPhysicsConfig {
 class Character : public Component {
 public:
     Character() = default;
+
     ~Character() override = default;
 
     // Lifecycle
     void Awake() override;
+
     void Start() override;
+
     void Update(float dt) override;
 
     // === Movement API ===
     void Move(const Vector3& direction);
+
+    void RotateTowards(float targetYaw);
+
     void Jump();
+
     void StopMovement();
 
     // === State Queries ===
     bool IsGrounded() const { return isGrounded_; }
+
     bool IsMoving() const;
 
     // === Rigidbody Access ===
     RigidbodyComponent* GetRigidbody() const { return rigidbody_; }
-    Vector3             GetVelocity() const;
-    void                SetVelocity(const Vector3& velocity);
+
+    Vector3 GetVelocity() const;
+
+    void SetVelocity(const Vector3& velocity);
 
     // === Configuration ===
     CharacterMovementConfig& GetMovementConfig() { return movementConfig_; }
@@ -70,6 +80,7 @@ public:
 
 private:
     void SetupPhysics();
+
     void UpdateGroundedState();
 
     // Component references
@@ -82,5 +93,4 @@ private:
     // State
     bool isGrounded_ = false;
 };
-
 } // namespace FirstGame

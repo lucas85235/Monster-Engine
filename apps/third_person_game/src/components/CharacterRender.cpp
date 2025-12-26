@@ -9,7 +9,6 @@
 #include "LinearMath/btIDebugDraw.h"
 
 namespace FirstGame {
-
 void CharacterRender::Awake() {
     SetupMesh();
     SetupDebugVisualization();
@@ -22,7 +21,7 @@ void CharacterRender::Update(float dt) {
 }
 
 void CharacterRender::SetupMesh() {
-    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
+    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
 
     material_ = Utilities::LoadMaterial();
     if (!material_) {
@@ -48,5 +47,4 @@ void CharacterRender::SetupDebugVisualization() {
         SE_LOG_INFO("CharacterRender: Physics debug enabled");
     }
 }
-
 } // namespace FirstGame

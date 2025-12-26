@@ -229,12 +229,26 @@ void PhysicsSystem::Update(float dt) {
                 glm::vec3(static_cast<float>(origin.getX()), static_cast<float>(origin.getY()),
                           static_cast<float>(origin.getZ()));
 
+            // Convert quaternion to euler angles using atan2 for full yaw range
             glm::quat q(static_cast<float>(rot.w()), static_cast<float>(rot.x()),
                         static_cast<float>(rot.y()), static_cast<float>(rot.z()));
-            q                              = glm::normalize(q);
-            transform_component.Rotation.x = glm::degrees(glm::pitch(q));
-            transform_component.Rotation.y = glm::degrees(glm::yaw(q));
-            transform_component.Rotation.z = glm::degrees(glm::roll(q));
+            q = glm::normalize(q);
+
+            // Manual extraction for YXZ order (yaw-pitch-roll) to get full yaw range [-180, 180]
+            float sinp = 2.0f * (q.w * q.x - q.y * q.z);
+            float pitch = std::abs(sinp) >= 1.0f ? std::copysign(glm::half_pi<float>(), sinp) : std::asin(sinp);
+
+            float siny_cosp = 2.0f * (q.w * q.y + q.x * q.z);
+            float cosy_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+            float yaw = std::atan2(siny_cosp, cosy_cosp);
+
+            float sinr_cosp = 2.0f * (q.w * q.z + q.x * q.y);
+            float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.z * q.z);
+            float roll = std::atan2(sinr_cosp, cosr_cosp);
+
+            transform_component.Rotation.x = glm::degrees(pitch);
+            transform_component.Rotation.y = glm::degrees(yaw);
+            transform_component.Rotation.z = glm::degrees(roll);
 
             transform_component.MarkDirty();
         }

@@ -3,6 +3,7 @@
 #include "CameraController.h"
 #include "Character.h"
 #include "engine/Application.h"
+#include "apps/MathUtils.h"
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
@@ -21,7 +22,7 @@ void CharacterController::Start() {
 }
 
 void CharacterController::Update(float dt) {
-    ProcessInput();
+    ProcessInput(dt);
 }
 
 // ============================================================================
@@ -68,7 +69,7 @@ void CharacterController::CacheComponents() {
 // Input Processing
 // ============================================================================
 
-void CharacterController::ProcessInput() {
+void CharacterController::ProcessInput(float /* unused - using Time::DeltaTime() */) {
     HandleMouseToggle();
 
     if (mouseCaptured_) {
@@ -81,14 +82,18 @@ void CharacterController::HandleMouseToggle() {
     auto& input = InputManager::Get();
 
     if (input.IsActionJustPressed(cameraBindings_.toggleMouse)) {
-        mouseCaptured_ = !mouseCaptured_;
-
-        auto* window = Application::Get().GetWindow().GetNativeWindow();
-        glfwSetInputMode(window, GLFW_CURSOR,
-                         mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
-
-        SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
+        SetMouseCaptured(!mouseCaptured_);
     }
+}
+
+void CharacterController::SetMouseCaptured(bool captured) {
+    mouseCaptured_ = captured;
+
+    auto* window = Application::Get().GetWindow().GetNativeWindow();
+    glfwSetInputMode(window, GLFW_CURSOR,
+                     captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+
+    SE_LOG_INFO("Mouse capture: {}", captured ? "enabled" : "disabled");
 }
 
 void CharacterController::ProcessMovementInput() {
@@ -99,13 +104,17 @@ void CharacterController::ProcessMovementInput() {
     float moveX = input.GetAxis(movementConfig_.moveRight);
     float moveZ = input.GetAxis(movementConfig_.moveForward);
 
-    // Get camera-relative directions from CameraController
+    // Get camera-relative directions
     Vector3 forward = cameraController_->GetForwardDirection();
     Vector3 right   = cameraController_->GetRightDirection();
 
     Vector3 moveDir = forward * moveZ + right * moveX;
 
+    // Rotate towards movement direction
     if (glm::length(moveDir) > 0.01f) {
+        float targetYaw = Math::CalculateYawFromDirection(moveDir.x, moveDir.z);
+        character_->RotateTowards(targetYaw);
+
         moveDir = glm::normalize(moveDir);
         character_->Move(moveDir);
     }
@@ -126,4 +135,5 @@ void CharacterController::ProcessCameraInput() {
 
     cameraController_->RotateCamera(deltaX, deltaY);
 }
+
 } // namespace FirstGame
