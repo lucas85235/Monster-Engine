@@ -7,7 +7,7 @@
  */
 
 #include "Engine.h"
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 #include "engine/ecs/SimpleComponents.h"
 
 namespace mst {

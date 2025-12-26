@@ -10,7 +10,7 @@
 #include "ui/StyleEditorPanel.h"
 #include "ui/PreviewWindowPanel.h"
 #include "ui/FileDialogManager.h"
-#include "engine/Layer.h"
+#include "engine/core/Layer.h"
 
 namespace ued {
 

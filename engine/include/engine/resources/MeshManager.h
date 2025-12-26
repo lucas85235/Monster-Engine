@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "engine/Mesh.h"
+#include "engine/renderer/Mesh.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {

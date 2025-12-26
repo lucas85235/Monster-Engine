@@ -4,7 +4,7 @@
 #include <glm.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 namespace mst {
 

@@ -16,9 +16,15 @@ class Shader;
 /**
  * OcclusionCuller - GPU-based occlusion culling using hardware queries.
  *
- * Uses temporal coherence: objects visible last frame are rendered first,
- * then we test occluded objects with bounding box queries.
- * Results from current frame are used next frame to avoid GPU stalls.
+ * OcclusionCuller - GPU-based occlusion culling using hardware queries.
+ *
+ * Current implementation uses synchronous (blocking) queries:
+ * 1. Render occluders (large objects).
+ * 2. Render bounding boxes of occludees with queries.
+ * 3. Wait for results (blocking).
+ * 4. Render visible occludees.
+ *
+ * Note: This prevents popping but introduces a CPU-GPU sync point (stall).
  */
 class OcclusionCuller {
    public:
@@ -97,6 +103,7 @@ class OcclusionCuller {
     // Bounding box for occlusion tests
     std::shared_ptr<VertexArray> boundingBoxVA_;
     std::shared_ptr<Shader>      occlusionShader_;
+    RHI::PipelineHandle          occlusionPipeline_ = {0};
 
     // Previous frame visibility results
     std::unordered_map<uint32_t, bool> previousFrameVisibility_;

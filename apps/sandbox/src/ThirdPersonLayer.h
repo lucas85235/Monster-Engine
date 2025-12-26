@@ -1,13 +1,14 @@
 #pragma once
 
-#include <engine/Camera.h>
-#include <engine/Layer.h>
+#include <engine/core/Layer.h>
 #include <engine/ecs/Entity.h>
 #include <engine/ecs/Scene.h>
+#include <engine/renderer/Camera.h>
 #include <engine/renderer/Material.h>
 
-#include <glm.hpp>
 #include <vector>
+
+#include "Engine.h"
 
 class btRigidBody;
 
@@ -42,9 +43,9 @@ class ThirdPersonLayer : public Layer {
     void TryGrabOrRelease();
     void CleanupBullets();
 
-    std::shared_ptr<Scene>    scene_;
-    std::shared_ptr<Material> material_;
-    Camera                    camera_;
+    Ref<Scene>    scene_;
+    Ref<Material> material_;
+    Camera        camera_;
 
     // Player
     Entity              playerEntity_;
@@ -52,7 +53,7 @@ class ThirdPersonLayer : public Layer {
     Entity              floor_entity_;
     std::vector<Entity> walls_;
     std::vector<Entity> bullets_;  // Track shot cubes for cleanup
-    glm::vec3           playerVelocity_{0.0f};
+    Vector3             playerVelocity_{0.0f};
     bool                isGrounded_ = false;
 
     // Physics constants
@@ -72,7 +73,7 @@ class ThirdPersonLayer : public Layer {
     float        grabDistance_    = 100.0f;
     float        grabMaxDistance_ = 30.0f;
     float        grabMinDistance_ = 2.0f;  // Minimum grab distance (scroll wheel)
-    glm::vec3    savedGravity_{0.0f};
+    Vector3      savedGravity_{0.0f};
 
     // Mouse toggle
     bool mouseCaptured_ = true;

@@ -1,11 +1,11 @@
 #include "engine/physics/PhysicsDebugDraw.h"
 
-#include <glad/glad.h>
+#include <algorithm>
+#include <vector>
 
-#include <iostream>
-
-#include "engine/Application.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
 
@@ -57,8 +57,6 @@ int PhysicsDebugDraw::getDebugMode() const {
 }
 void PhysicsDebugDraw::Flush(const Camera& camera) {
     for (const auto& timedLine : timedLines_) {
-        // Just add them, we will lock later or Lock here?
-        // timedLines is main thread only.
         drawLine(btVector3(timedLine.From.x, timedLine.From.y, timedLine.From.z),
                  btVector3(timedLine.To.x, timedLine.To.y, timedLine.To.z),
                  btVector3(timedLine.Color.x, timedLine.Color.y, timedLine.Color.z));
@@ -80,18 +78,31 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         vertices.push_back(line.To.z);
     }
 
-    auto vb = std::make_shared<VertexBuffer>(
-        vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(float)));
-    BufferLayout layout = {{ShaderDataType::Float3, "a_Position"}};
-    vb->SetLayout(layout);
+    uint32_t neededSize = static_cast<uint32_t>(vertices.size() * sizeof(float));
 
-    auto va = std::make_shared<VertexArray>();
-    va->AddVertexBuffer(vb);
+    if (!vao_) {
+        vao_ = std::make_shared<VertexArray>();
+        vbo_ = std::make_shared<VertexBuffer>(neededSize > 1024 * 1024 ? neededSize : 1024 * 1024);
+        vbo_->SetLayout({{ShaderDataType::Float3, "a_Position"}});
+        vao_->AddVertexBuffer(vbo_);
+        buffer_capacity_ = neededSize > 1024 * 1024 ? neededSize : 1024 * 1024;
+    }
+
+    if (neededSize > buffer_capacity_) {
+        // Reallocate if too small
+        buffer_capacity_ = neededSize * 2;
+        vbo_             = std::make_shared<VertexBuffer>(buffer_capacity_);
+        vbo_->SetLayout({{ShaderDataType::Float3, "a_Position"}});
+
+        // Recreate VAO to bind new VBO
+        vao_ = std::make_shared<VertexArray>();
+        vao_->AddVertexBuffer(vbo_);
+    }
+
+    vbo_->SetData(vertices.data(), neededSize);
 
     if (shader_) {
         shader_->bind();
-        // Camera doesn't have a stored aspect ratio, we need to get it from window or pass it in.
-        // For now, let's assume a standard aspect ratio or get it from Application.
         auto& window      = Application::Get().GetWindow();
         float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
 
@@ -102,7 +113,15 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         shader_->setMat4("u_ViewProjection", viewProjection);
     }
 
-    RenderCommand::DrawLines(va.get(), lines_.size() * 2);
+    auto& window = Application::Get().GetWindow();
+    if (auto* context = window.GetContext()) {
+        if (auto* device = context->GetDevice()) {
+            RHI::DrawCommand cmd{};
+            cmd.vertexCount   = lines_.size() * 2;
+            cmd.instanceCount = 1;
+            device->Draw(cmd);
+        }
+    }
 
     if (shader_) { shader_->unbind(); }
     lines_.clear();

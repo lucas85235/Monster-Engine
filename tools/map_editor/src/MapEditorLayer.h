@@ -18,7 +18,7 @@
 #include "ui/HierarchyPanel.h"
 #include "ui/MainMenuBar.h"
 #include "ui/PropertiesPanel.h"
-#include "engine/Layer.h"
+#include "engine/core/Layer.h"
 
 namespace mst {
 

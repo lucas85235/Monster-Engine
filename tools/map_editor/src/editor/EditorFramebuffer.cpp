@@ -1,6 +1,6 @@
 #include "editor/EditorFramebuffer.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 namespace mst {
 

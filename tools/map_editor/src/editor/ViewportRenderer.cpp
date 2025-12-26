@@ -2,8 +2,8 @@
 
 #include <glad/glad.h>
 
-#include "engine/Application.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
 
 using namespace se;
 

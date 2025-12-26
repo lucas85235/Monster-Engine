@@ -11,7 +11,7 @@
 #include <glm.hpp>
 
 #include "core/MapData.h"
-#include "engine/Shader.h"
+#include "engine/renderer/Shader.h"
 #include "engine/ecs/Scene.h"
 
 namespace mst {

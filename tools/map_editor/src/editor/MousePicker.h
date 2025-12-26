@@ -9,7 +9,7 @@
 #include <limits>
 
 #include "Engine.h"
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 #include "engine/ecs/Entity.h"
 #include "engine/ecs/Scene.h"
 

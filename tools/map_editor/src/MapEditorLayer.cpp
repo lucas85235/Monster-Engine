@@ -4,8 +4,8 @@
 #include <ImGuizmo.h>
 #include <imgui.h>
 
-#include "engine/Application.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
 #include "engine/input/InputManager.h"
 
 namespace mst {

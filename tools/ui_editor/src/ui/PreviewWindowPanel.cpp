@@ -1,7 +1,7 @@
 #include "PreviewWindowPanel.h"
 
 #include "core/UIEditorContext.h"
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 namespace ued {
 

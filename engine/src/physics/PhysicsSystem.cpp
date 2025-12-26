@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <chrono>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/PerformanceProfiler.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -19,6 +19,7 @@
 #include "engine/physics/ShapeCache.h"
 
 namespace se {
+
 PhysicsSystem::PhysicsSystem(Scene* scene) : scene_(scene) {}
 
 PhysicsSystem::~PhysicsSystem() {
@@ -54,7 +55,7 @@ void PhysicsSystem::Initialize(const PhysicsConfig& config) {
     collision_configuration_                   = new btDefaultCollisionConfiguration(cci);
 
     // Use multi-threaded collision dispatcher
-    dispatcher_ = new btCollisionDispatcherMt(collision_configuration_, 40);
+    dispatcher_                                  = new btCollisionDispatcherMt(collision_configuration_, 40);
     overlapping_pair_cache_broadphase_interface_ = new btDbvtBroadphase();
 
     // Create solver pool with one solver per thread for parallel constraint solving
@@ -181,6 +182,8 @@ size_t PhysicsSystem::GetSleepingBodyCount() const {
 
 void PhysicsSystem::Update(float dt) {
     if (!running_ || !dynamics_world_) return;
+
+    std::lock_guard<std::mutex> lock(physics_mutex_);
 
     using Clock = std::chrono::high_resolution_clock;
 
@@ -510,4 +513,5 @@ btRigidBody* PhysicsSystem::RaycastHitBodySync(const glm::vec3& start, const glm
                                                glm::vec3& hitPoint, btRigidBody* ignoredBody) {
     return RaycastHitBody(start, end, hitPoint, ignoredBody);
 }
+
 }  // namespace se

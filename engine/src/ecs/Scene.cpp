@@ -1,8 +1,7 @@
 #include "engine/ecs/Scene.h"
 
-#include "engine/Application.h"
-#include "engine/Camera.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -46,8 +45,6 @@ Entity Scene::CreateEntity(const std::string& name) {
 
     entity.AddComponent<TransformComponent>();
     entity.AddComponent<NameComponent>(name.empty() ? "Entity" : name);
-
-    SE_LOG_INFO("Entity '{}' created with ID: {}", name, entity.GetID());
 
     return entity;
 }

@@ -10,7 +10,7 @@
 #include <glad/glad.h>
 #include <glm.hpp>
 
-#include "engine/Shader.h"
+#include "engine/renderer/Shader.h"
 
 namespace mst {
 

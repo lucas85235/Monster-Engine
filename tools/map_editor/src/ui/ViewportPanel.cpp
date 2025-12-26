@@ -4,7 +4,7 @@
 #include <glad/glad.h>
 
 #include "../core/EditorContext.h"
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/SimpleComponents.h"
 
 using namespace se;

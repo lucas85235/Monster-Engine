@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "engine/core/CoreTypes.h"
 #include "engine/input/KeyCodes.h"
 
 namespace se {

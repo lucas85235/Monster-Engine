@@ -2,7 +2,7 @@
 
 #include "EventBus.h"
 #include "SceneManager.h"
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/SimpleComponents.h"
 
 using namespace se;

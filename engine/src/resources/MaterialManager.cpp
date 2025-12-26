@@ -1,6 +1,6 @@
 #include "engine/resources/MaterialManager.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 namespace se {
 std::shared_ptr<Material>                                MaterialManager::defaultMaterial_;
@@ -75,7 +75,7 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string&           
     // Check cache
     auto it = shaderCache_.find(name);
     if (it != shaderCache_.end()) {
-        SE_LOG_INFO("Shader '{}' found in cache", name);
+        // SE_LOG_INFO("Shader '{}' found in cache", name);
         return it->second;
     }
 
@@ -83,7 +83,7 @@ std::shared_ptr<Shader> MaterialManager::GetShader(const std::string&           
     try {
         auto shader        = Shader::CreateFromFiles(vertPath, fragPath);
         shaderCache_[name] = shader;
-        SE_LOG_INFO("Loaded and cached shader: {}", name);
+        // SE_LOG_INFO("Loaded and cached shader: {}", name);
         return shader;
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Failed to load shader '{}': {}", name, e.what());
@@ -127,7 +127,7 @@ void MaterialManager::CreateDefaultShader() {
 
     try {
         defaultShader_ = std::make_shared<Shader>(vertexSrc, fragmentSrc);
-        SE_LOG_INFO("Default shader created successfully (ID: {})", defaultShader_->getID());
+        SE_LOG_INFO("Default shader created successfully (ID: {})", defaultShader_->GetHandle().id);
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Failed to create default shader: {}", e.what());
         throw;

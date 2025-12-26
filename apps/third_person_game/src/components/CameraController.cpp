@@ -1,6 +1,6 @@
 #include "CameraController.h"
 
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/physics/RigidbodyComponent.h"
@@ -19,8 +19,13 @@ CameraController::~CameraController() {
 void CameraController::Awake() {
     CreateCamera();
     SetupSpringArm();
+    
+    // Set as active camera immediately so rendering works from first frame
+    if (camera_ && GetScene()) {
+        GetScene()->SetActiveCamera(camera_);
+    }
 
-    SE_LOG_INFO("CameraController::Awake() - Initialized");
+    SE_LOG_INFO("CameraController::Awake() - Initialized with active camera");
 }
 
 void CameraController::Start() {

@@ -85,6 +85,45 @@ set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
 add_subdirectory(${rmlui_DIR})
 
 find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
+
+# SPIRV-Cross (Optional - for cross-compiling SPIR-V to GLSL)
+option(USE_SPIRV_CROSS "Enable SPIRV-Cross for shader cross-compilation" ON)
+if(USE_SPIRV_CROSS)
+    find_package(spirv_cross_core QUIET)
+    find_package(spirv_cross_glsl QUIET)
+    if(spirv_cross_core_FOUND AND spirv_cross_glsl_FOUND)
+        message(STATUS "SPIRV-Cross found via CMake - shader cross-compilation enabled")
+        set(HAS_SPIRV_CROSS TRUE)
+    else()
+        # Windows: Try to find SPIRV-Cross in Vulkan SDK
+        if(WIN32 AND DEFINED ENV{VULKAN_SDK})
+            set(VULKAN_SDK_PATH $ENV{VULKAN_SDK})
+            if(EXISTS "${VULKAN_SDK_PATH}/Include/spirv_cross/spirv_glsl.hpp")
+                message(STATUS "SPIRV-Cross found in Vulkan SDK at: ${VULKAN_SDK_PATH}")
+                set(HAS_SPIRV_CROSS TRUE)
+                set(SPIRV_CROSS_FROM_VULKAN_SDK TRUE)
+                set(SPIRV_CROSS_INCLUDE_DIR "${VULKAN_SDK_PATH}/Include")
+                set(SPIRV_CROSS_LIB_DIR "${VULKAN_SDK_PATH}/Lib")
+            endif()
+        endif()
+        # Non-Windows: Try pkg-config fallback
+        if(NOT HAS_SPIRV_CROSS AND NOT WIN32)
+            find_package(PkgConfig QUIET)
+            if(PkgConfig_FOUND)
+                pkg_check_modules(SPIRV_CROSS spirv-cross-c-shared)
+                if(SPIRV_CROSS_FOUND)
+                    message(STATUS "SPIRV-Cross found via pkg-config")
+                    set(HAS_SPIRV_CROSS TRUE)
+                endif()
+            endif()
+        endif()
+        if(NOT HAS_SPIRV_CROSS)
+            message(STATUS "SPIRV-Cross not found - shader cross-compilation disabled")
+            set(USE_SPIRV_CROSS OFF)
+        endif()
+    endif()
+endif()
 
 file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -117,6 +156,7 @@ target_link_libraries(simple_engine PUBLIC
         glad
         glfw
         OpenGL::GL
+        Vulkan::Vulkan
         glm
         ImGui
         ImGuizmo
@@ -134,9 +174,36 @@ target_link_libraries(simple_engine PUBLIC
 # Adiciona definições de compilação necessárias
 target_compile_definitions(simple_engine PUBLIC
         GLFW_INCLUDE_NONE
+        GLFW_INCLUDE_VULKAN
         GLM_ENABLE_EXPERIMENTAL
         BT_THREADSAFE=1
+        STBI_NO_SIMD
 )
+
+if(HAS_SPIRV_CROSS)
+    target_compile_definitions(simple_engine PUBLIC HAS_SPIRV_CROSS=1)
+    if(spirv_cross_core_FOUND AND spirv_cross_glsl_FOUND)
+        # Found via CMake find_package
+        target_link_libraries(simple_engine PUBLIC
+            spirv-cross-core
+            spirv-cross-glsl
+        )
+    elseif(SPIRV_CROSS_FROM_VULKAN_SDK)
+        # Found in Vulkan SDK on Windows
+        target_include_directories(simple_engine PUBLIC ${SPIRV_CROSS_INCLUDE_DIR})
+        # Link debug/release libs appropriately
+        target_link_libraries(simple_engine PUBLIC
+            debug ${SPIRV_CROSS_LIB_DIR}/spirv-cross-cored.lib
+            debug ${SPIRV_CROSS_LIB_DIR}/spirv-cross-glsld.lib
+            optimized ${SPIRV_CROSS_LIB_DIR}/spirv-cross-core.lib
+            optimized ${SPIRV_CROSS_LIB_DIR}/spirv-cross-glsl.lib
+        )
+    elseif(SPIRV_CROSS_FOUND)
+        # Found via pkg-config
+        target_include_directories(simple_engine PUBLIC ${SPIRV_CROSS_INCLUDE_DIRS})
+        target_link_libraries(simple_engine PUBLIC ${SPIRV_CROSS_LIBRARIES})
+    endif()
+endif()
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

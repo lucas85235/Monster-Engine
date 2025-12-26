@@ -1,13 +1,14 @@
 #pragma once
-#include "engine/Camera.h"
-#include "engine/Layer.h"
+#include "engine/core/Layer.h"
 #include "engine/events/EventBus.h"
+#include "engine/renderer/Camera.h"
 #include "engine/renderer/Material.h"
 
 using namespace se;
 
-class PhysicsSampleLayer : public Layer {
-   public:
+class PhysicsSampleLayer : public Layer
+{
+public:
     ~PhysicsSampleLayer() override;
     void OnAttach() override;
     void OnDetach() override;
@@ -15,9 +16,9 @@ class PhysicsSampleLayer : public Layer {
     void OnRender() override;
     void OnImGuiRender() override;
 
-   private:
-    Entity                    player_entity_;
-    Scope<Scene>              scene_;
-    Camera                    camera_;
+private:
+    Entity player_entity_;
+    Scope<Scene> scene_;
+    Camera camera_;
     std::shared_ptr<Material> material_;
 };

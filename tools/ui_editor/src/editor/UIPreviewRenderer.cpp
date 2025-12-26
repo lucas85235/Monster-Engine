@@ -2,7 +2,7 @@
 
 #include <sstream>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "core/UIWidgetTree.h"
 
 namespace ued {

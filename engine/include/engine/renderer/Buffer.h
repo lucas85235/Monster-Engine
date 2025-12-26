@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "engine/rhi/rhi_types.h"
+
 namespace se {
 
 // Vertex Buffer Layout
@@ -88,9 +90,13 @@ class VertexBuffer {
         layout_ = layout;
     }
 
+    RHI::BufferHandle GetHandle() const {
+        return handle_;
+    }
+
    private:
-    uint32_t     rendererId_;
-    BufferLayout layout_;
+    RHI::BufferHandle handle_ = {0};
+    BufferLayout      layout_;
 };
 
 // Index Buffer
@@ -106,9 +112,13 @@ class IndexBuffer {
         return count_;
     }
 
+    RHI::BufferHandle GetHandle() const {
+        return handle_;
+    }
+
    private:
-    uint32_t rendererId_;
-    uint32_t count_;
+    RHI::BufferHandle handle_ = {0};
+    uint32_t          count_;
 };
 
 }  // namespace se

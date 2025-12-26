@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "engine/renderer/Buffer.h"
+#include "engine/rhi/rhi_types.h"
 
 namespace se {
 
@@ -32,11 +33,17 @@ class VertexArray {
         return indexBuffer_;
     }
 
+    const BufferLayout& GetInstanceBufferLayout() const {
+        return instanceBufferLayout_;
+    }
+
    private:
-    uint32_t                                   rendererId_;
-    uint32_t                                   vertexBufferIndex_ = 0;
+   private:
+    RHI::VertexArrayHandle                     handle_            = {0};
+    uint32_t                                   vertexBufferIndex_ = 0;  // Tracks attrib index
     std::vector<std::shared_ptr<VertexBuffer>> vertexBuffers_;
     std::shared_ptr<IInstanceBuffer>           instanceBuffer_;
+    BufferLayout                               instanceBufferLayout_;
     std::shared_ptr<IndexBuffer>               indexBuffer_;
 };
 

@@ -53,7 +53,7 @@ The `InputManager` provides a polled input interface.
 Layers are the primary way to add game logic or tools.
 
 ```cpp
-#include "engine/Layer.h"
+#include "engine/core/Layer.h"
 
 class MyGameLayer : public se::Layer {
 public:

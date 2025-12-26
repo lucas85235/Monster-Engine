@@ -1,8 +1,8 @@
-﻿#include "core/PrimitiveFactory.h"
+#include "core/PrimitiveFactory.h"
 
 #include <filesystem>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
 

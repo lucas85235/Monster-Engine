@@ -1,28 +1,23 @@
 #pragma once
 
-#include <glm.hpp>
-
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 #include "engine/input/InputManager.h"
+#include <glm.hpp>
 
 namespace se {
 
 class CameraController {
-   public:
+public:
     explicit CameraController(Camera& camera);
 
     void OnUpdate(float ts);
-    void SetSpeed(float speed) {
-        movementSpeed_ = speed;
-    }
-    void SetSensitivity(float sensitivity) {
-        mouseSensitivity_ = sensitivity;
-    }
+    void SetSpeed(float speed) { movementSpeed_ = speed; }
+    void SetSensitivity(float sensitivity) { mouseSensitivity_ = sensitivity; }
 
-   private:
+private:
     Camera& camera_;
-    float   movementSpeed_    = 5.0f;
-    float   mouseSensitivity_ = 0.1f;
+    float movementSpeed_ = 5.0f;
+    float mouseSensitivity_ = 0.1f;
 };
 
-}  // namespace se
+} // namespace se

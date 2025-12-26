@@ -8,7 +8,7 @@
 #include <gtc/type_ptr.hpp>
 
 #include "core/PrimitiveFactory.h"
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/ecs/SimpleComponents.h"
 

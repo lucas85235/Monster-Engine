@@ -4,11 +4,13 @@
 #include <memory>
 #include <vector>
 
-#include "engine/Camera.h"
-#include "engine/Shader.h"
+#include "engine/renderer/Camera.h"
+#include "engine/renderer/Framebuffer.h"
 #include "engine/renderer/InstancedMesh.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/OcclusionCuller.h"
+#include "engine/renderer/Shader.h"
+#include "engine/renderer/Texture.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -50,13 +52,11 @@ class SceneRenderer {
     void BeginScene(const Camera& camera, const Matrix4& projection);
     void EndScene();
 
-    void Submit(const std::shared_ptr<VertexArray>& vertexArray,
-                const std::shared_ptr<Material>& material, const Matrix4& transform = Matrix4(1.0f),
+    void Submit(const std::shared_ptr<VertexArray>& vertexArray, const std::shared_ptr<Material>& material, const Matrix4& transform = Matrix4(1.0f),
                 bool castsShadows = true, bool receiveShadows = true, float boundingRadius = 1.0f);
 
     // Submit instanced geometry (multiple transforms in a single draw call)
-    void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
-                         const std::shared_ptr<Material>& material, bool castsShadows = true,
+    void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh, const std::shared_ptr<Material>& material, bool castsShadows = true,
                          bool receiveShadows = true);
 
     struct DirectionalLightData {
@@ -115,23 +115,23 @@ class SceneRenderer {
     };
 
     struct SceneData {
-        Matrix4                 ViewMatrix;
-        Matrix4                 ProjectionMatrix;
-        Matrix4                 view_projection_matrix;
-        DirectionalLightData    directional_light;
-        Matrix4                 LightSpaceMatrix{1.0f};
-        glm::ivec2              ShadowMapSize{1024, 1024};
-        unsigned int            ShadowFramebuffer  = 0;
-        unsigned int            ShadowDepthTexture = 0;
-        std::shared_ptr<Shader> ShadowShader;
-        std::shared_ptr<Shader> InstancedShadowShader;
-        float                   ShadowDistance  = 100.0f;
-        float                   ShadowOrthoSize = 10.0f;
-        float                   AmbientStrength = 0.2f;
-        float                   AOStrength      = 0.5f;
-        float                   AORadius        = 1.0f;
-        bool                    ShadowsEnabled  = true;
-        std::vector<Submission> Submissions;
+        Matrix4                      ViewMatrix;
+        Matrix4                      ProjectionMatrix;
+        Matrix4                      view_projection_matrix;
+        DirectionalLightData         directional_light;
+        Matrix4                      LightSpaceMatrix{1.0f};
+        glm::ivec2                   ShadowMapSize{1024, 1024};
+        std::shared_ptr<Framebuffer> ShadowFramebuffer;
+        std::shared_ptr<Texture>     ShadowDepthTexture;
+        std::shared_ptr<Shader>      ShadowShader;
+        std::shared_ptr<Shader>      InstancedShadowShader;
+        float                        ShadowDistance  = 100.0f;
+        float                        ShadowOrthoSize = 10.0f;
+        float                        AmbientStrength = 0.2f;
+        float                        AOStrength      = 0.5f;
+        float                        AORadius        = 1.0f;
+        bool                         ShadowsEnabled  = true;
+        std::vector<Submission>      Submissions;
     };
 
     // Instanced submission for batched rendering

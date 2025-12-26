@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -34,10 +34,7 @@ void RenderSystem::EnsureInstancedMaterial() {
     fs::path vertPath = assetsPath / "shaders" / "instanced.vert";
     fs::path fragPath = assetsPath / "shaders" / "instanced.frag";
 
-    if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
-        SE_LOG_ERROR("Instanced shaders not found at: {}", vertPath.string());
-        return;
-    }
+    // Check removed: loading handled by Shader::CreateFromFiles (supports SPIR-V)
 
     auto shader = MaterialManager::GetShader("InstancedShader", vertPath, fragPath);
     if (!shader) {
@@ -127,12 +124,12 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        if (!meshRender.vertex_array || !meshRender.material) {
+        if (!meshRender.MeshVertexArray || !meshRender.MeshMaterial) {
             skippedCount++;
             continue;
         }
 
-        InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
+        InstanceBatchKey key{meshRender.MeshVertexArray.get(), meshRender.MeshMaterial.get()};
 
         InstanceData instanceData;
         instanceData.Transform = transform.GetTransform();
@@ -157,9 +154,10 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         // Search for matching material in entities (we need shared_ptr)
         for (auto entity : view) {
             auto& meshRender = view.get<MeshRenderComponent>(entity);
-            if (meshRender.vertex_array.get() == key.va && meshRender.material.get() == key.mat) {
-                material = meshRender.material;
-                va       = meshRender.vertex_array;
+            if (meshRender.MeshVertexArray.get() == key.va &&
+                meshRender.MeshMaterial.get() == key.mat) {
+                material = meshRender.MeshMaterial;
+                va       = meshRender.MeshVertexArray;
                 break;
             }
         }

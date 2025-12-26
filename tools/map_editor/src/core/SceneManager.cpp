@@ -1,8 +1,8 @@
 #include "SceneManager.h"
 
 #include "EventBus.h"
-#include "engine/Application.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/SimpleComponents.h"
 
 using namespace se;

@@ -1,0 +1,103 @@
+#pragma once
+
+#include <memory>
+#include <vector>
+
+#include "Engine.h"
+#include "engine/core/ImGuiLayer.h"
+#include "engine/core/Layer.h"
+#include "engine/renderer/Renderer.h"
+#include "engine/core/Window.h"
+#include "engine/events/EventBus.h"
+#include "engine/events/Events.h"
+
+namespace se {
+
+struct ApplicationSpecification {
+    std::string           Name        = "Simple-Engine";
+    uint32_t              WindowWidth = 800, WindowHeight = 600;
+    bool                  WindowDecorated = false;
+    bool                  Fullscreen      = false;
+    bool                  VSync           = true;
+    std::string           WorkingDirectory;
+    bool                  StartMaximized = true;
+    bool                  Resizable      = true;
+    bool                  EnableImGui    = true;
+    std::filesystem::path IconPath;
+};
+
+class Application {
+   public:
+    Application(const ApplicationSpecification& specification);
+    ~Application();
+
+    int  Run();
+    void Close();
+
+    template <typename T>
+    void PushLayer() {
+        static_assert(std::is_base_of<Layer, T>::value, "T must inherit from Layer");
+        auto layer = std::make_unique<T>();
+        layer->OnAttach();
+        layer_stack_.emplace(layer_stack_.begin() + layer_insert_index_, std::move(layer));
+        layer_insert_index_++;
+    }
+
+    template <typename T>
+    void PushOverlay() {
+        static_assert(std::is_base_of<Layer, T>::value, "T must inherit from Layer");
+        auto layer = std::make_unique<T>();
+        layer->OnAttach();
+        layer_stack_.emplace_back(std::move(layer));
+    }
+
+    Window& GetWindow() {
+        return *window_;
+    }
+    Renderer& GetRenderer() {
+        return *renderer_;
+    }
+    EventBus& GetEventBus() {
+        return *event_bus_;
+    }
+
+    // Active scene management
+    void SetActiveScene(Scene* scene) {
+        active_scene_ = scene;
+    }
+    Scene* GetActiveScene() {
+        return active_scene_;
+    }
+    const Scene* GetActiveScene() const {
+        return active_scene_;
+    }
+
+    static Application& Get();
+
+    float GetTime();
+
+   private:
+    // Event handlers for the new EventBus system
+    bool OnWindowResize(const WindowResizeEvent& e);
+    bool OnWindowMinimize(const WindowMinimizeEvent& e);
+    bool OnWindowClose(const WindowCloseEvent& e);
+
+    std::unique_ptr<Window>     window_;
+    std::unique_ptr<Renderer>   renderer_;
+    std::shared_ptr<ImGuiLayer> imguiLayer_;
+
+    ApplicationSpecification specification_;
+
+    std::vector<std::unique_ptr<Layer>> layer_stack_;
+    unsigned int                        layer_insert_index_ = 0;
+
+    bool running_   = false;
+    bool minimized_ = false;
+
+    static Application* s_Instance;
+    Scene*              active_scene_ = nullptr;
+
+    std::unique_ptr<EventBus> event_bus_ = std::make_unique<EventBus>();
+};
+
+}  // namespace se

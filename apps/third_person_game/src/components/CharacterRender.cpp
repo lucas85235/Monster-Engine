@@ -1,7 +1,7 @@
 #include "CharacterRender.h"
 
 #include "apps/SampleUtilities.h"
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"

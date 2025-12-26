@@ -1,5 +1,5 @@
 #pragma once
-#include <glm.hpp>
+#include "engine/core/CoreTypes.h"
 // clang-format off
 namespace se
 {

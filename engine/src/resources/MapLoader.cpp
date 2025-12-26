@@ -3,8 +3,8 @@
 #include <fstream>
 #include <algorithm>
 
-#include "engine/Log.h"
-#include "engine/MeshFactory.h"
+#include "engine/core/Log.h"
+#include "engine/renderer/MeshFactory.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/resources/MaterialManager.h"

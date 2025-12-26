@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/Component.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/ScriptComponent.h"

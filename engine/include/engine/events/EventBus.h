@@ -13,7 +13,7 @@ class EventBus {
     EventBus& operator=(const EventBus&) = delete;
 
     template <typename EventT>
-    using ListenerId = EventChannel<EventT>::ListenerId;
+    using ListenerId = typename EventChannel<EventT>::ListenerId;
 
     template <typename EventT>
     ListenerId<EventT> AddListener(std::function<void(const EventT&)> listener) {

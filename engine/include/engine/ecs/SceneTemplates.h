@@ -3,7 +3,7 @@
 // This file contains Entity template implementations that need Scene to be fully defined
 // It is included at the end of Scene.h
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/Component.h"
 
 namespace se {

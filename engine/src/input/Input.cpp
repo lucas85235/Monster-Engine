@@ -2,7 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 
 namespace se {
 

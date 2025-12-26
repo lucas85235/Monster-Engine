@@ -1,5 +1,5 @@
-#include <engine/Application.h>
-#include <engine/Log.h>
+#include <engine/core/Application.h>
+#include <engine/core/Log.h>
 
 #include "AppLayer.h"
 #include "ThirdPersonLayer.h"
@@ -19,12 +19,13 @@ int main() {
     appSpec.WindowHeight = 720;
 
     Application application(appSpec);
+    application.PushLayer<ThirdPersonLayer>();
+    application.Run();
+
     // application.PushOverlay<RmlUiLayer>();
     // application.PushLayer<UILayer>();
     // application.PushLayer<AppLayer>();
-    application.PushLayer<ThirdPersonLayer>();
     // application.PushLayer<PhysicsSampleLayer>();
     // application.PushLayer<EventSampleLayer>();
-    application.PushLayer<InputSampleLayer>();
-    application.Run();
+    // application.PushLayer<InputSampleLayer>();
 }

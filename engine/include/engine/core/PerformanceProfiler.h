@@ -47,7 +47,7 @@ class PerformanceProfiler {
     }
 
     void EndFrame() {
-        auto                                     now = std::chrono::high_resolution_clock::now();
+        auto                                     now      = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float, std::milli> duration = now - frame_start_;
         metrics_.frameTimeMs                              = duration.count();
 
@@ -68,13 +68,12 @@ class PerformanceProfiler {
         auto it = section_starts_.find(name);
         if (it == section_starts_.end()) return 0.0f;
 
-        auto                                     now = std::chrono::high_resolution_clock::now();
+        auto                                     now      = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float, std::milli> duration = now - it->second;
         return duration.count();
     }
 
-    void SetPhysicsMetrics(size_t active, size_t sleeping, size_t total, bool idle,
-                           float loopTimeMs) {
+    void SetPhysicsMetrics(size_t active, size_t sleeping, size_t total, bool idle, float loopTimeMs) {
         metrics_.activePhysicsBodies   = active;
         metrics_.sleepingPhysicsBodies = sleeping;
         metrics_.totalPhysicsBodies    = total;
@@ -126,29 +125,25 @@ class PerformanceProfiler {
     PerformanceMetrics                                                              metrics_;
     std::unordered_map<std::string, std::chrono::high_resolution_clock::time_point> section_starts_;
     std::chrono::high_resolution_clock::time_point                                  frame_start_;
-    std::chrono::high_resolution_clock::time_point                                  fps_timer_ =
-        std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point physics_loop_timer_ =
-        std::chrono::high_resolution_clock::now();
-    std::atomic<size_t> physics_loops_this_second_{0};
-    size_t              frame_count_ = 0;
-    float               fps_         = 0.0f;
+    std::chrono::high_resolution_clock::time_point                                  fps_timer_          = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point                                  physics_loop_timer_ = std::chrono::high_resolution_clock::now();
+    std::atomic<size_t>                                                             physics_loops_this_second_{0};
+    size_t                                                                          frame_count_ = 0;
+    float                                                                           fps_         = 0.0f;
 };
 
 // RAII helper for timing sections
 class ScopedTimer {
    public:
-    ScopedTimer(const std::string& name, float* outputMs = nullptr)
-        : name_(name), output_ms_(outputMs), start_(std::chrono::high_resolution_clock::now()) {}
+    ScopedTimer(const std::string&, float* outputMs = nullptr) : output_ms_(outputMs), start_(std::chrono::high_resolution_clock::now()) {}
 
     ~ScopedTimer() {
-        auto                                     end = std::chrono::high_resolution_clock::now();
+        auto                                     end      = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float, std::milli> duration = end - start_;
         if (output_ms_) { *output_ms_ = duration.count(); }
     }
 
    private:
-    std::string                                    name_;
     float*                                         output_ms_;
     std::chrono::high_resolution_clock::time_point start_;
 };

@@ -2,7 +2,7 @@
 
 #include "CameraController.h"
 #include "Character.h"
-#include "engine/Application.h"
+#include "engine/core/Application.h"
 #include "apps/MathUtils.h"
 #include "engine/ecs/SimpleComponents.h"
 

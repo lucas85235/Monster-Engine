@@ -2,6 +2,7 @@
 
 #include <array>
 #include <glm.hpp>
+#include "engine/core/CoreTypes.h"
 
 namespace se {
 

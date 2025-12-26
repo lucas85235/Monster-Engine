@@ -1,9 +1,9 @@
-﻿#include <iostream>
+#include <iostream>
 #include <memory>
 
 #include "MapEditorLayer.h"
-#include "engine/Application.h"
-#include "engine/Log.h"
+#include "engine/core/Application.h"
+#include "engine/core/Log.h"
 
 int main(int argc, char** argv) {
     std::cout << "Starting Map Editor..." << std::endl;

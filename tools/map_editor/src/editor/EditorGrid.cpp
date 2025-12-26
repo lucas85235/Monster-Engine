@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <gtc/type_ptr.hpp>
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/resources/MaterialManager.h"
 
 namespace mst {

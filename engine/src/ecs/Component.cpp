@@ -1,6 +1,6 @@
 #include "engine/ecs/Component.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 #include "engine/ecs/Entity.h"
 #include "engine/ecs/Scene.h"
 

@@ -12,7 +12,7 @@
  */
 
 #include "Engine.h"
-#include "engine/Camera.h"
+#include "engine/renderer/Camera.h"
 
 namespace se {
 struct SpringArmComponent;

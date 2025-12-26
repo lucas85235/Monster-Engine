@@ -1,6 +1,6 @@
 #include "CommandSystem.h"
 
-#include "engine/Log.h"
+#include "engine/core/Log.h"
 
 using namespace se;
 
