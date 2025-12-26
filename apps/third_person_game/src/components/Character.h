@@ -12,6 +12,7 @@
  */
 
 #include "engine/physics/Collider.h"
+#include "engine/physics/PhysicsSystem.h"
 #include "engine/physics/RigidbodyComponent.h"
 
 namespace FirstGame {
@@ -22,11 +23,11 @@ using namespace se;
 // ============================================================================
 
 struct CharacterMovementConfig {
-    float acceleration     = 3.4f;
+    float acceleration     = 0.5f;
     float maxMovementSpeed = 5.0f;
-    float rotationSpeed    = 10.0f;
+    float rotationSpeed    = 30.0f;
     float jumpForce        = 5.0f;
-    float groundDrag       = 0.9f;
+    float groundDrag       = 9.0f;
     float airDrag          = 0.98f;
 };
 
@@ -80,17 +81,21 @@ public:
 
 private:
     void SetupPhysics();
-
     void UpdateGroundedState();
+    void ApplyMovement(float dt);
+    void ApplyDrag(float dt);
 
     // Component references
-    RigidbodyComponent* rigidbody_ = nullptr;
+    RigidbodyComponent* rigidbody_      = nullptr;
+    PhysicsSystem*      physicsSystem_  = nullptr;
 
     // Configuration
     CharacterMovementConfig movementConfig_;
     CharacterPhysicsConfig  physicsConfig_;
 
     // State
-    bool isGrounded_ = false;
+    bool    isGrounded_            = false;
+    Vector3 desiredMoveDirection_  = Vector3(0.0f);
+    bool    wantsToMove_           = false;
 };
 } // namespace FirstGame

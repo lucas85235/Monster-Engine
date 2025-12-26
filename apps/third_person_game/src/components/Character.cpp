@@ -15,8 +15,8 @@ void Character::Awake() {
 }
 
 void Character::Start() {
-    // Cache rigidbody reference (it's a lifecycle component)
     rigidbody_ = GetEntity().GetScript<RigidbodyComponent>();
+    physicsSystem_ = GetEntity().GetScene()->GetPhysicsSystem();
 
     if (rigidbody_) {
         SE_LOG_INFO("Character::Start() - Rigidbody cached (body: {})",
@@ -24,10 +24,16 @@ void Character::Start() {
     } else {
         SE_LOG_ERROR("Character::Start() - Failed to get RigidbodyComponent!");
     }
+
+    if (!physicsSystem_) {
+        SE_LOG_ERROR("Character::Start() - Failed to get PhysicsSystem!");
+    }
 }
 
 void Character::Update(float dt) {
     UpdateGroundedState();
+    ApplyMovement(dt);
+    ApplyDrag(dt);
 }
 
 // ============================================================================
@@ -47,7 +53,7 @@ void Character::SetupPhysics() {
     RigidbodyData rigidData{
         .mass            = physicsConfig_.mass,
         .gravityScale    = 1.0f,
-        .material        = PhysicsMaterial(0.5f, 0.0f),
+        .material        = PhysicsMaterial(2.0f, 1.0f),
         .freezeRotationX = true,
         .freezeRotationY = true,
         .freezeRotationZ = true
@@ -63,10 +69,10 @@ void Character::SetupPhysics() {
 void Character::Move(const Vector3& direction) {
     if (!rigidbody_) return;
 
-    Vector3 velocity = direction * movementConfig_.maxMovementSpeed;
-    velocity.y       = GetVelocity().y; // Preserve vertical velocity
-
-    SetVelocity(velocity);
+    if (glm::length(direction) > 0.01f) {
+        desiredMoveDirection_ = glm::normalize(direction);
+        wantsToMove_ = true;
+    }
 }
 
 void Character::RotateTowards(float targetYaw) {
@@ -123,8 +129,58 @@ void Character::SetVelocity(const Vector3& velocity) {
 // ============================================================================
 
 void Character::UpdateGroundedState() {
-    // TODO: Implement proper ground check via raycast
-    // For now, consider grounded if vertical velocity is near zero
-    isGrounded_ = std::abs(GetVelocity().y) < 0.1f;
+    if (!physicsSystem_ || !rigidbody_) {
+        isGrounded_ = false;
+        return;
+    }
+
+    auto& transform = GetComponent<TransformComponent>();
+    Vector3 start = transform.Position;
+
+    // Ray starts at capsule center, goes down past the bottom
+    float rayLength = physicsConfig_.height * 0.5f + physicsConfig_.radius + 0.15f;
+    Vector3 end = start - Vector3(0.0f, rayLength, 0.0f);
+
+    Vector3 hitPoint, hitNormal;
+    btRigidBody* ownBody = rigidbody_->GetRigidbody();
+
+    isGrounded_ = physicsSystem_->Raycast(start, end, hitPoint, hitNormal, ownBody);
+}
+
+void Character::ApplyMovement(float dt) {
+    if (!rigidbody_ || !wantsToMove_) return;
+
+    Vector3 currentVel = GetVelocity();
+    Vector3 horizontalVel(currentVel.x, 0.0f, currentVel.z);
+
+    // Apply acceleration towards desired direction
+    Vector3 targetVel = desiredMoveDirection_ * movementConfig_.maxMovementSpeed;
+    Vector3 velocityChange = (targetVel - horizontalVel) * movementConfig_.acceleration;
+
+    Vector3 newHorizontalVel = horizontalVel + velocityChange;
+
+    // Clamp to max speed
+    float speed = glm::length(newHorizontalVel);
+    if (speed > movementConfig_.maxMovementSpeed) {
+        newHorizontalVel = glm::normalize(newHorizontalVel) * movementConfig_.maxMovementSpeed;
+    }
+
+    SetVelocity(Vector3(newHorizontalVel.x, currentVel.y, newHorizontalVel.z));
+    wantsToMove_ = false;
+}
+
+void Character::ApplyDrag(float dt) {
+    if (!rigidbody_) return;
+
+    // Only apply drag when not actively moving
+    if (wantsToMove_) return;
+
+    Vector3 vel = GetVelocity();
+    float drag = isGrounded_ ? movementConfig_.groundDrag : movementConfig_.airDrag;
+
+    // Apply drag to horizontal velocity
+    vel.x *= (1.0f - drag * dt);
+    vel.z *= (1.0f - drag * dt);
+    SetVelocity(vel);
 }
 } // namespace FirstGame
