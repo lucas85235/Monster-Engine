@@ -59,9 +59,20 @@ struct MapEntityData {
     float        mass = 1.0f;
 };
 
+// Directional light data for scene lighting
+struct MapDirectionalLightData {
+    Vector3 direction{0.0f, -1.0f, 0.0f};  // Light direction
+    Vector3 position{0.0f, 10.0f, 10.0f};  // Light position (for shadow origin)
+    Vector3 rotation{-45.0f, 0.0f, 0.0f};  // Euler rotation
+    Vector3 color{1.0f, 0.98f, 0.9f};      // Light color
+    float   intensity = 1.5f;              // Light intensity
+    bool    castShadows = true;            // Whether light casts shadows
+    bool    enabled = true;                // Whether light is active
+};
+
 struct MapData {
     static constexpr uint32_t MAGIC   = 0x4D53544D;  // "MSTM"
-    static constexpr uint32_t VERSION = 2;
+    static constexpr uint32_t VERSION = 3;           // Bumped for light support
 
     std::string                mapName;
     std::vector<MapEntityData> entities;
@@ -70,6 +81,10 @@ struct MapData {
     bool    hasPlayerStart = false;
     Vector3 playerStartPosition{0.0f, 0.0f, 0.0f};
     Vector3 playerStartRotation{0.0f, 0.0f, 0.0f};
+    
+    // Directional Light (new in version 3)
+    bool                     hasDirectionalLight = true;
+    MapDirectionalLightData  directionalLight;
 
     void Clear() {
         mapName.clear();
@@ -77,6 +92,8 @@ struct MapData {
         hasPlayerStart = false;
         playerStartPosition = {0.0f, 0.0f, 0.0f};
         playerStartRotation = {0.0f, 0.0f, 0.0f};
+        hasDirectionalLight = true;
+        directionalLight = MapDirectionalLightData{};
     }
 };
 

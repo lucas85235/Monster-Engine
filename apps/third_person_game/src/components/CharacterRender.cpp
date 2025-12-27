@@ -57,6 +57,7 @@ void CharacterRender::ApplyTransformCorrections() {
     
     auto& transform = visualEntity_.GetComponent<TransformComponent>();
     transform.SetScale(config_.Scale);
+    transform.SetRotation(config_.Rotation);
     transform.SetPosition(config_.Offset);
 }
 

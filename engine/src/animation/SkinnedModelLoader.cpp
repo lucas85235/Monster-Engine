@@ -243,6 +243,82 @@ void SkinnedModelLoader::ProcessMaterial(const void* materialPtr, SkinnedModelDa
     matData.SpecularTexturePath = FindTexture(material, aiTextureType_SPECULAR, directory);
     matData.AOTexturePath = FindTexture(material, aiTextureType_AMBIENT_OCCLUSION, directory);
     
+    // If no AO, try LIGHTMAP
+    if (matData.AOTexturePath.empty()) {
+        matData.AOTexturePath = FindTexture(material, aiTextureType_LIGHTMAP, directory);
+    }
+    
+    matData.EmissiveTexturePath = FindTexture(material, aiTextureType_EMISSIVE, directory);
+    matData.RoughnessTexturePath = FindTexture(material, aiTextureType_DIFFUSE_ROUGHNESS, directory);
+    matData.MetallicTexturePath = FindTexture(material, aiTextureType_METALNESS, directory);
+    
+    // Auto-discovery: Find textures by naming convention if not found via Assimp
+    if (matData.DiffuseTexturePath.empty() || matData.NormalTexturePath.empty()) {
+        SE_LOG_INFO("SkinnedModelLoader: Attempting auto-discovery of textures in '{}'", directory);
+        
+        auto findTexture = [&](const std::vector<std::string>& patterns) -> std::string {
+            if (!std::filesystem::exists(directory)) return "";
+            
+            for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+                if (!entry.is_regular_file()) continue;
+                
+                std::string filename = entry.path().filename().string();
+                std::string lowerFilename = filename;
+                std::transform(lowerFilename.begin(), lowerFilename.end(), lowerFilename.begin(), ::tolower);
+                
+                for (const auto& pattern : patterns) {
+                    if (lowerFilename.find(pattern) != std::string::npos) {
+                        SE_LOG_INFO("SkinnedModelLoader: Auto-discovered texture '{}' for pattern '{}'", 
+                                    filename, pattern);
+                        return entry.path().string();
+                    }
+                }
+            }
+            return "";
+        };
+        
+        // Albedo/Diffuse
+        if (matData.DiffuseTexturePath.empty()) {
+            matData.DiffuseTexturePath = findTexture({"_albedo", "_diffuse", "_basecolor", "_color", "_d."});
+        }
+        
+        // Normal
+        if (matData.NormalTexturePath.empty()) {
+            matData.NormalTexturePath = findTexture({"_normal", "_norm", "_n.", "_nrm"});
+        }
+        
+        // Specular
+        if (matData.SpecularTexturePath.empty()) {
+            matData.SpecularTexturePath = findTexture({"_specular", "_spec", "_s."});
+        }
+        
+        // AO/Occlusion (including common misspelling)
+        if (matData.AOTexturePath.empty()) {
+            matData.AOTexturePath = findTexture({"_ao", "_occlusion", "_oclussion", "_ambient"});
+        }
+        
+        // Roughness
+        if (matData.RoughnessTexturePath.empty()) {
+            matData.RoughnessTexturePath = findTexture({"_roughness", "_rough", "_r."});
+        }
+        
+        // Metallic
+        if (matData.MetallicTexturePath.empty()) {
+            matData.MetallicTexturePath = findTexture({"_metallic", "_metal", "_m."});
+        }
+        
+        // Emissive
+        if (matData.EmissiveTexturePath.empty()) {
+            matData.EmissiveTexturePath = findTexture({"_emissive", "_emission", "_glow"});
+        }
+    }
+    
+    SE_LOG_INFO("SkinnedModelLoader: Processed material '{}': diffuse={}, normal={}, ao={}", 
+                matData.Name,
+                matData.DiffuseTexturePath.empty() ? "none" : matData.DiffuseTexturePath,
+                matData.NormalTexturePath.empty() ? "none" : matData.NormalTexturePath,
+                matData.AOTexturePath.empty() ? "none" : matData.AOTexturePath);
+    
     data.Materials.push_back(matData);
 }
 

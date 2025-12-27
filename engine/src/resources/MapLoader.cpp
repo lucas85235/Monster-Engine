@@ -50,15 +50,19 @@ MapLoadResult MapLoader::Load(Scene& scene, const std::filesystem::path& path) {
         CreateSceneEntity(scene, data);
     }
     
+    // Create directional light entity if map has one
+    if (result.hasDirectionalLight) {
+        CreateDirectionalLight(scene, result);
+    }
+    
     result.success = true;
     result.entityCount = entityCount;
     
-    SE_LOG_INFO("MapLoader: Loaded {} entities, PlayerStart: {} at ({}, {}, {})",
+    SE_LOG_INFO("MapLoader: Loaded {} entities, PlayerStart: {}, Light: {} (intensity: {})",
                 entityCount,
                 result.hasPlayerStart ? "Yes" : "No",
-                result.playerStartPosition.x,
-                result.playerStartPosition.y,
-                result.playerStartPosition.z);
+                result.hasDirectionalLight ? "Yes" : "No",
+                result.lightIntensity);
     
     return result;
 }
@@ -97,6 +101,36 @@ bool MapLoader::ReadHeader(std::ifstream& file, uint32_t& entityCount, MapLoadRe
         uint32_t reserved = 0;
         file.read(reinterpret_cast<char*>(&reserved), sizeof(reserved));
         result.hasPlayerStart = false;
+    }
+    
+    // Version 3+ has Directional Light data
+    if (version >= 3) {
+        uint8_t hasLight = 0;
+        file.read(reinterpret_cast<char*>(&hasLight), sizeof(hasLight));
+        result.hasDirectionalLight = (hasLight != 0);
+        if (result.hasDirectionalLight) {
+            file.read(reinterpret_cast<char*>(&result.lightDirection), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&result.lightPosition), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&result.lightRotation), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&result.lightColor), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&result.lightIntensity), sizeof(float));
+            uint8_t castShadows = 0;
+            file.read(reinterpret_cast<char*>(&castShadows), sizeof(castShadows));
+            result.lightCastShadows = (castShadows != 0);
+            uint8_t enabled = 0;
+            file.read(reinterpret_cast<char*>(&enabled), sizeof(enabled));
+            result.lightEnabled = (enabled != 0);
+        }
+    } else {
+        // Default light for older maps (version 1-2)
+        result.hasDirectionalLight = true;
+        result.lightDirection = Vector3(0.0f, -1.0f, 0.0f);
+        result.lightPosition = Vector3(0.0f, 10.0f, 10.0f);
+        result.lightRotation = Vector3(-45.0f, 0.0f, 0.0f);
+        result.lightColor = Vector3(1.0f, 0.98f, 0.9f);
+        result.lightIntensity = 1.5f;
+        result.lightCastShadows = true;
+        result.lightEnabled = true;
     }
     
     return !file.fail();
@@ -192,6 +226,27 @@ void MapLoader::CreateSceneEntity(Scene& scene, const EntityData& data) {
         
         entity.AddComponent<RigidbodyComponent>(rbData);
     }
+}
+
+void MapLoader::CreateDirectionalLight(Scene& scene, const MapLoadResult& result) {
+    if (!result.hasDirectionalLight || !result.lightEnabled) {
+        return;
+    }
+    
+    Entity lightEntity = scene.CreateEntity("Map Light");
+    
+    auto& transform = lightEntity.GetComponent<TransformComponent>();
+    transform.SetPosition(result.lightPosition);
+    transform.SetRotation(result.lightRotation);
+    
+    auto& light = lightEntity.AddComponent<DirectionalLightComponent>();
+    light.Color = result.lightColor;
+    light.Intensity = result.lightIntensity;
+    light.CastShadows = result.lightCastShadows;
+    light.Enabled = result.lightEnabled;
+    
+    SE_LOG_INFO("MapLoader: Created directional light with intensity {} and color ({}, {}, {})",
+                result.lightIntensity, result.lightColor.x, result.lightColor.y, result.lightColor.z);
 }
 
 }  // namespace se

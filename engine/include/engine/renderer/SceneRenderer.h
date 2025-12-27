@@ -9,6 +9,7 @@
 #include "engine/renderer/InstancedMesh.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/OcclusionCuller.h"
+#include "engine/renderer/PBRMaterial.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -82,6 +83,14 @@ class SceneRenderer {
     void SetAmbientStrength(float strength);
     void SetAOStrength(float strength);
     void SetAORadius(float radius);
+    
+    // PBR Environment lighting
+    void SetEnvironmentLighting(const IBLData& ibl);
+    const IBLData& GetEnvironmentLighting() const { return iblData_; }
+    
+    // HDR Exposure control
+    void SetExposure(float exposure) { sceneData_.Exposure = exposure; }
+    float GetExposure() const { return sceneData_.Exposure; }
 
     // Culling settings
     void SetFrustumCullingEnabled(bool enabled) {
@@ -135,9 +144,12 @@ class SceneRenderer {
         float                   AmbientStrength = 0.2f;
         float                   AOStrength      = 0.5f;
         float                   AORadius        = 1.0f;
+        float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
         bool                    ShadowsEnabled  = true;
         std::vector<Submission> Submissions;
     };
+    
+    IBLData iblData_;
 
     // Instanced submission for batched rendering
     struct InstancedSubmission {

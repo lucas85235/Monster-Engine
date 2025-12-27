@@ -112,6 +112,15 @@ std::shared_ptr<SkinnedModel> SkinnedModelManager::CreateFromData(std::shared_pt
             if (!matData.AOTexturePath.empty()) {
                 material->AO = TextureManager::Load(matData.AOTexturePath);
             }
+            if (!matData.RoughnessTexturePath.empty()) {
+                material->Roughness = TextureManager::Load(matData.RoughnessTexturePath);
+            }
+            if (!matData.MetallicTexturePath.empty()) {
+                material->Metallic = TextureManager::Load(matData.MetallicTexturePath);
+            }
+            if (!matData.EmissiveTexturePath.empty()) {
+                material->Emissive = TextureManager::Load(matData.EmissiveTexturePath);
+            }
             
             material->BaseColor = matData.DiffuseColor;
             mesh.SetMaterial(material);
