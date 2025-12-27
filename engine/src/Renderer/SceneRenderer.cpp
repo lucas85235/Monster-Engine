@@ -62,6 +62,10 @@ void SceneRenderer::Init() {
     SE_LOG_INFO("Initializing SceneRenderer");
     InitializeShadowResources();
     occlusionCuller_.Init();
+    
+    // Initialize default IBL for outdoor lighting
+    iblData_.SetDefaultOutdoor();
+    
     initialized_ = true;
 }
 
@@ -243,6 +247,10 @@ void SceneRenderer::SetAOStrength(float strength) {
 
 void SceneRenderer::SetAORadius(float radius) {
     sceneData_.AORadius = glm::max(radius, 0.1f);
+}
+
+void SceneRenderer::SetEnvironmentLighting(const IBLData& ibl) {
+    iblData_ = ibl;
 }
 
 void SceneRenderer::InitializeShadowResources() {
@@ -455,6 +463,8 @@ void SceneRenderer::RenderScenePass() {
         auto texMat = submission.textureMaterial;
         if (texMat) {
             int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+            int hasMetallic = 0, hasRoughness = 0, hasEmissive = 0;
+            int hasMetallicRoughness = 0;
             
             if (texMat->HasAlbedo()) {
                 texMat->Albedo->Bind(1);
@@ -472,18 +482,49 @@ void SceneRenderer::RenderScenePass() {
                 texMat->AO->Bind(4);
                 hasAO = 1;
             }
+            if (texMat->HasMetallic()) {
+                texMat->Metallic->Bind(5);
+                hasMetallic = 1;
+            }
+            if (texMat->HasRoughness()) {
+                texMat->Roughness->Bind(6);
+                hasRoughness = 1;
+            }
+            if (texMat->HasEmissive()) {
+                texMat->Emissive->Bind(7);
+                hasEmissive = 1;
+            }
             
+            // Texture sampler bindings
             shader->setInt("uAlbedoMap", 1);
             shader->setInt("uNormalMap", 2);
             shader->setInt("uSpecularMap", 3);
             shader->setInt("uAOMap", 4);
+            shader->setInt("uMetallicMap", 5);
+            shader->setInt("uRoughnessMap", 6);
+            shader->setInt("uEmissiveMap", 7);
             
+            // Texture presence flags
             shader->setInt("uHasAlbedo", hasAlbedo);
             shader->setInt("uHasNormal", hasNormal);
             shader->setInt("uHasSpecular", hasSpecular);
             shader->setInt("uHasAO", hasAO);
+            shader->setInt("uHasMetallic", hasMetallic);
+            shader->setInt("uHasRoughness", hasRoughness);
+            shader->setInt("uHasEmissive", hasEmissive);
+            shader->setInt("uHasMetallicRoughness", hasMetallicRoughness);
             
+            // PBR material parameters from TextureMaterial
             shader->setVec4("uBaseColor", texMat->BaseColor);
+            shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
+            shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
+            shader->setFloat("uReflectance", 0.5f);  // Default 4% F0
+            shader->setFloat("uAOFactor", 1.0f);
+            shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
+            shader->setFloat("uEmissiveFactor", 1.0f);
+            shader->setFloat("uNormalScale", 1.0f);
+            
+            // Legacy Blinn-Phong fallback
             shader->setFloat("uShininess", texMat->Shininess);
         } else {
             // Default values when no TextureMaterial
@@ -491,9 +532,29 @@ void SceneRenderer::RenderScenePass() {
             shader->setInt("uHasNormal", 0);
             shader->setInt("uHasSpecular", 0);
             shader->setInt("uHasAO", 0);
+            shader->setInt("uHasMetallic", 0);
+            shader->setInt("uHasRoughness", 0);
+            shader->setInt("uHasEmissive", 0);
+            shader->setInt("uHasMetallicRoughness", 0);
             shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+            shader->setFloat("uMetallicFactor", 0.0f);
+            shader->setFloat("uRoughnessFactor", 0.5f);
+            shader->setFloat("uReflectance", 0.5f);
+            shader->setFloat("uAOFactor", 1.0f);
+            shader->setVec3("uEmissiveColor", glm::vec3(0.0f));
+            shader->setFloat("uEmissiveFactor", 0.0f);
+            shader->setFloat("uNormalScale", 1.0f);
             shader->setFloat("uShininess", 32.0f);
         }
+        
+        // Bind IBL/environment lighting data
+        shader->setVec3Array("uSH", iblData_.SphericalHarmonics, 9);
+        shader->setFloat("uIBLIntensity", iblData_.Intensity);
+        shader->setVec3("uSkyColor", iblData_.SkyColor);
+        shader->setVec3("uGroundColor", iblData_.GroundColor);
+        
+        // HDR exposure control
+        shader->setFloat("uExposure", sceneData_.Exposure);
 
         if (!submission.vertex_array) return;
         RenderCommand::DrawIndexed(submission.vertex_array.get());

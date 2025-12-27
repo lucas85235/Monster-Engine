@@ -1,18 +1,23 @@
 #version 330 core
 
 // =============================================================================
-// PBR Model Fragment Shader - Based on Google's Filament Standard Model
+// PBR Standard Fragment Shader - Based on Google's Filament
+// =============================================================================
+// This shader implements a physically-based rendering model with:
+// - Cook-Torrance specular BRDF (GGX NDF, Smith-GGX visibility, Schlick Fresnel)
+// - Lambertian diffuse BRDF
+// - IBL approximation using Spherical Harmonics and analytical DFG
 // =============================================================================
 
 // Include PBR library files
-#include "pbr/pbr_common.glsl"
-#include "pbr/pbr_lighting.glsl"
-#include "pbr/pbr_ibl.glsl"
+#include "pbr_common.glsl"
+#include "pbr_lighting.glsl"
+#include "pbr_ibl.glsl"
 
 // -----------------------------------------------------------------------------
 // Inputs from Vertex Shader
 // -----------------------------------------------------------------------------
-in vec3 v_FragPos;      // World position (same as v_WorldPos in PBR shaders)
+in vec3 v_WorldPos;
 in vec3 v_Normal;
 in vec2 v_TexCoord;
 in vec3 v_ViewPos;
@@ -24,74 +29,75 @@ out vec4 FragColor;
 // -----------------------------------------------------------------------------
 // Light Uniforms
 // -----------------------------------------------------------------------------
-uniform vec3 uLightDirection;
-uniform vec3 uLightColor;
-uniform float uLightIntensity;
-uniform float uAmbientStrength;
+uniform vec3 uLightDirection;    // Direction TO the light
+uniform vec3 uLightColor;        // Light color (linear RGB)
+uniform float uLightIntensity;   // Light intensity
+uniform float uAmbientStrength;  // Ambient/IBL intensity multiplier
 
-// Shadow Uniforms
+// -----------------------------------------------------------------------------
+// Shadow Uniforms (for future shadow integration)
+// -----------------------------------------------------------------------------
 uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
 uniform float uReceiveShadows;
 uniform float uShadowsEnabled;
 
-// AO Uniforms
-uniform float uAOStrength;
-uniform float uAORadius;
+// -----------------------------------------------------------------------------
+// PBR Material Textures (slots 1-7)
+// -----------------------------------------------------------------------------
+uniform sampler2D uAlbedoMap;            // Base color texture (sRGB)
+uniform sampler2D uNormalMap;            // Tangent-space normal map
+uniform sampler2D uMetallicRoughnessMap; // Combined: G=Roughness, B=Metallic (GLTF)
+uniform sampler2D uAOMap;                // Ambient occlusion
+uniform sampler2D uEmissiveMap;          // Emissive color
+
+// Legacy separate textures (fallback)
+uniform sampler2D uRoughnessMap;         // Separate roughness texture
+uniform sampler2D uMetallicMap;          // Separate metallic texture
 
 // -----------------------------------------------------------------------------
-// PBR Material Textures
+// Texture Flags (1 = has texture, 0 = use uniform)
 // -----------------------------------------------------------------------------
-uniform sampler2D uAlbedoMap;
-uniform sampler2D uNormalMap;
-uniform sampler2D uSpecularMap;       // Legacy specular map
-uniform sampler2D uAOMap;
-uniform sampler2D uMetallicMap;
-uniform sampler2D uRoughnessMap;
-uniform sampler2D uEmissiveMap;
-uniform sampler2D uMetallicRoughnessMap;  // Combined GLTF texture
-
-// Texture Presence Flags
 uniform int uHasAlbedo;
 uniform int uHasNormal;
-uniform int uHasSpecular;
+uniform int uHasMetallicRoughness;  // Combined GLTF texture
+uniform int uHasRoughness;          // Separate roughness
+uniform int uHasMetallic;           // Separate metallic
 uniform int uHasAO;
-uniform int uHasMetallic;
-uniform int uHasRoughness;
 uniform int uHasEmissive;
-uniform int uHasMetallicRoughness;
-
-// PBR Material Parameters
-uniform vec4 uBaseColor;
-uniform float uMetallicFactor;
-uniform float uRoughnessFactor;
-uniform float uReflectance;
-uniform float uAOFactor;
-uniform vec3 uEmissiveColor;
-uniform float uEmissiveFactor;
-uniform float uNormalScale;
-
-// Legacy Blinn-Phong fallback
-uniform float uShininess;
-
-// IBL Uniforms
-uniform vec3 uSH[9];
-uniform float uIBLIntensity;
-uniform vec3 uSkyColor;
-uniform vec3 uGroundColor;
-
-// Camera/Post-processing Uniforms
-uniform float uExposure;
 
 // -----------------------------------------------------------------------------
-// Shadow Calculation
+// PBR Material Parameters (fallbacks when textures not present)
+// -----------------------------------------------------------------------------
+uniform vec4 uBaseColor;           // Base color (linear RGBA)
+uniform float uMetallicFactor;     // Metallic factor (0-1)
+uniform float uRoughnessFactor;    // Perceptual roughness (0-1)
+uniform float uReflectance;        // Dielectric reflectance (default 0.5 = 4% F0)
+uniform float uAOFactor;           // AO multiplier
+uniform vec3 uEmissiveColor;       // Emissive color
+uniform float uEmissiveFactor;     // Emissive intensity
+uniform float uNormalScale;        // Normal map intensity
+
+// -----------------------------------------------------------------------------
+// IBL / Environment Uniforms
+// -----------------------------------------------------------------------------
+uniform vec3 uSH[9];               // Spherical Harmonics for diffuse irradiance
+uniform float uIBLIntensity;       // IBL overall intensity
+uniform vec3 uSkyColor;            // Fallback sky color for simple IBL
+uniform vec3 uGroundColor;         // Fallback ground color for simple IBL
+
+// -----------------------------------------------------------------------------
+// Shadow Calculation (compatible with existing shadow system)
 // -----------------------------------------------------------------------------
 float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
     projCoords = projCoords * 0.5 + 0.5;
 
-    if (projCoords.z > 1.0 || projCoords.z < 0.0) return 0.0;
-    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
+    if (projCoords.z > 1.0 || projCoords.z < 0.0)
+        return 0.0;
+
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
+        return 0.0;
 
     float ndotl = max(dot(normal, lightDir), 0.0);
     float bias = max(0.0003 * (1.0 - ndotl), 0.00005);
@@ -110,9 +116,12 @@ float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     
     // Edge fade
     float fadeStart = 0.9;
+    float edgeFade = 1.0;
     vec2 absCoord = abs(projCoords.xy * 2.0 - 1.0);
     float maxCoord = max(absCoord.x, absCoord.y);
-    float edgeFade = maxCoord > fadeStart ? 1.0 - smoothstep(fadeStart, 1.0, maxCoord) : 1.0;
+    if (maxCoord > fadeStart) {
+        edgeFade = 1.0 - smoothstep(fadeStart, 1.0, maxCoord);
+    }
     
     return shadow * edgeFade;
 }
@@ -126,7 +135,8 @@ void main() {
     // -------------------------------------------------------------------------
     vec3 normal;
     if (uHasNormal == 1) {
-        vec3 normalMapValue = texture(uNormalMap, v_TexCoord).rgb * 2.0 - 1.0;
+        vec3 normalMapValue = texture(uNormalMap, v_TexCoord).rgb;
+        normalMapValue = normalMapValue * 2.0 - 1.0;
         normalMapValue.xy *= uNormalScale;
         normal = normalize(v_TBN * normalMapValue);
     } else {
@@ -141,10 +151,11 @@ void main() {
     vec4 baseColor;
     if (uHasAlbedo == 1) {
         baseColor = texture(uAlbedoMap, v_TexCoord);
-        // Convert from sRGB to linear
+        // Convert from sRGB to linear (approximation)
         baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
     } else {
         baseColor = uBaseColor;
+        // Fallback to gray if zero
         if (length(baseColor.rgb) < 0.01) {
             baseColor.rgb = vec3(0.5);
         }
@@ -160,7 +171,7 @@ void main() {
         metallic = mr.b * uMetallicFactor;
         perceptualRoughness = mr.g * uRoughnessFactor;
     } else {
-        // Try separate textures or use uniform values
+        // Try separate textures
         if (uHasMetallic == 1) {
             metallic = texture(uMetallicMap, v_TexCoord).r * uMetallicFactor;
         } else {
@@ -171,14 +182,10 @@ void main() {
             perceptualRoughness = texture(uRoughnessMap, v_TexCoord).r * uRoughnessFactor;
         } else {
             perceptualRoughness = uRoughnessFactor;
-            // If no roughness set and using legacy specular, derive roughness from shininess
-            if (uHasSpecular == 1 && perceptualRoughness == 0.0) {
-                float specValue = texture(uSpecularMap, v_TexCoord).r;
-                perceptualRoughness = 1.0 - specValue * 0.8;
-            }
         }
     }
     
+    // Clamp metallic and roughness
     metallic = saturate(metallic);
     perceptualRoughness = saturate(perceptualRoughness);
     
@@ -187,55 +194,72 @@ void main() {
     if (uHasAO == 1) {
         ao = texture(uAOMap, v_TexCoord).r;
     }
-    ao = mix(1.0, ao, uAOFactor * uAOStrength);
+    ao = mix(1.0, ao, uAOFactor);
     
     // Emissive
     vec3 emissive = vec3(0.0);
     if (uHasEmissive == 1) {
-        emissive = pow(texture(uEmissiveMap, v_TexCoord).rgb, vec3(2.2));
+        emissive = texture(uEmissiveMap, v_TexCoord).rgb;
+        emissive = pow(emissive, vec3(2.2)); // sRGB to linear
     }
     emissive = emissive * uEmissiveColor * uEmissiveFactor;
     
     // -------------------------------------------------------------------------
     // 3. Compute PBR Surface Data
     // -------------------------------------------------------------------------
-    float roughness = clampRoughness(perceptualRoughnessToRoughness(perceptualRoughness));
+    
+    // Convert perceptual roughness to roughness (squared)
+    float roughness = perceptualRoughnessToRoughness(perceptualRoughness);
+    roughness = clampRoughness(roughness);
+    
+    // Compute diffuse color (non-metallic contribution)
     vec3 diffuseColor = computeDiffuseColor(baseColor.rgb, metallic);
+    
+    // Compute F0 (specular reflectance at normal incidence)
     float reflectance = uReflectance > 0.0 ? uReflectance : 0.5;
     vec3 f0 = computeF0(baseColor.rgb, metallic, reflectance);
     
+    // Create surface data structure
     SurfaceData surface;
     surface.diffuseColor = diffuseColor;
     surface.f0 = f0;
     surface.roughness = roughness;
-    surface.f90 = 1.0;
+    surface.f90 = 1.0; // Smooth materials reflect 100% at grazing angles
     
     // -------------------------------------------------------------------------
     // 4. Compute Lighting
     // -------------------------------------------------------------------------
-    vec3 view = normalize(v_ViewPos - v_FragPos);
+    vec3 view = normalize(v_ViewPos - v_WorldPos);
     vec3 lightDir = normalize(uLightDirection);
     
     // Direct Lighting (Directional Light)
     vec3 directLight = evaluateDirectionalLightSimple(
-        lightDir, uLightColor, uLightIntensity, surface, normal, view
+        lightDir,
+        uLightColor,
+        uLightIntensity,
+        surface,
+        normal,
+        view
     );
     
-    // Shadow
+    // Shadow (if enabled)
     float shadow = 0.0;
     if (uReceiveShadows > 0.5 && uShadowsEnabled > 0.5) {
         shadow = CalculateShadow(v_LightSpacePos, normal, lightDir);
     }
-    directLight *= (1.0 - shadow * 0.65);
+    float shadowAttenuation = 1.0 - shadow * 0.65;
+    directLight *= shadowAttenuation;
     
     // Indirect Lighting (IBL approximation)
     vec3 indirectLight;
     
-    // Check if SH data is provided
+    // Check if SH data is provided (first coefficient not zero means it's set)
     if (length(uSH[0]) > 0.001) {
+        // Use Spherical Harmonics for diffuse irradiance
         vec3 irradiance = irradianceSH(normal, uSH);
         vec3 Fd = diffuseColor * irradiance * Fd_Lambert();
         
+        // Specular IBL approximation
         float NoV = abs(dot(normal, view)) + MIN_N_DOT_V;
         vec2 dfg = prefilteredDFG_Karis(NoV, roughness);
         vec3 specularColor = f0 * dfg.x + vec3(surface.f90 * dfg.y);
@@ -244,39 +268,25 @@ void main() {
         
         indirectLight = (Fd + Fr) * uIBLIntensity;
     } else {
-        // Fallback to simple ambient
-        indirectLight = evaluateIBLSimple(surface, normal, view, uSkyColor, uGroundColor, uAmbientStrength);
+        // Fallback to simple ambient with sky/ground gradient
+        indirectLight = evaluateIBLSimple(
+            surface,
+            normal,
+            view,
+            uSkyColor.rgb,
+            uGroundColor.rgb,
+            uAmbientStrength
+        );
     }
     
-    // Apply multi-bounce AO to preserve color in shadowed areas
-    float NoV = abs(dot(normal, view)) + MIN_N_DOT_V;
-    vec3 aoColor = multiBounceAO(ao, diffuseColor);
-    float specAO = specularAO(NoV, ao, roughness);
-    
-    // Separate diffuse and specular AO application
-    indirectLight = indirectLight * aoColor;
-    
-    // Omnidirectional ambient - constant light from all directions (ignores normal)
-    // This ensures surfaces facing away from sky still receive some light
-    vec3 omniAmbient = diffuseColor * uSH[0] * 0.15;  // 15% of L00 term as constant
-    
-    // Rim lighting - adds subtle edge definition when backlit
-    float rimFactor = 1.0 - saturate(dot(normal, view));
-    rimFactor = pow(rimFactor, 3.0) * 0.3;  // Soft rim, 30% intensity
-    vec3 rimLight = uSkyColor * rimFactor * (1.0 - metallic);
-    
-    // Add minimum ambient floor (8% of diffuse color)
-    vec3 minAmbient = diffuseColor * 0.08;
-    indirectLight = max(indirectLight + omniAmbient + rimLight, minAmbient);
+    // Apply ambient occlusion to indirect light
+    indirectLight *= ao;
     
     // -------------------------------------------------------------------------
-    // 5. Combine Final Color with HDR Pipeline
+    // 5. Combine Final Color
     // -------------------------------------------------------------------------
-    vec3 hdrColor = directLight + indirectLight + emissive;
+    vec3 color = directLight + indirectLight + emissive;
     
-    // Apply exposure, tone mapping, and gamma correction
-    float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
-    
-    FragColor = vec4(ldrColor, baseColor.a);
+    // Output (will be tonemapped in post-processing if available)
+    FragColor = vec4(color, baseColor.a);
 }

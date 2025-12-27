@@ -15,6 +15,16 @@ struct MapLoadResult {
     Vector3 playerStartPosition{0.0f, 0.0f, 0.0f};
     Vector3 playerStartRotation{0.0f, 0.0f, 0.0f};
     size_t  entityCount = 0;
+    
+    // Directional light data (version 3+)
+    bool    hasDirectionalLight = false;
+    Vector3 lightDirection{0.0f, -1.0f, 0.0f};
+    Vector3 lightPosition{0.0f, 10.0f, 10.0f};
+    Vector3 lightRotation{-45.0f, 0.0f, 0.0f};
+    Vector3 lightColor{1.0f, 0.98f, 0.9f};
+    float   lightIntensity = 1.5f;
+    bool    lightCastShadows = true;
+    bool    lightEnabled = true;
 };
 
 class MapLoader {
@@ -59,6 +69,7 @@ class MapLoader {
     static bool ReadHeader(std::ifstream& file, uint32_t& entityCount, MapLoadResult& result, uint32_t& version);
     static bool ReadEntity(std::ifstream& file, EntityData& entity);
     static void CreateSceneEntity(Scene& scene, const EntityData& data);
+    static void CreateDirectionalLight(Scene& scene, const MapLoadResult& result);
 };
 
 }  // namespace se

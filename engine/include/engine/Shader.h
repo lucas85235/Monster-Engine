@@ -31,6 +31,7 @@ class Shader {
     void setFloat(const char* name, float value) const;
     void setInt(const char* name, int value) const;
     void setVec3(const char* name, const Vector3& value) const;
+    void setVec3Array(const char* name, const Vector3* values, int count) const;
     void setVec4(const char* name, const Vector4& value) const;
     void setMat4(const char* name, const Matrix4& value) const;
 

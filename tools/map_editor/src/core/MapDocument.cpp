@@ -99,7 +99,29 @@ void MapDocument::BuildMapData() {
         mapData_.hasPlayerStart = false;
     }
     
-    SE_LOG_INFO("MapDocument: Built data with {} entities", mapData_.entities.size());
+    // Extract directional light data from scene
+    auto lightView = sceneManager_.GetScene().GetAllEntitiesWith<
+        se::TransformComponent, se::DirectionalLightComponent>();
+    
+    mapData_.hasDirectionalLight = false;
+    for (auto entityHandle : lightView) {
+        se::Entity entity(entityHandle, sceneManager_.GetScenePtr());
+        auto& transform = entity.GetComponent<se::TransformComponent>();
+        auto& light = entity.GetComponent<se::DirectionalLightComponent>();
+        
+        mapData_.hasDirectionalLight = true;
+        mapData_.directionalLight.direction = -transform.GetForward();
+        mapData_.directionalLight.position = transform.Position;
+        mapData_.directionalLight.rotation = transform.Rotation;
+        mapData_.directionalLight.color = light.Color;
+        mapData_.directionalLight.intensity = light.Intensity;
+        mapData_.directionalLight.castShadows = light.CastShadows;
+        mapData_.directionalLight.enabled = light.Enabled;
+        break;  // Only save the first light
+    }
+    
+    SE_LOG_INFO("MapDocument: Built data with {} entities, light: {}", 
+                mapData_.entities.size(), mapData_.hasDirectionalLight ? "Yes" : "No");
 }
 
 void MapDocument::LoadFromData(const MapData& data) {
@@ -114,6 +136,28 @@ void MapDocument::LoadFromData(const MapData& data) {
         transform.SetRotation(data.playerStartRotation);
         SE_LOG_INFO("MapDocument: Loaded Player Start at ({}, {}, {})",
                     data.playerStartPosition.x, data.playerStartPosition.y, data.playerStartPosition.z);
+    }
+    
+    // Apply loaded light settings to editor light
+    if (data.hasDirectionalLight) {
+        auto lightView = sceneManager_.GetScene().GetAllEntitiesWith<
+            se::TransformComponent, se::DirectionalLightComponent>();
+        
+        for (auto entityHandle : lightView) {
+            se::Entity entity(entityHandle, sceneManager_.GetScenePtr());
+            auto& transform = entity.GetComponent<se::TransformComponent>();
+            auto& light = entity.GetComponent<se::DirectionalLightComponent>();
+            
+            transform.SetPosition(data.directionalLight.position);
+            transform.SetRotation(data.directionalLight.rotation);
+            light.Color = data.directionalLight.color;
+            light.Intensity = data.directionalLight.intensity;
+            light.CastShadows = data.directionalLight.castShadows;
+            light.Enabled = data.directionalLight.enabled;
+            
+            SE_LOG_INFO("MapDocument: Loaded light with intensity {}", data.directionalLight.intensity);
+            break;
+        }
     }
 }
 

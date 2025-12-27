@@ -3,6 +3,7 @@
 #include "apps/MathUtils.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
+#include "engine/physics/PhysicsDebugDraw.h"
 
 namespace FirstGame {
 
@@ -29,6 +30,7 @@ void Character::SetupPhysics() {
     CapsuleCollider collider;
     collider.Height = physicsConfig_.height;
     collider.Radius = physicsConfig_.radius;
+    GetEntity().GetScene()->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_NoDebug);
     GetEntity().AddComponent<CapsuleCollider>(collider);
 
     // Now add the rigidbody - it will detect the CapsuleCollider

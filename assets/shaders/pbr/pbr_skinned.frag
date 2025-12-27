@@ -1,19 +1,21 @@
 #version 330 core
 
 // =============================================================================
-// PBR Skinned Model Fragment Shader - Based on Google's Filament Standard Model
+// PBR Skinned Fragment Shader
 // =============================================================================
-// Same as model.frag - fragment shading is identical for skinned meshes.
+// Same as pbr_standard.frag - fragment shading is identical for skinned meshes.
 // The vertex shader handles the skeletal animation.
 // =============================================================================
 
 // Include PBR library files
-#include "pbr/pbr_common.glsl"
-#include "pbr/pbr_lighting.glsl"
-#include "pbr/pbr_ibl.glsl"
+#include "pbr_common.glsl"
+#include "pbr_lighting.glsl"
+#include "pbr_ibl.glsl"
 
+// -----------------------------------------------------------------------------
 // Inputs from Vertex Shader
-in vec3 v_FragPos;
+// -----------------------------------------------------------------------------
+in vec3 v_WorldPos;
 in vec3 v_Normal;
 in vec2 v_TexCoord;
 in vec3 v_ViewPos;
@@ -22,7 +24,9 @@ in mat3 v_TBN;
 
 out vec4 FragColor;
 
+// -----------------------------------------------------------------------------
 // Light Uniforms
+// -----------------------------------------------------------------------------
 uniform vec3 uLightDirection;
 uniform vec3 uLightColor;
 uniform float uLightIntensity;
@@ -34,29 +38,25 @@ uniform mat4 uLightSpaceMatrix;
 uniform float uReceiveShadows;
 uniform float uShadowsEnabled;
 
-// AO Uniforms
-uniform float uAOStrength;
-uniform float uAORadius;
-
+// -----------------------------------------------------------------------------
 // PBR Material Textures
+// -----------------------------------------------------------------------------
 uniform sampler2D uAlbedoMap;
 uniform sampler2D uNormalMap;
-uniform sampler2D uSpecularMap;
-uniform sampler2D uAOMap;
-uniform sampler2D uMetallicMap;
-uniform sampler2D uRoughnessMap;
-uniform sampler2D uEmissiveMap;
 uniform sampler2D uMetallicRoughnessMap;
+uniform sampler2D uAOMap;
+uniform sampler2D uEmissiveMap;
+uniform sampler2D uRoughnessMap;
+uniform sampler2D uMetallicMap;
 
-// Texture Presence Flags
+// Texture Flags
 uniform int uHasAlbedo;
 uniform int uHasNormal;
-uniform int uHasSpecular;
-uniform int uHasAO;
-uniform int uHasMetallic;
-uniform int uHasRoughness;
-uniform int uHasEmissive;
 uniform int uHasMetallicRoughness;
+uniform int uHasRoughness;
+uniform int uHasMetallic;
+uniform int uHasAO;
+uniform int uHasEmissive;
 
 // PBR Material Parameters
 uniform vec4 uBaseColor;
@@ -67,7 +67,6 @@ uniform float uAOFactor;
 uniform vec3 uEmissiveColor;
 uniform float uEmissiveFactor;
 uniform float uNormalScale;
-uniform float uShininess;
 
 // IBL Uniforms
 uniform vec3 uSH[9];
@@ -75,17 +74,16 @@ uniform float uIBLIntensity;
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 
-// Camera/Post-processing Uniforms
-uniform float uExposure;
-
+// -----------------------------------------------------------------------------
 // Shadow Calculation
+// -----------------------------------------------------------------------------
 float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
     projCoords = projCoords * 0.5 + 0.5;
-    
+
     if (projCoords.z > 1.0 || projCoords.z < 0.0) return 0.0;
     if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
-    
+
     float ndotl = max(dot(normal, lightDir), 0.0);
     float bias = max(0.0003 * (1.0 - ndotl), 0.00005);
     
@@ -108,6 +106,9 @@ float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     return shadow * edgeFade;
 }
 
+// -----------------------------------------------------------------------------
+// Main Fragment Shader
+// -----------------------------------------------------------------------------
 void main() {
     // Normal mapping
     vec3 normal;
@@ -138,10 +139,6 @@ void main() {
     } else {
         metallic = uHasMetallic == 1 ? texture(uMetallicMap, v_TexCoord).r * uMetallicFactor : uMetallicFactor;
         perceptualRoughness = uHasRoughness == 1 ? texture(uRoughnessMap, v_TexCoord).r * uRoughnessFactor : uRoughnessFactor;
-        if (uHasSpecular == 1 && perceptualRoughness == 0.0) {
-            float specValue = texture(uSpecularMap, v_TexCoord).r;
-            perceptualRoughness = 1.0 - specValue * 0.8;
-        }
     }
     
     metallic = saturate(metallic);
@@ -149,7 +146,7 @@ void main() {
     
     // AO and Emissive
     float ao = uHasAO == 1 ? texture(uAOMap, v_TexCoord).r : 1.0;
-    ao = mix(1.0, ao, uAOFactor * uAOStrength);
+    ao = mix(1.0, ao, uAOFactor);
     
     vec3 emissive = vec3(0.0);
     if (uHasEmissive == 1) {
@@ -170,7 +167,7 @@ void main() {
     surface.f90 = 1.0;
     
     // Lighting
-    vec3 view = normalize(v_ViewPos - v_FragPos);
+    vec3 view = normalize(v_ViewPos - v_WorldPos);
     vec3 lightDir = normalize(uLightDirection);
     
     vec3 directLight = evaluateDirectionalLightSimple(lightDir, uLightColor, uLightIntensity, surface, normal, view);
@@ -193,32 +190,8 @@ void main() {
     } else {
         indirectLight = evaluateIBLSimple(surface, normal, view, uSkyColor, uGroundColor, uAmbientStrength);
     }
+    indirectLight *= ao;
     
-    // Apply multi-bounce AO to preserve color in shadowed areas
-    float NoV = abs(dot(normal, view)) + MIN_N_DOT_V;
-    vec3 aoColor = multiBounceAO(ao, diffuseColor);
-    float specAO = specularAO(NoV, ao, roughness);
-    
-    // Separate diffuse and specular AO application
-    indirectLight = indirectLight * aoColor;
-    
-    // Omnidirectional ambient - constant light from all directions (ignores normal)
-    // This ensures surfaces facing away from sky still receive some light
-    vec3 omniAmbient = diffuseColor * uSH[0] * 0.15;  // 15% of L00 term as constant
-    
-    // Rim lighting - adds subtle edge definition when backlit
-    float rimFactor = 1.0 - saturate(dot(normal, view));
-    rimFactor = pow(rimFactor, 3.0) * 0.3;  // Soft rim, 30% intensity
-    vec3 rimLight = uSkyColor * rimFactor * (1.0 - metallic);
-    
-    // Add minimum ambient floor (8% of diffuse color)
-    vec3 minAmbient = diffuseColor * 0.08;
-    indirectLight = max(indirectLight + omniAmbient + rimLight, minAmbient);
-    
-    // HDR Pipeline: exposure, tone mapping, gamma
-    vec3 hdrColor = directLight + indirectLight + emissive;
-    float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
-    
-    FragColor = vec4(ldrColor, baseColor.a);
+    vec3 color = directLight + indirectLight + emissive;
+    FragColor = vec4(color, baseColor.a);
 }
