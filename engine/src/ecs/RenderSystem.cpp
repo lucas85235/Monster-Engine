@@ -9,6 +9,8 @@
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/SceneRenderer.h"
+#include "engine/renderer/Texture.h"
+#include "engine/renderer/TextureMaterial.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/Model.h"
 
@@ -68,11 +70,11 @@ void RenderSystem::EnsureModelMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "simple.vert";
-    fs::path fragPath = assetsPath / "shaders" / "simple.frag";
+    fs::path vertPath = assetsPath / "shaders" / "model.vert";
+    fs::path fragPath = assetsPath / "shaders" / "model.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
-        SE_LOG_ERROR("Simple shaders not found at: {}", vertPath.string());
+        SE_LOG_ERROR("Model shaders not found at: {}", vertPath.string());
         return;
     }
 
@@ -207,9 +209,78 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
             if (!material) continue;
 
-            // Submit directly to scene renderer (no instancing for now)
+            // Bind textures from TextureMaterial if present
+            auto texMat = submesh.GetTextureMaterial();
+            auto shader = material->GetShader();
+            
+            // Debug logging for texture/material status (once per frame at start)
+            static int debugFrameCount = 0;
+            bool shouldLog = (debugFrameCount < 5) || (debugFrameCount % 300 == 0);
+            
+            if (texMat && shader) {
+                shader->bind();
+                
+                // Set texture uniforms
+                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+                
+                if (texMat->HasAlbedo()) {
+                    texMat->Albedo->Bind(1);
+                    hasAlbedo = 1;
+                }
+                if (texMat->HasNormal()) {
+                    texMat->Normal->Bind(2);
+                    hasNormal = 1;
+                }
+                if (texMat->HasSpecular()) {
+                    texMat->Specular->Bind(3);
+                    hasSpecular = 1;
+                }
+                if (texMat->HasAO()) {
+                    texMat->AO->Bind(4);
+                    hasAO = 1;
+                }
+                
+                shader->setInt("uAlbedoMap", 1);
+                shader->setInt("uNormalMap", 2);
+                shader->setInt("uSpecularMap", 3);
+                shader->setInt("uAOMap", 4);
+                
+                shader->setInt("uHasAlbedo", hasAlbedo);
+                shader->setInt("uHasNormal", hasNormal);
+                shader->setInt("uHasSpecular", hasSpecular);
+                shader->setInt("uHasAO", hasAO);
+                
+                shader->setVec4("uBaseColor", texMat->BaseColor);
+                shader->setFloat("uShininess", texMat->Shininess);
+                
+                if (shouldLog) {
+                    SE_LOG_INFO("RenderSystem PBR: submesh='{}' hasTexMat=true albedo={} normal={} spec={} ao={} baseColor=({:.2f},{:.2f},{:.2f},{:.2f})",
+                                submesh.GetName(), hasAlbedo, hasNormal, hasSpecular, hasAO,
+                                texMat->BaseColor.x, texMat->BaseColor.y, texMat->BaseColor.z, texMat->BaseColor.w);
+                }
+            } else if (shader) {
+                shader->bind();
+                shader->setInt("uHasAlbedo", 0);
+                shader->setInt("uHasNormal", 0);
+                shader->setInt("uHasSpecular", 0);
+                shader->setInt("uHasAO", 0);
+                shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+                shader->setFloat("uShininess", 32.0f);
+                
+                if (shouldLog) {
+                    SE_LOG_INFO("RenderSystem PBR: submesh='{}' hasTexMat=false (using defaults)", submesh.GetName());
+                }
+            } else {
+                if (shouldLog) {
+                    SE_LOG_WARN("RenderSystem PBR: submesh='{}' NO SHADER!", submesh.GetName());
+                }
+            }
+            
+            debugFrameCount++;
+
+            // Submit directly to scene renderer with TextureMaterial for PBR
             sceneRenderer.Submit(va, material, transform.WorldMatrix, 
-                                 modelComp.CastShadows, modelComp.ReceiveShadows);
+                                 modelComp.CastShadows, modelComp.ReceiveShadows, 1.0f, texMat);
         }
     }
 

@@ -28,7 +28,7 @@ using namespace se;
 // ============================================================================
 
 struct SpringArmConfig {
-    float targetArmLength = 8.0f;
+    float targetArmLength = 4.0f;
     float minArmLength    = 0.5f;
     float probeSize       = 0.3f;
     float lerpSpeedIn     = 15.0f;
@@ -36,7 +36,7 @@ struct SpringArmConfig {
     float initialPitch    = -30.0f;
     float minPitch        = -80.0f;
     float maxPitch        = 80.0f;
-    Vector3 socketOffset  = {0.0f, 1.5f, 0.0f};
+    Vector3 socketOffset  = {0.0f, 0.8f, 0.0f};
     bool enableCollision  = true;
 };
 

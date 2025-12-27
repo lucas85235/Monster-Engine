@@ -21,11 +21,18 @@ struct MaterialData {
     glm::vec4 DiffuseColor{1.0f};
     glm::vec4 SpecularColor{1.0f};
     glm::vec4 AmbientColor{0.1f, 0.1f, 0.1f, 1.0f};
+    glm::vec3 EmissiveColor{0.0f};
     float Shininess = 32.0f;
+    float Metallic = 0.0f;
+    float Roughness = 0.5f;
     
     std::string DiffuseTexturePath;
     std::string NormalTexturePath;
     std::string SpecularTexturePath;
+    std::string AOTexturePath;
+    std::string EmissiveTexturePath;
+    std::string RoughnessTexturePath;
+    std::string MetallicTexturePath;
 };
 
 struct SubMeshData {

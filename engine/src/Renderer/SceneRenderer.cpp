@@ -7,6 +7,8 @@
 
 #include "engine/Log.h"
 #include "engine/renderer/RenderCommand.h"
+#include "engine/renderer/TextureMaterial.h"
+#include "engine/renderer/Texture.h"
 
 namespace {
 constexpr const char* kShadowVertexSource = R"(#version 330 core
@@ -130,13 +132,15 @@ void SceneRenderer::EndScene() {
 
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
                            const std::shared_ptr<Material>& material, const Matrix4& transform,
-                           bool castsShadows, bool receiveShadows, float boundingRadius) {
+                           bool castsShadows, bool receiveShadows, float boundingRadius,
+                           const std::shared_ptr<struct TextureMaterial>& textureMaterial) {
     Submission submission;
-    submission.vertex_array   = vertexArray;
-    submission.material       = material;
-    submission.Transform      = transform;
-    submission.CastsShadows   = castsShadows;
-    submission.ReceiveShadows = receiveShadows;
+    submission.vertex_array    = vertexArray;
+    submission.material        = material;
+    submission.Transform       = transform;
+    submission.CastsShadows    = castsShadows;
+    submission.ReceiveShadows  = receiveShadows;
+    submission.textureMaterial = textureMaterial;
 
     // Extract position from transform
     submission.Center = Vector3(transform[3]);
@@ -446,6 +450,50 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+
+        // Bind PBR texture uniforms if TextureMaterial is present
+        auto texMat = submission.textureMaterial;
+        if (texMat) {
+            int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+            
+            if (texMat->HasAlbedo()) {
+                texMat->Albedo->Bind(1);
+                hasAlbedo = 1;
+            }
+            if (texMat->HasNormal()) {
+                texMat->Normal->Bind(2);
+                hasNormal = 1;
+            }
+            if (texMat->HasSpecular()) {
+                texMat->Specular->Bind(3);
+                hasSpecular = 1;
+            }
+            if (texMat->HasAO()) {
+                texMat->AO->Bind(4);
+                hasAO = 1;
+            }
+            
+            shader->setInt("uAlbedoMap", 1);
+            shader->setInt("uNormalMap", 2);
+            shader->setInt("uSpecularMap", 3);
+            shader->setInt("uAOMap", 4);
+            
+            shader->setInt("uHasAlbedo", hasAlbedo);
+            shader->setInt("uHasNormal", hasNormal);
+            shader->setInt("uHasSpecular", hasSpecular);
+            shader->setInt("uHasAO", hasAO);
+            
+            shader->setVec4("uBaseColor", texMat->BaseColor);
+            shader->setFloat("uShininess", texMat->Shininess);
+        } else {
+            // Default values when no TextureMaterial
+            shader->setInt("uHasAlbedo", 0);
+            shader->setInt("uHasNormal", 0);
+            shader->setInt("uHasSpecular", 0);
+            shader->setInt("uHasAO", 0);
+            shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+            shader->setFloat("uShininess", 32.0f);
+        }
 
         if (!submission.vertex_array) return;
         RenderCommand::DrawIndexed(submission.vertex_array.get());

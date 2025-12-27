@@ -7,11 +7,14 @@
 #include "engine/Log.h"
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/Texture.h"
+#include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/VertexArray.h"
 #include "engine/resources/AssimpModelLoader.h"
 #include "engine/resources/Model.h"
 #include "engine/resources/ModelData.h"
 #include "engine/resources/SubMesh.h"
+#include "engine/resources/TextureManager.h"
 
 namespace se {
 
@@ -100,12 +103,80 @@ void ModelManager::ClearCache() {
     cache_.clear();
 }
 
-// Vertex structure matching engine's primitive layout: Position + Color + Normal
-struct EngineVertex {
+// PBR Vertex layout matching model.vert shader:
+// layout(location = 0) in vec3 a_Position;
+// layout(location = 1) in vec3 a_Normal;
+// layout(location = 2) in vec2 a_TexCoord;
+// layout(location = 3) in vec3 a_Tangent;
+// layout(location = 4) in vec3 a_Bitangent;
+struct PBRVertex {
     glm::vec3 Position;
-    glm::vec3 Color;
     glm::vec3 Normal;
+    glm::vec2 TexCoord;
+    glm::vec3 Tangent;
+    glm::vec3 Bitangent;
 };
+
+std::shared_ptr<TextureMaterial> ModelManager::CreateTextureMaterial(const MaterialData& matData) {
+    auto texMat = std::make_shared<TextureMaterial>();
+    
+    texMat->BaseColor = matData.DiffuseColor;
+    texMat->MetallicFactor = matData.Metallic;
+    texMat->RoughnessFactor = matData.Roughness;
+    texMat->Shininess = matData.Shininess;
+    texMat->EmissiveColor = matData.EmissiveColor;
+    
+    if (!matData.DiffuseTexturePath.empty()) {
+        texMat->Albedo = TextureManager::Load(matData.DiffuseTexturePath);
+        if (texMat->Albedo) {
+            SE_LOG_INFO("ModelManager: Loaded albedo texture '{}'", matData.DiffuseTexturePath);
+        }
+    }
+    
+    if (!matData.NormalTexturePath.empty()) {
+        texMat->Normal = TextureManager::Load(matData.NormalTexturePath);
+        if (texMat->Normal) {
+            SE_LOG_INFO("ModelManager: Loaded normal texture '{}'", matData.NormalTexturePath);
+        }
+    }
+    
+    if (!matData.SpecularTexturePath.empty()) {
+        texMat->Specular = TextureManager::Load(matData.SpecularTexturePath);
+        if (texMat->Specular) {
+            SE_LOG_INFO("ModelManager: Loaded specular texture '{}'", matData.SpecularTexturePath);
+        }
+    }
+    
+    if (!matData.AOTexturePath.empty()) {
+        texMat->AO = TextureManager::Load(matData.AOTexturePath);
+        if (texMat->AO) {
+            SE_LOG_INFO("ModelManager: Loaded AO texture '{}'", matData.AOTexturePath);
+        }
+    }
+    
+    if (!matData.EmissiveTexturePath.empty()) {
+        texMat->Emissive = TextureManager::Load(matData.EmissiveTexturePath);
+        if (texMat->Emissive) {
+            SE_LOG_INFO("ModelManager: Loaded emissive texture '{}'", matData.EmissiveTexturePath);
+        }
+    }
+    
+    if (!matData.RoughnessTexturePath.empty()) {
+        texMat->Roughness = TextureManager::Load(matData.RoughnessTexturePath);
+        if (texMat->Roughness) {
+            SE_LOG_INFO("ModelManager: Loaded roughness texture '{}'", matData.RoughnessTexturePath);
+        }
+    }
+    
+    if (!matData.MetallicTexturePath.empty()) {
+        texMat->Metallic = TextureManager::Load(matData.MetallicTexturePath);
+        if (texMat->Metallic) {
+            SE_LOG_INFO("ModelManager: Loaded metallic texture '{}'", matData.MetallicTexturePath);
+        }
+    }
+    
+    return texMat;
+}
 
 std::shared_ptr<Model> ModelManager::CreateModelFromData(const ModelData& data) {
     auto model = std::make_shared<Model>(data.Name);
@@ -117,107 +188,58 @@ std::shared_ptr<Model> ModelManager::CreateModelFromData(const ModelData& data) 
             continue;
         }
 
-        // Convert ModelVertex to EngineVertex (matching primitive layout)
-        std::vector<EngineVertex> vertices;
+        // Convert ModelVertex to PBRVertex (matching model.vert layout)
+        std::vector<PBRVertex> vertices;
         vertices.reserve(submeshData.Vertices.size());
         
         for (const auto& v : submeshData.Vertices) {
-            EngineVertex ev;
-            ev.Position = v.Position;
-            ev.Color = glm::vec3(0.7f); // Default gray color
-            ev.Normal = v.Normal;
-            vertices.push_back(ev);
+            PBRVertex pv;
+            pv.Position = v.Position;
+            pv.Normal = v.Normal;
+            pv.TexCoord = v.TexCoord;
+            pv.Tangent = v.Tangent;
+            pv.Bitangent = v.Bitangent;
+            vertices.push_back(pv);
         }
 
-        // LearnOpenGL approach: Create VAO first, then buffers WITH VAO bound
-        // This ensures correct association between VAO and its buffers
-        GLuint VAO, VBO, EBO;
-        
-        glGenVertexArrays(1, &VAO);
-        glGenBuffers(1, &VBO);
-        glGenBuffers(1, &EBO);
-
-        // Bind VAO first
-        glBindVertexArray(VAO);
-        
-        // Load vertex data into VBO
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, 
-                     vertices.size() * sizeof(EngineVertex), 
-                     vertices.data(), 
-                     GL_STATIC_DRAW);
-
-        // Load index data into EBO (must be done with VAO bound!)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
-                     submeshData.Indices.size() * sizeof(uint32_t), 
-                     submeshData.Indices.data(), 
-                     GL_STATIC_DRAW);
-
-        // Set vertex attribute pointers (must match shader layout!)
-        // Position (location 0)
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 
-                              sizeof(EngineVertex), 
-                              (void*)offsetof(EngineVertex, Position));
-        
-        // Color (location 1)
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 
-                              sizeof(EngineVertex), 
-                              (void*)offsetof(EngineVertex, Color));
-        
-        // Normal (location 2)
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 
-                              sizeof(EngineVertex), 
-                              (void*)offsetof(EngineVertex, Normal));
-
-        // Unbind VAO (NOT the buffers - they stay associated with the VAO)
-        glBindVertexArray(0);
-
-        // Create a simple VertexArray wrapper that just holds the OpenGL handles
-        // We need to modify VertexArray to support this or create a wrapper
+        // Create VertexArray with PBR layout
         auto vertexArray = std::make_shared<VertexArray>();
         
-        // Manually set the internal IDs (we need to expose this in VertexArray)
-        // For now, let's create buffers the traditional way but ensure correct order
-        
-        // Actually, let's delete what we created and use the engine's classes properly
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
-        glDeleteBuffers(1, &EBO);
-        
-        // Create using engine classes but in correct order:
-        // 1. Create VertexArray first (this generates and binds a VAO)
-        vertexArray = std::make_shared<VertexArray>();
-        
-        // 2. Create and add VertexBuffer (VAO must be bound, AddVertexBuffer does this)
         auto vertexBuffer = std::make_shared<VertexBuffer>(
             vertices.data(),
-            static_cast<uint32_t>(vertices.size() * sizeof(EngineVertex))
+            static_cast<uint32_t>(vertices.size() * sizeof(PBRVertex))
         );
         vertexBuffer->SetLayout(BufferLayout({
             {ShaderDataType::Float3, "a_Position"},
-            {ShaderDataType::Float3, "a_Color"},
-            {ShaderDataType::Float3, "a_Normal"}
+            {ShaderDataType::Float3, "a_Normal"},
+            {ShaderDataType::Float2, "a_TexCoord"},
+            {ShaderDataType::Float3, "a_Tangent"},
+            {ShaderDataType::Float3, "a_Bitangent"}
         }));
         vertexArray->AddVertexBuffer(vertexBuffer);
         
-        // 3. Create and set IndexBuffer (VAO must be bound, SetIndexBuffer does this)
         auto indexBuffer = std::make_shared<IndexBuffer>(
             submeshData.Indices.data(),
             static_cast<uint32_t>(submeshData.Indices.size())
         );
         vertexArray->SetIndexBuffer(indexBuffer);
         
-        // 4. Unbind VAO to prevent accidental modifications
         vertexArray->Unbind();
+
+        // Create TextureMaterial from material data
+        std::shared_ptr<TextureMaterial> textureMaterial = nullptr;
+        if (submeshData.MaterialIndex >= 0 && 
+            submeshData.MaterialIndex < static_cast<int>(data.Materials.size())) {
+            textureMaterial = CreateTextureMaterial(data.Materials[submeshData.MaterialIndex]);
+        }
 
         // Material will be set by the user/renderer
         std::shared_ptr<Material> material = nullptr;
 
         SubMesh submesh(vertexArray, material, submeshData.Name);
+        if (textureMaterial) {
+            submesh.SetTextureMaterial(textureMaterial);
+        }
         model->AddSubMesh(std::move(submesh));
 
         SE_LOG_INFO("ModelManager: Created submesh '{}' with {} vertices, {} indices",

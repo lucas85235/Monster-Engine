@@ -18,7 +18,7 @@ namespace FirstGame {
 using namespace se;
 
 struct RenderConfig {
-    bool enablePhysicsDebug = true;
+    bool enablePhysicsDebug = false;
 };
 
 class CharacterRender : public Component {

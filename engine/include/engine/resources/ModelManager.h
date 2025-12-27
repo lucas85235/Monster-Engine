@@ -9,6 +9,8 @@ namespace se {
 class Model;
 class IModelLoader;
 struct ModelData;
+struct MaterialData;
+struct TextureMaterial;
 
 class ModelManager {
    public:
@@ -25,6 +27,7 @@ class ModelManager {
 
    private:
     static std::shared_ptr<Model> CreateModelFromData(const ModelData& data);
+    static std::shared_ptr<TextureMaterial> CreateTextureMaterial(const MaterialData& matData);
 
     static std::unique_ptr<IModelLoader> loader_;
     static std::unordered_map<std::string, std::shared_ptr<Model>> cache_;
@@ -32,3 +35,4 @@ class ModelManager {
 };
 
 }  // namespace se
+

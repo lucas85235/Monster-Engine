@@ -5,6 +5,7 @@
 #include <assimp/scene.h>
 
 #include <filesystem>
+#include <algorithm>
 
 #include "engine/Log.h"
 #include "engine/resources/ModelData.h"
@@ -16,10 +17,11 @@ std::unique_ptr<ModelData> AssimpModelLoader::Load(const std::string& path) {
 
     Assimp::Importer importer;
     
-    unsigned int flags = aiProcess_Triangulate |  // Convert quads/n-gons to triangles
-                         aiProcess_GenNormals |    // Generate flat normals if missing
-                         aiProcess_FlipUVs |       // Flip Y-axis of texture coords for OpenGL
-                         aiProcess_SortByPType;    // Split meshes by primitive type
+    unsigned int flags = aiProcess_Triangulate |       // Convert quads/n-gons to triangles
+                         aiProcess_GenNormals |        // Generate flat normals if missing
+                         aiProcess_FlipUVs |           // Flip Y-axis of texture coords for OpenGL
+                         aiProcess_CalcTangentSpace |  // Calculate tangent and bitangent
+                         aiProcess_SortByPType;        // Split meshes by primitive type
 
     const aiScene* scene = importer.ReadFile(path, flags);
 
@@ -127,7 +129,7 @@ SubMeshData AssimpModelLoader::ProcessMesh(const aiMesh* mesh, const aiScene* sc
         if (mesh->mTextureCoords[0]) {
             vertex.TexCoord = glm::vec2(
                 mesh->mTextureCoords[0][i].x,
-                mesh->mTextureCoords[0][i].y
+                1.0f - mesh->mTextureCoords[0][i].y  // Flip Y for OpenGL compatibility
             );
         }
 
@@ -184,24 +186,107 @@ MaterialData AssimpModelLoader::ProcessMaterial(const aiMaterial* material, cons
         matData.Shininess = shininess;
     }
 
-    aiString texPath;
-    if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
-        std::filesystem::path fullPath = std::filesystem::path(directory) / texPath.C_Str();
-        matData.DiffuseTexturePath = fullPath.string();
+    // Helper lambda to extract texture path with existence check
+    auto extractTexture = [&](aiTextureType type) -> std::string {
+        aiString texPath;
+        if (material->GetTexture(type, 0, &texPath) == AI_SUCCESS) {
+            std::filesystem::path fullPath = std::filesystem::path(directory) / texPath.C_Str();
+            if (std::filesystem::exists(fullPath)) {
+                return fullPath.string();
+            } else {
+                SE_LOG_WARN("AssimpModelLoader: Texture file not found '{}'", fullPath.string());
+            }
+        }
+        return "";
+    };
+
+    matData.DiffuseTexturePath = extractTexture(aiTextureType_DIFFUSE);
+    matData.NormalTexturePath = extractTexture(aiTextureType_NORMALS);
+    
+    // Try HEIGHT as fallback for normal map (some exporters use this)
+    if (matData.NormalTexturePath.empty()) {
+        matData.NormalTexturePath = extractTexture(aiTextureType_HEIGHT);
     }
-    if (material->GetTexture(aiTextureType_NORMALS, 0, &texPath) == AI_SUCCESS) {
-        std::filesystem::path fullPath = std::filesystem::path(directory) / texPath.C_Str();
-        matData.NormalTexturePath = fullPath.string();
+    
+    matData.SpecularTexturePath = extractTexture(aiTextureType_SPECULAR);
+    matData.AOTexturePath = extractTexture(aiTextureType_AMBIENT_OCCLUSION);
+    
+    // Fallback: try LIGHTMAP for AO (some formats use this)
+    if (matData.AOTexturePath.empty()) {
+        matData.AOTexturePath = extractTexture(aiTextureType_LIGHTMAP);
     }
-    if (material->GetTexture(aiTextureType_SPECULAR, 0, &texPath) == AI_SUCCESS) {
-        std::filesystem::path fullPath = std::filesystem::path(directory) / texPath.C_Str();
-        matData.SpecularTexturePath = fullPath.string();
+    
+    matData.EmissiveTexturePath = extractTexture(aiTextureType_EMISSIVE);
+    matData.RoughnessTexturePath = extractTexture(aiTextureType_DIFFUSE_ROUGHNESS);
+    matData.MetallicTexturePath = extractTexture(aiTextureType_METALNESS);
+
+    // Auto-discovery: If no textures found, try to find them by naming convention
+    // Common patterns: *_Albedo.*, *_Diffuse.*, *_Normal.*, *_Roughness.*, *_AO.*, *_Occlusion.*, etc.
+    if (matData.DiffuseTexturePath.empty() || matData.NormalTexturePath.empty()) {
+        SE_LOG_INFO("AssimpModelLoader: Attempting auto-discovery of textures in '{}'", directory);
+        
+        std::vector<std::string> extensions = {".png", ".jpg", ".jpeg", ".tga", ".bmp"};
+        
+        auto findTexture = [&](const std::vector<std::string>& patterns) -> std::string {
+            for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+                if (!entry.is_regular_file()) continue;
+                
+                std::string filename = entry.path().filename().string();
+                std::string lowerFilename = filename;
+                std::transform(lowerFilename.begin(), lowerFilename.end(), lowerFilename.begin(), ::tolower);
+                
+                for (const auto& pattern : patterns) {
+                    if (lowerFilename.find(pattern) != std::string::npos) {
+                        SE_LOG_INFO("AssimpModelLoader: Auto-discovered texture '{}' for pattern '{}'", 
+                                    filename, pattern);
+                        return entry.path().string();
+                    }
+                }
+            }
+            return "";
+        };
+        
+        // Albedo/Diffuse
+        if (matData.DiffuseTexturePath.empty()) {
+            matData.DiffuseTexturePath = findTexture({"_albedo", "_diffuse", "_basecolor", "_color", "_d."});
+        }
+        
+        // Normal
+        if (matData.NormalTexturePath.empty()) {
+            matData.NormalTexturePath = findTexture({"_normal", "_norm", "_n.", "_nrm"});
+        }
+        
+        // Specular
+        if (matData.SpecularTexturePath.empty()) {
+            matData.SpecularTexturePath = findTexture({"_specular", "_spec", "_s."});
+        }
+        
+        // AO/Occlusion
+        if (matData.AOTexturePath.empty()) {
+            matData.AOTexturePath = findTexture({"_ao", "_occlusion", "_ambient"});
+        }
+        
+        // Roughness
+        if (matData.RoughnessTexturePath.empty()) {
+            matData.RoughnessTexturePath = findTexture({"_roughness", "_rough", "_r."});
+        }
+        
+        // Metallic
+        if (matData.MetallicTexturePath.empty()) {
+            matData.MetallicTexturePath = findTexture({"_metallic", "_metal", "_m."});
+        }
+        
+        // Emissive
+        if (matData.EmissiveTexturePath.empty()) {
+            matData.EmissiveTexturePath = findTexture({"_emissive", "_emission", "_glow"});
+        }
     }
 
-    SE_LOG_INFO("AssimpModelLoader: Processed material '{}': diffuse={}, normal={}", 
+    SE_LOG_INFO("AssimpModelLoader: Processed material '{}': diffuse={}, normal={}, ao={}", 
                 matData.Name,
                 matData.DiffuseTexturePath.empty() ? "none" : matData.DiffuseTexturePath,
-                matData.NormalTexturePath.empty() ? "none" : matData.NormalTexturePath);
+                matData.NormalTexturePath.empty() ? "none" : matData.NormalTexturePath,
+                matData.AOTexturePath.empty() ? "none" : matData.AOTexturePath);
 
     return matData;
 }

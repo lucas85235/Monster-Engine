@@ -3,6 +3,8 @@
 #include <memory>
 #include <string>
 
+#include "engine/renderer/TextureMaterial.h"
+
 namespace se {
 
 class VertexArray;
@@ -29,10 +31,16 @@ class SubMesh {
 
     void SetMaterial(std::shared_ptr<Material> material) { material_ = std::move(material); }
 
+    void SetTextureMaterial(std::shared_ptr<TextureMaterial> texMat) { textureMaterial_ = std::move(texMat); }
+    const std::shared_ptr<TextureMaterial>& GetTextureMaterial() const { return textureMaterial_; }
+    bool HasTextureMaterial() const { return textureMaterial_ != nullptr; }
+
    private:
     std::shared_ptr<VertexArray> vertexArray_;
     std::shared_ptr<Material> material_;
+    std::shared_ptr<TextureMaterial> textureMaterial_;
     std::string name_;
 };
 
 }  // namespace se
+

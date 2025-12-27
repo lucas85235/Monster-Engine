@@ -49,29 +49,32 @@ void CharacterRender::SetupMesh() {
     transform.SetScale(glm::vec3(0.01f));
 
     // Rotate -90 degrees on X axis to correct orientation (Standard Z-up to Y-up correction)
-    // glm::vec3 currentRotation = transform.Rotation;
+    glm::vec3 currentRotation = transform.Rotation;
     // currentRotation.x         = 90.0f;
     // currentRotation.y         = 90.0f;
-    transform.SetPosition(glm::vec3(0.0f, -0.9f, 0.0f));
     // transform.SetRotation(currentRotation);
+    transform.SetPosition(glm::vec3(0.0f, -0.85f, 0.0f));
 
     SE_LOG_INFO("CharacterRender: Loaded model '{}' with {} submeshes (Child Entity)",
                 model->GetName(), model->GetSubMeshCount());
 }
 
 void CharacterRender::SetupDebugVisualization() {
-    if (!config_.enablePhysicsDebug) return;
-
     Scene* scene = GetScene();
     if (!scene || !scene->GetPhysicsSystem()) {
-        SE_LOG_WARN("CharacterRender: Cannot enable debug - no physics system");
+        SE_LOG_WARN("CharacterRender: Cannot configure debug - no physics system");
         return;
     }
 
     auto* debugDrawer = scene->GetPhysicsSystem()->GetDebugDrawer();
     if (debugDrawer) {
-        debugDrawer->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
-        SE_LOG_INFO("CharacterRender: Physics debug enabled");
+        if (config_.enablePhysicsDebug) {
+            debugDrawer->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
+            SE_LOG_INFO("CharacterRender: Physics debug enabled");
+        } else {
+            debugDrawer->setDebugMode(btIDebugDraw::DBG_NoDebug);
+            SE_LOG_INFO("CharacterRender: Physics debug disabled");
+        }
     }
 }
 } // namespace FirstGame
