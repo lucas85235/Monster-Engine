@@ -100,6 +100,8 @@ class Scene {
     }
 
    private:
+    void UpdateTransforms();
+    
     std::string    name_;
     entt::registry registry_;
     Camera*        active_camera_ = nullptr;

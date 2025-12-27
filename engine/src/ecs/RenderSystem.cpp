@@ -179,7 +179,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
 
         InstanceData instanceData;
-        instanceData.Transform = transform.GetTransform();
+        instanceData.Transform = transform.WorldMatrix;
         instanceData.Color     = meshRender.Color;  // Use per-entity color
 
         instanceBatches_[key].push_back(instanceData);
@@ -231,7 +231,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             SE_LOG_INFO("RenderSystem: Submitting submesh {} to scene renderer", submeshIndex);
 
             // Submit directly to scene renderer (no instancing for now)
-            sceneRenderer.Submit(va, material, transform.GetTransform(), 
+            sceneRenderer.Submit(va, material, transform.WorldMatrix, 
                                  modelComp.CastShadows, modelComp.ReceiveShadows);
             
             SE_LOG_INFO("RenderSystem: Submesh {} submitted successfully", submeshIndex);

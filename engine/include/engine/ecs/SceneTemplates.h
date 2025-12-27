@@ -31,13 +31,19 @@ T& Entity::AddDataComponent(Args&&... args) {
 }
 
 template <typename T>
+const T& Entity::GetComponent() const {
+    if (!HasComponent<T>()) { SE_LOG_ERROR("Entity does not have component!"); }
+    return scene_->registry_.get<T>(entityHandle_);
+}
+
+ template <typename T>
 T& Entity::GetComponent() {
     if (!HasComponent<T>()) { SE_LOG_ERROR("Entity does not have component!"); }
     return scene_->registry_.get<T>(entityHandle_);
 }
 
 template <typename T>
-bool Entity::HasComponent() {
+bool Entity::HasComponent() const {
     return scene_->registry_.all_of<T>(entityHandle_);
 }
 

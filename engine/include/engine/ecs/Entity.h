@@ -29,9 +29,12 @@ class Entity {
     template <typename T>
     T& GetComponent();
 
+    template <typename T>
+    const T& GetComponent() const;
+
     // Check if entity has component
     template <typename T>
-    bool HasComponent();
+    bool HasComponent() const;
 
     // Remove component from entity
     template <typename T>
@@ -48,6 +51,22 @@ class Entity {
     // Remove a lifecycle-managed component by type
     template <typename T>
     void RemoveScript();
+
+    // ==================== Hierarchy API ====================
+    // Set parent entity
+    void SetParent(Entity parent);
+    
+    // Get parent entity
+    Entity GetParent() const;
+    
+    // Get all children
+    std::vector<Entity> GetChildren() const;
+    
+    // Check if entity has parent
+    bool HasParent() const;
+    
+    // Check if entity has children
+    bool HasChildren() const;
 
     // Get entity ID
     uint32_t GetID() const {

@@ -76,7 +76,53 @@ Entity Scene::FindEntityByName(const std::string& name) {
     return Entity();
 }
 
+static void UpdateTransformRecursive(entt::registry& registry, entt::entity entity, const Matrix4& parentMatrix) {
+    if (!registry.valid(entity)) return;
+
+    // Check if entity has TransformComponent
+    if (!registry.any_of<TransformComponent>(entity)) return;
+
+    auto& transform = registry.get<TransformComponent>(entity);
+    Matrix4 localMatrix = transform.GetTransform();
+    transform.WorldMatrix = parentMatrix * localMatrix;
+
+    // Propagate to children
+    if (registry.any_of<RelationshipComponent>(entity)) {
+        const auto& rel = registry.get<RelationshipComponent>(entity);
+        for (auto child : rel.Children) {
+            UpdateTransformRecursive(registry, child, transform.WorldMatrix);
+        }
+    }
+}
+
+void Scene::UpdateTransforms() {
+    auto view = registry_.view<TransformComponent>();
+    for (auto entity : view) {
+        // If entity has parent, skip (it will be updated by its parent)
+        if (registry_.any_of<RelationshipComponent>(entity)) {
+             if (registry_.get<RelationshipComponent>(entity).Parent != entt::null) {
+                 continue;
+             }
+        }
+        
+        // Root entity (no parent)
+        auto& transform = view.get<TransformComponent>(entity);
+        transform.WorldMatrix = transform.GetTransform(); // Local is World for root
+        
+        // Propagate to children if any
+        if (registry_.any_of<RelationshipComponent>(entity)) {
+            const auto& rel = registry_.get<RelationshipComponent>(entity);
+            for (auto child : rel.Children) {
+                UpdateTransformRecursive(registry_, child, transform.WorldMatrix);
+            }
+        }
+    }
+}
+
 void Scene::OnUpdate(float deltaTime) {
+    // 1. Update transforms based on hierarchy
+    UpdateTransforms();
+
     // Physics simulation
     if (physics_system_) { physics_system_->Update(deltaTime); }
 
