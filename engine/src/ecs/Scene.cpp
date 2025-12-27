@@ -3,6 +3,7 @@
 #include "engine/Application.h"
 #include "engine/Camera.h"
 #include "engine/Log.h"
+#include "engine/ecs/AnimationSystem.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -76,9 +77,55 @@ Entity Scene::FindEntityByName(const std::string& name) {
     return Entity();
 }
 
+static void UpdateTransformRecursive(entt::registry& registry, entt::entity entity, const Matrix4& parentMatrix) {
+    if (!registry.valid(entity)) return;
+
+    // Check if entity has TransformComponent
+    if (!registry.any_of<TransformComponent>(entity)) return;
+
+    auto& transform = registry.get<TransformComponent>(entity);
+    Matrix4 localMatrix = transform.GetTransform();
+    transform.WorldMatrix = parentMatrix * localMatrix;
+
+    // Propagate to children
+    if (registry.any_of<RelationshipComponent>(entity)) {
+        const auto& rel = registry.get<RelationshipComponent>(entity);
+        for (auto child : rel.Children) {
+            UpdateTransformRecursive(registry, child, transform.WorldMatrix);
+        }
+    }
+}
+
+void Scene::UpdateTransforms() {
+    auto view = registry_.view<TransformComponent>();
+    for (auto entity : view) {
+        // If entity has parent, skip (it will be updated by its parent)
+        if (registry_.any_of<RelationshipComponent>(entity)) {
+             if (registry_.get<RelationshipComponent>(entity).Parent != entt::null) {
+                 continue;
+             }
+        }
+        
+        // Root entity (no parent)
+        auto& transform = view.get<TransformComponent>(entity);
+        transform.WorldMatrix = transform.GetTransform(); // Local is World for root
+        
+        // Propagate to children if any
+        if (registry_.any_of<RelationshipComponent>(entity)) {
+            const auto& rel = registry_.get<RelationshipComponent>(entity);
+            for (auto child : rel.Children) {
+                UpdateTransformRecursive(registry_, child, transform.WorldMatrix);
+            }
+        }
+    }
+}
+
 void Scene::OnUpdate(float deltaTime) {
     // Physics simulation
     if (physics_system_) { physics_system_->Update(deltaTime); }
+
+    // Animation system - tick all AnimatorComponents
+    AnimationSystem::Update(*this, deltaTime);
 
     // Component lifecycle
     if (component_system_) {
@@ -87,6 +134,17 @@ void Scene::OnUpdate(float deltaTime) {
         component_system_->Update(deltaTime);
         component_system_->LateUpdate(deltaTime);
     }
+    
+    // Update transforms AFTER logic and physics to ensure rendering is up to date
+    UpdateTransforms();
+
+    // Bone attachment system - must happen AFTER character world matrices are updated
+    // to avoid a 1-frame lag/flickering.
+    AnimationSystem::UpdateBoneAttachments(*this);
+
+    // Update transforms again ONLY if we have attachments to ensure they are rendered correctly.
+    // In a more complex engine, this would be part of a dependency-sorted update.
+    UpdateTransforms();
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {

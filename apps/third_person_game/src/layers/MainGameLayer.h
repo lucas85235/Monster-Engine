@@ -1,9 +1,6 @@
 #pragma once
 /**
- * MainGameLayer.h - Primary game layer for the third-person game.
- *
- * Manages scene lifecycle, entity creation, and game loop integration.
- * Loads map data and spawns the player character with all required components.
+ * MainGameLayer - Primary game layer managing scene lifecycle.
  */
 
 #include "../components/Character.h"

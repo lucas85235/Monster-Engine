@@ -1,50 +1,145 @@
 #include "CharacterRender.h"
+#include "Character.h"
 
-#include "apps/SampleUtilities.h"
 #include "engine/Application.h"
+#include "engine/ecs/AnimatorComponent.h"
+#include "engine/ecs/BoneAttachmentComponent.h"
+#include "engine/ecs/ModelComponent.h"
 #include "engine/ecs/SimpleComponents.h"
-#include "engine/physics/PhysicsDebugDraw.h"
-#include "engine/physics/PhysicsSystem.h"
-#include "engine/resources/MeshManager.h"
-#include "LinearMath/btIDebugDraw.h"
+#include "engine/ecs/SkinnedModelComponent.h"
+#include "engine/animation/AnimationManager.h"
+#include "engine/animation/SkinnedModelManager.h"
+#include "engine/resources/ModelManager.h"
 
 namespace FirstGame {
-void CharacterRender::Awake() {
-    SetupMesh();
-    SetupDebugVisualization();
 
-    SE_LOG_INFO("CharacterRender::Awake() - Visual setup complete");
+void CharacterRender::Awake() {
+}
+
+void CharacterRender::Start() {
+    if (!LoadModel()) {
+        return;
+    }
+    
+    ApplyTransformCorrections();
+    
+    if (modelData_ && modelData_->HasSkeleton()) {
+        SetupAnimator();
+        SetupBoneAttachmentTest();
+    }
 }
 
 void CharacterRender::Update(float dt) {
-    // Animation updates, visual effects, etc.
+    // Query Character for movement state (decoupled from Controller)
+    if (auto* character = GetEntity().FindComponent<Character>()) {
+        UpdateMovementState(character->IsMoving());
+    }
 }
 
-void CharacterRender::SetupMesh() {
-    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
+bool CharacterRender::LoadModel() {
+    auto skinnedModel = SkinnedModelManager::Load(config_.ModelPath);
+    if (!skinnedModel) {
+        SE_LOG_ERROR("CharacterRender: Failed to load model from '{}'", config_.ModelPath);
+        return false;
+    }
+    
+    visualEntity_ = GetScene()->CreateEntity("CharacterModel");
+    visualEntity_.SetParent(GetEntity());
+    
+    visualEntity_.AddComponent<SkinnedModelComponent>(skinnedModel);
+    modelData_ = skinnedModel->GetModelData();
+    
+    return true;
+}
 
-    material_ = Utilities::LoadMaterial();
-    if (!material_) {
-        SE_LOG_ERROR("CharacterRender: Failed to load material");
+void CharacterRender::ApplyTransformCorrections() {
+    if (!visualEntity_) return;
+    
+    auto& transform = visualEntity_.GetComponent<TransformComponent>();
+    transform.SetScale(config_.Scale);
+    transform.SetPosition(config_.Offset);
+}
+
+bool CharacterRender::SetupAnimator() {
+    if (!visualEntity_ || !modelData_) return false;
+    
+    auto& animComp = visualEntity_.AddComponent<AnimatorComponent>();
+    animComp.Init(modelData_);
+    
+    // Create animation controller with Idle/Jog states
+    animController_ = std::make_shared<AnimatorController>("CharacterAnimator");
+    
+    // Load clips
+    auto idleClip = AnimationManager::Load(config_.IdleAnimPath);
+    auto jogClip = AnimationManager::Load(config_.JogAnimPath);
+    
+    if (!idleClip || !jogClip) {
+        SE_LOG_ERROR("CharacterRender: Failed to load animation clips");
+        return false;
+    }
+    
+    // Add states
+    animController_->AddState({"Idle", idleClip, 1.0f, true});
+    animController_->AddState({"Jog", jogClip, 1.0f, true});
+    animController_->SetDefaultState("Idle");
+    
+    // Add parameter
+    animController_->AddParameter("IsMoving", false);
+    
+    // Add transitions: Idle <-> Jog based on IsMoving parameter
+    AnimationTransition idleToJog;
+    idleToJog.FromState = "Idle";
+    idleToJog.ToState = "Jog";
+    idleToJog.TransitionDuration = config_.TransitionDuration;
+    idleToJog.Conditions.push_back({"IsMoving", TransitionCondition::CompareMode::Equals, true});
+    animController_->AddTransition(idleToJog);
+    
+    AnimationTransition jogToIdle;
+    jogToIdle.FromState = "Jog";
+    jogToIdle.ToState = "Idle";
+    jogToIdle.TransitionDuration = config_.TransitionDuration;
+    jogToIdle.Conditions.push_back({"IsMoving", TransitionCondition::CompareMode::Equals, false});
+    animController_->AddTransition(jogToIdle);
+    
+    // Set controller on animator
+    animComp.SetController(animController_);
+    
+    return true;
+}
+
+void CharacterRender::UpdateMovementState(bool moving) {
+    if (isMoving_ == moving) return;
+    
+    isMoving_ = moving;
+    
+    if (animController_) {
+        animController_->SetBool("IsMoving", moving);
+    }
+}
+
+void CharacterRender::SetupBoneAttachmentTest() {
+    // Create a sphere attached to the character's right hand
+    auto sphereModel = ModelManager::Load("assets/models/test/sphere.fbx");
+    if (!sphereModel) {
+        SE_LOG_WARN("CharacterRender: Could not load sphere for bone attachment test");
         return;
     }
-
-    GetEntity().AddComponent<MeshRenderComponent>(mesh, material_);
+    
+    Entity sphere = GetScene()->CreateEntity("HandSphere");
+    sphere.AddComponent<ModelComponent>(sphereModel);
+    
+    // Attach to right hand bone: "mixamorig:RightHand"
+    // We set PositionOffset to 0 for now to see if it's exactly in the palm.
+    // Scale is in absolute world units (meters). 0.5f means 50cm sphere.
+    sphere.AddComponent<BoneAttachmentComponent>(
+        visualEntity_,
+        "mixamorig:RightHand",
+        glm::vec3(0.0f, 0.2f, 0.0f),               // Position offset (relative to bone)
+        glm::vec3(0.0f),               // Rotation offset
+        glm::vec3(0.1f)                // Scale multiplier (World Scale)
+    );
+    
+    SE_LOG_INFO("CharacterRender: Created sphere attached to RightHand bone ('mixamorig:RightHand')");
 }
 
-void CharacterRender::SetupDebugVisualization() {
-    if (!config_.enablePhysicsDebug) return;
-
-    Scene* scene = GetScene();
-    if (!scene || !scene->GetPhysicsSystem()) {
-        SE_LOG_WARN("CharacterRender: Cannot enable debug - no physics system");
-        return;
-    }
-
-    auto* debugDrawer = scene->GetPhysicsSystem()->GetDebugDrawer();
-    if (debugDrawer) {
-        debugDrawer->setDebugMode(btIDebugDraw::DBG_DrawWireframe);
-        SE_LOG_INFO("CharacterRender: Physics debug enabled");
-    }
-}
 } // namespace FirstGame

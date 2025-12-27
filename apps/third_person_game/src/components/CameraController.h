@@ -1,14 +1,6 @@
 #pragma once
 /**
- * CameraController.h - Third-person camera controller.
- *
- * This component manages:
- * - Spring arm camera behavior
- * - Camera collision avoidance
- * - Camera smoothing and interpolation
- *
- * Requires: TransformComponent (on target entity)
- * Adds: SpringArmComponent
+ * CameraController - Spring arm camera with collision avoidance.
  */
 
 #include "Engine.h"
@@ -23,12 +15,10 @@ class RigidbodyComponent;
 namespace FirstGame {
 using namespace se;
 
-// ============================================================================
-// Camera Configuration
-// ============================================================================
+
 
 struct SpringArmConfig {
-    float targetArmLength = 8.0f;
+    float targetArmLength = 4.0f;
     float minArmLength    = 0.5f;
     float probeSize       = 0.3f;
     float lerpSpeedIn     = 15.0f;
@@ -36,7 +26,7 @@ struct SpringArmConfig {
     float initialPitch    = -30.0f;
     float minPitch        = -80.0f;
     float maxPitch        = 80.0f;
-    Vector3 socketOffset  = {0.0f, 1.5f, 0.0f};
+    Vector3 socketOffset  = {0.0f, 0.8f, 0.0f};
     bool enableCollision  = true;
 };
 
@@ -46,9 +36,7 @@ struct CameraInputConfig {
     bool  invertY      = false;
 };
 
-// ============================================================================
-// CameraController Component
-// ============================================================================
+
 
 class CameraController : public Component {
 public:
@@ -60,17 +48,17 @@ public:
     void Start() override;
     void LateUpdate(float dt) override;
 
-    // === Camera Access ===
+    // State queries
     Camera* GetCamera() const { return camera_; }
 
-    // === Input ===
+    // Input handling
     void RotateCamera(float deltaX, float deltaY);
 
-    // === Configuration ===
+    // Configuration
     SpringArmConfig&   GetSpringArmConfig() { return springArmConfig_; }
     CameraInputConfig& GetInputConfig() { return inputConfig_; }
 
-    // === State ===
+
     float GetCurrentYaw() const;
     float GetCurrentPitch() const;
     Vector3 GetForwardDirection() const;

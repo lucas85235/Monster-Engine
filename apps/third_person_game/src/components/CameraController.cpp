@@ -7,9 +7,7 @@
 
 namespace FirstGame {
 
-// ============================================================================
-// Lifecycle
-// ============================================================================
+
 
 CameraController::~CameraController() {
     delete camera_;
@@ -19,29 +17,21 @@ CameraController::~CameraController() {
 void CameraController::Awake() {
     CreateCamera();
     SetupSpringArm();
-
-    SE_LOG_INFO("CameraController::Awake() - Initialized");
 }
 
 void CameraController::Start() {
     CacheComponents();
 
-    // Set as active camera
     if (camera_ && GetScene()) {
         GetScene()->SetActiveCamera(camera_);
-        SE_LOG_INFO("CameraController: Camera set as active");
     }
-
-    SE_LOG_INFO("CameraController::Start() - Ready");
 }
 
 void CameraController::LateUpdate(float dt) {
     UpdateCameraPosition(dt);
 }
 
-// ============================================================================
-// Initialization
-// ============================================================================
+
 
 void CameraController::CreateCamera() {
     camera_ = new Camera(Vector3(0.0f, 5.0f, 10.0f));
@@ -72,12 +62,10 @@ void CameraController::CacheComponents() {
     }
 
     // Try to get rigidbody for collision ignore
-    rigidbody_ = entity.GetScript<RigidbodyComponent>();
+    rigidbody_ = entity.FindComponent<RigidbodyComponent>();
 }
 
-// ============================================================================
-// Public API
-// ============================================================================
+
 
 void CameraController::RotateCamera(float deltaX, float deltaY) {
     if (!springArm_) return;
@@ -107,9 +95,7 @@ Vector3 CameraController::GetRightDirection() const {
     return Vector3(std::cos(yaw), 0.0f, -std::sin(yaw));
 }
 
-// ============================================================================
-// Camera Update
-// ============================================================================
+
 
 void CameraController::UpdateCameraPosition(float dt) {
     if (!springArm_ || !transform_ || !camera_) return;

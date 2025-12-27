@@ -7,27 +7,21 @@
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
-// ============================================================================
-// Lifecycle
-// ============================================================================
+
 
 void CharacterController::Awake() {
     BindInputs();
-    SE_LOG_INFO("CharacterController::Awake() - Input bindings set");
 }
 
 void CharacterController::Start() {
     CacheComponents();
-    SE_LOG_INFO("CharacterController::Start() - Ready");
 }
 
 void CharacterController::Update(float dt) {
     ProcessInput(dt);
 }
 
-// ============================================================================
-// Initialization
-// ============================================================================
+
 
 void CharacterController::BindInputs() {
     auto& input = InputManager::Get();
@@ -53,21 +47,16 @@ void CharacterController::CacheComponents() {
     Entity entity = GetEntity();
 
     // Get Character component (lifecycle)
-    character_ = entity.GetScript<Character>();
+    character_ = entity.FindComponent<Character>();
     if (!character_) {
         SE_LOG_WARN("CharacterController: No Character component found!");
     }
 
     // Get CameraController (lifecycle)
-    cameraController_ = entity.GetScript<CameraController>();
-    if (!cameraController_) {
-        SE_LOG_WARN("CharacterController: No CameraController component found!");
-    }
+    cameraController_ = entity.FindComponent<CameraController>();
 }
 
-// ============================================================================
-// Input Processing
-// ============================================================================
+
 
 void CharacterController::ProcessInput(float /* unused - using Time::DeltaTime() */) {
     HandleMouseToggle();
@@ -111,7 +100,9 @@ void CharacterController::ProcessMovementInput() {
     Vector3 moveDir = forward * moveZ + right * moveX;
 
     // Rotate towards movement direction
-    if (glm::length(moveDir) > 0.01f) {
+    bool isMoving = glm::length(moveDir) > 0.01f;
+    
+    if (isMoving) {
         float targetYaw = Math::CalculateYawFromDirection(moveDir.x, moveDir.z);
         character_->RotateTowards(targetYaw);
 

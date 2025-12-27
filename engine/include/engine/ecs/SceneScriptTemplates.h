@@ -43,7 +43,7 @@ T& Entity::AddLifecycleComponent(Args&&... args) {
 }
 
 template <typename T>
-T* Entity::GetScript() {
+T* Entity::FindComponent() {
     static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
 
     if (!HasComponent<ScriptComponent>()) { return nullptr; }
@@ -53,7 +53,7 @@ T* Entity::GetScript() {
 }
 
 template <typename T>
-bool Entity::HasScript() {
+bool Entity::HasLifecycleComponent() {
     static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
 
     if (!HasComponent<ScriptComponent>()) { return false; }
@@ -63,11 +63,11 @@ bool Entity::HasScript() {
 }
 
 template <typename T>
-void Entity::RemoveScript() {
+void Entity::RemoveLifecycleComponent() {
     static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
 
     if (!HasComponent<ScriptComponent>()) {
-        SE_LOG_WARN("Entity does not have any scripts!");
+        SE_LOG_WARN("Entity does not have any lifecycle components!");
         return;
     }
 
@@ -75,7 +75,7 @@ void Entity::RemoveScript() {
     T* script = sc.Get<T>();
 
     if (!script) {
-        SE_LOG_WARN("Entity does not have script of type!");
+        SE_LOG_WARN("Entity does not have component of type!");
         return;
     }
 

@@ -5,6 +5,7 @@
 #include <gtx/quaternion.hpp>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace se {
 // Forward declarations
@@ -116,6 +117,10 @@ struct TransformComponent {
     mutable Quaternion cachedQuaternion_;
     mutable bool       dirty_                 = true;
     mutable bool       cachedQuaternionValid_ = false;
+
+   public:
+    // World transformation matrix (calculated by hierarchy system)
+    Matrix4 WorldMatrix{1.0f};
 };
 
 // ==================== Name Component ====================
@@ -184,4 +189,15 @@ struct SpringArmComponent {
     SpringArmComponent(const SpringArmComponent&) = default;
 };
 
+// ==================== Relationship Component ====================
+struct RelationshipComponent {
+    entt::entity              Parent = entt::null;
+    std::vector<entt::entity> Children;
+
+    size_t ChildrenCount() const {
+        return Children.size();
+    }
+};
+
 }  // namespace se
+

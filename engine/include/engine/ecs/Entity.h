@@ -29,25 +29,44 @@ class Entity {
     template <typename T>
     T& GetComponent();
 
+    template <typename T>
+    const T& GetComponent() const;
+
     // Check if entity has component
     template <typename T>
-    bool HasComponent();
+    bool HasComponent() const;
 
     // Remove component from entity
     template <typename T>
     void RemoveComponent();
 
-    // Get a lifecycle-managed component by type (if added via Component inheritance)
+    // Find a lifecycle-managed component by type (returns nullptr if not found)
     template <typename T>
-    T* GetScript();
+    T* FindComponent();
 
     // Check if entity has a specific lifecycle-managed component
     template <typename T>
-    bool HasScript();
+    bool HasLifecycleComponent();
 
     // Remove a lifecycle-managed component by type
     template <typename T>
-    void RemoveScript();
+    void RemoveLifecycleComponent();
+
+    // ==================== Hierarchy API ====================
+    // Set parent entity
+    void SetParent(Entity parent);
+    
+    // Get parent entity
+    Entity GetParent() const;
+    
+    // Get all children
+    std::vector<Entity> GetChildren() const;
+    
+    // Check if entity has parent
+    bool HasParent() const;
+    
+    // Check if entity has children
+    bool HasChildren() const;
 
     // Get entity ID
     uint32_t GetID() const {

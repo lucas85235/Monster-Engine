@@ -5,6 +5,8 @@
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
+#include "engine/resources/ModelManager.h"
+#include "engine/resources/TextureManager.h"
 
 namespace se {
 
@@ -30,8 +32,10 @@ void Renderer::Init() {
     ServiceLocator::Get().ProvideSceneRenderer(&sceneRenderer_);
 
     // Initialize resource managers
+    TextureManager::Init();
     MeshManager::Init();
     MaterialManager::Init();
+    ModelManager::Init();
 
     // Initialize render system
     RenderSystem::Init();
@@ -46,8 +50,10 @@ void Renderer::Shutdown() {
     SE_LOG_INFO("Shutting down Renderer");
 
     RenderSystem::Shutdown();
+    ModelManager::Shutdown();
     MaterialManager::Shutdown();
     MeshManager::Shutdown();
+    TextureManager::Shutdown();
     sceneRenderer_.Shutdown();
 
     initialized_ = false;

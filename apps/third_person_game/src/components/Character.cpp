@@ -5,29 +5,15 @@
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
-// ============================================================================
-// Lifecycle
-// ============================================================================
+
 
 void Character::Awake() {
     SetupPhysics();
-    SE_LOG_INFO("Character::Awake() - Physics initialized");
 }
 
 void Character::Start() {
-    rigidbody_ = GetEntity().GetScript<RigidbodyComponent>();
+    rigidbody_ = GetEntity().FindComponent<RigidbodyComponent>();
     physicsSystem_ = GetEntity().GetScene()->GetPhysicsSystem();
-
-    if (rigidbody_) {
-        SE_LOG_INFO("Character::Start() - Rigidbody cached (body: {})",
-                    (void*)rigidbody_->GetRigidbody());
-    } else {
-        SE_LOG_ERROR("Character::Start() - Failed to get RigidbodyComponent!");
-    }
-
-    if (!physicsSystem_) {
-        SE_LOG_ERROR("Character::Start() - Failed to get PhysicsSystem!");
-    }
 }
 
 void Character::Update(float dt) {
@@ -36,13 +22,10 @@ void Character::Update(float dt) {
     ApplyDrag(dt);
 }
 
-// ============================================================================
-// Physics Setup
-// ============================================================================
+
 
 void Character::SetupPhysics() {
-    // IMPORTANT: Add collider BEFORE RigidbodyComponent!
-    // RigidbodyComponent::Awake() reads the collider shape.
+    // Rigidbody setup requires collider to be present.
     CapsuleCollider collider;
     collider.Height = physicsConfig_.height;
     collider.Radius = physicsConfig_.radius;
@@ -62,9 +45,7 @@ void Character::SetupPhysics() {
     GetEntity().AddComponent<RigidbodyComponent>(rigidData);
 }
 
-// ============================================================================
-// Movement API
-// ============================================================================
+
 
 void Character::Move(const Vector3& direction) {
     if (!rigidbody_) return;
@@ -105,9 +86,7 @@ void Character::StopMovement() {
     SetVelocity(velocity);
 }
 
-// ============================================================================
-// State Queries
-// ============================================================================
+
 
 bool Character::IsMoving() const {
     Vector3 vel = GetVelocity();
@@ -124,9 +103,7 @@ void Character::SetVelocity(const Vector3& velocity) {
     rigidbody_->SetLinearVelocity(ToBt(velocity));
 }
 
-// ============================================================================
-// Internal
-// ============================================================================
+
 
 void Character::UpdateGroundedState() {
     if (!physicsSystem_ || !rigidbody_) {

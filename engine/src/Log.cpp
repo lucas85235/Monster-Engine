@@ -22,7 +22,8 @@ void LogInit(bool toFile) {
 #else
     g_logger->set_level(spdlog::level::info);
 #endif
-    g_logger->flush_on(spdlog::level::err);
+    // Flush on every info message to ensure logs are written before crash
+    g_logger->flush_on(spdlog::level::info);
 }
 
 std::shared_ptr<spdlog::logger>& Logger() {

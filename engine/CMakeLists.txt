@@ -48,6 +48,7 @@ set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
 set(rmlui_DIR ${third_party_dir}/RmlUi)
 set(bullet_DIR ${third_party_dir}/bullet)
+set(assimp_DIR ${third_party_dir}/assimp)
 
 
 add_library(stb STATIC
@@ -84,6 +85,15 @@ set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
 add_subdirectory(${rmlui_DIR})
 
+# Assimp Configuration
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${assimp_DIR})
+
 find_package(OpenGL REQUIRED)
 
 file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
@@ -107,6 +117,8 @@ target_include_directories(simple_engine PUBLIC
         ${entt_DIR}
         ${rmlui_DIR}/Include
         ${bullet_DIR}/src
+        ${assimp_DIR}/include
+        ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
 )
 
 # --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
@@ -129,6 +141,7 @@ target_link_libraries(simple_engine PUBLIC
         BulletDynamics
         BulletCollision
         LinearMath
+        assimp
 )
 
 # Adiciona definições de compilação necessárias

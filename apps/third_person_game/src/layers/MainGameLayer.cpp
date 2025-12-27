@@ -40,14 +40,9 @@ void MainGameLayer::OnAttach() {
     // Load map from file
     auto mapResult = se::MapLoader::Load(*scene_, "assets/maps/test.mstmap");
     if (mapResult.success) {
-        SE_LOG_INFO("Loaded map with {} entities", mapResult.entityCount);
-    } else {
-        SE_LOG_WARN("Failed to load map, creating empty scene");
+        SE_LOG_INFO("Loaded map: {} entities", mapResult.entityCount);
     }
 
-    // Create character entity with all components
-    // Components are added in order and their Awake() is called immediately
-    // Start() is called before first Update()
     character_entity_ = scene_->CreateEntity("Character");
 
     // IMPORTANT: Set position BEFORE adding physics components!
@@ -56,22 +51,11 @@ void MainGameLayer::OnAttach() {
         auto& transform = character_entity_.GetComponent<se::TransformComponent>();
         transform.SetPosition(mapResult.playerStartPosition);
         transform.SetRotation(mapResult.playerStartRotation);
-        SE_LOG_INFO("Character will spawn at Player Start: ({}, {}, {})",
-                    mapResult.playerStartPosition.x,
-                    mapResult.playerStartPosition.y,
-                    mapResult.playerStartPosition.z);
     }
 
-    // 1. Character: Sets up physics (collider + rigidbody)
     character_entity_.AddComponent<Character>();
-
-    // 2. CameraController: Sets up spring arm camera
     character_entity_.AddComponent<CameraController>();
-
-    // 3. CharacterController: Binds input and coordinates Character + Camera
     character_entity_.AddComponent<CharacterController>();
-
-    // 4. CharacterRender: Sets up mesh and materials
     character_entity_.AddComponent<CharacterRender>();
 }
 
