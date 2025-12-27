@@ -39,7 +39,12 @@ public:
     const std::vector<glm::mat4>& GetBoneMatrices() const { return finalBoneMatrices_; }
     std::shared_ptr<AnimationClip> GetCurrentClip() const { return currentClip_; }
     
+    // Get world-space transform for a specific bone (for attachment)
+    glm::mat4 GetBoneWorldMatrix(int boneIndex) const;
+    glm::mat4 GetBoneWorldMatrix(const std::string& boneName) const;
+    
     void SetModelData(const SkinnedModelData* modelData);
+    const SkinnedModelData* GetModelData() const { return modelData_; }
     
 private:
     void CalculateBoneTransforms();

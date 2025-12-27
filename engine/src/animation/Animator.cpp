@@ -262,4 +262,26 @@ glm::mat4 Animator::GetBoneLocalTransform(const AnimationClip* clip, const std::
     return translationMatrix * rotationMatrix * scaleMatrix;
 }
 
+glm::mat4 Animator::GetBoneWorldMatrix(int boneIndex) const {
+    if (!modelData_ || boneIndex < 0 || boneIndex >= static_cast<int>(finalBoneMatrices_.size())) {
+        return glm::mat4(1.0f);
+    }
+    
+    // finalBoneMatrices_ contains: GlobalInverseTransform * GlobalTransform * OffsetMatrix
+    // We need to undo the GlobalInverseTransform and OffsetMatrix to get world transform
+    // WorldTransform = inverse(GlobalInverseTransform) * finalBoneMatrix * inverse(OffsetMatrix)
+    const BoneInfo& bone = modelData_->Bones[boneIndex];
+    glm::mat4 globalTransform = glm::inverse(modelData_->GlobalInverseTransform);
+    glm::mat4 boneWorld = globalTransform * finalBoneMatrices_[boneIndex] * glm::inverse(bone.OffsetMatrix);
+    
+    return boneWorld;
+}
+
+glm::mat4 Animator::GetBoneWorldMatrix(const std::string& boneName) const {
+    if (!modelData_) return glm::mat4(1.0f);
+    
+    int boneIndex = modelData_->GetBoneIndex(boneName);
+    return GetBoneWorldMatrix(boneIndex);
+}
+
 }  // namespace se

@@ -50,6 +50,7 @@ private:
     bool SetupAnimator();
     void ApplyTransformCorrections();
     void UpdateMovementState(bool moving);
+    void SetupBoneAttachmentTest();
 
     CharacterRenderConfig config_;
     Entity visualEntity_;

@@ -3,10 +3,13 @@
 
 #include "engine/Application.h"
 #include "engine/ecs/AnimatorComponent.h"
+#include "engine/ecs/BoneAttachmentComponent.h"
+#include "engine/ecs/ModelComponent.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/SkinnedModelComponent.h"
 #include "engine/animation/AnimationManager.h"
 #include "engine/animation/SkinnedModelManager.h"
+#include "engine/resources/ModelManager.h"
 
 namespace FirstGame {
 
@@ -22,6 +25,7 @@ void CharacterRender::Start() {
     
     if (modelData_ && modelData_->HasSkeleton()) {
         SetupAnimator();
+        SetupBoneAttachmentTest();
     }
 }
 
@@ -111,6 +115,31 @@ void CharacterRender::UpdateMovementState(bool moving) {
     if (animController_) {
         animController_->SetBool("IsMoving", moving);
     }
+}
+
+void CharacterRender::SetupBoneAttachmentTest() {
+    // Create a sphere attached to the character's right hand
+    auto sphereModel = ModelManager::Load("assets/models/test/sphere.fbx");
+    if (!sphereModel) {
+        SE_LOG_WARN("CharacterRender: Could not load sphere for bone attachment test");
+        return;
+    }
+    
+    Entity sphere = GetScene()->CreateEntity("HandSphere");
+    sphere.AddComponent<ModelComponent>(sphereModel);
+    
+    // Scale down the sphere
+    auto& transform = sphere.GetComponent<TransformComponent>();
+    transform.SetScale({0.8f, 0.8f, 0.8f});
+    
+    // Attach to right hand bone (Y_Bot uses "mixamorig:RightHand")
+    sphere.AddComponent<BoneAttachmentComponent>(
+        visualEntity_,
+        "mixamorig:RightHand",
+        glm::vec3(0.0f, 0.0f, 0.0f)  // Position offset
+    );
+    
+    SE_LOG_INFO("CharacterRender: Created sphere attached to RightHand bone");
 }
 
 } // namespace FirstGame
