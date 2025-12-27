@@ -5,6 +5,7 @@
 #include "engine/ecs/RenderSystem.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
+#include "engine/resources/ModelManager.h"
 
 namespace se {
 
@@ -32,6 +33,7 @@ void Renderer::Init() {
     // Initialize resource managers
     MeshManager::Init();
     MaterialManager::Init();
+    ModelManager::Init();
 
     // Initialize render system
     RenderSystem::Init();
@@ -46,6 +48,7 @@ void Renderer::Shutdown() {
     SE_LOG_INFO("Shutting down Renderer");
 
     RenderSystem::Shutdown();
+    ModelManager::Shutdown();
     MaterialManager::Shutdown();
     MeshManager::Shutdown();
     sceneRenderer_.Shutdown();

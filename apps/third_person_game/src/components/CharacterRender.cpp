@@ -2,18 +2,26 @@
 
 #include "apps/SampleUtilities.h"
 #include "engine/Application.h"
+#include "engine/ecs/ModelComponent.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"
-#include "engine/resources/MeshManager.h"
+#include "engine/resources/Model.h"
+#include "engine/resources/ModelManager.h"
 #include "LinearMath/btIDebugDraw.h"
 
 namespace FirstGame {
 void CharacterRender::Awake() {
-    SetupMesh();
+    // NOTE: Do NOT load models here - OpenGL context may not be ready!
+    // Model loading moved to Start() which runs in the main game loop
     SetupDebugVisualization();
+    SE_LOG_INFO("CharacterRender::Awake() - Initialized");
+}
 
-    SE_LOG_INFO("CharacterRender::Awake() - Visual setup complete");
+void CharacterRender::Start() {
+    // Load model in Start() to ensure OpenGL context is ready
+    SetupMesh();
+    SE_LOG_INFO("CharacterRender::Start() - Model loaded");
 }
 
 void CharacterRender::Update(float dt) {
@@ -21,15 +29,28 @@ void CharacterRender::Update(float dt) {
 }
 
 void CharacterRender::SetupMesh() {
-    auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
+    const std::string modelPath = "assets/models/characters/skeleton/SKM_Skeleton_Variant_1.fbx";
+    auto              model     = ModelManager::Load(modelPath);
 
-    material_ = Utilities::LoadMaterial();
-    if (!material_) {
-        SE_LOG_ERROR("CharacterRender: Failed to load material");
+    if (!model) {
+        SE_LOG_ERROR("CharacterRender: Failed to load model from '{}'", modelPath);
         return;
     }
 
-    GetEntity().AddComponent<MeshRenderComponent>(mesh, material_);
+    GetEntity().AddComponent<ModelComponent>(model);
+
+    // Apply transform corrections for FBX model
+    auto& transform = GetComponent<TransformComponent>();
+    transform.SetScale(glm::vec3(1.0f));
+
+    // FBX models often have different forward direction - rotate to face forward (-Z in our engine)
+    // Rotate -90 degrees on X axis to correct orientation (Standard Z-up to Y-up correction)
+    glm::vec3 currentRotation = transform.Rotation;
+    currentRotation.x         = -30.0f;
+    transform.SetRotation(currentRotation);
+
+    SE_LOG_INFO("CharacterRender: Loaded model '{}' with {} submeshes",
+                model->GetName(), model->GetSubMeshCount());
 }
 
 void CharacterRender::SetupDebugVisualization() {

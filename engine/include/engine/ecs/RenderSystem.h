@@ -71,6 +71,10 @@ class RenderSystem {
     // Instanced rendering material (uses instanced.vert/frag shader)
     static std::shared_ptr<Material> instancedMaterial_;
     static void                      EnsureInstancedMaterial();
+
+    // Model rendering material (uses model.vert/frag shader)
+    static std::shared_ptr<Material> modelMaterial_;
+    static void                      EnsureModelMaterial();
 };
 
 }  // namespace se

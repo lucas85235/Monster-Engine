@@ -116,8 +116,16 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
 }
 
 void SceneRenderer::EndScene() {
-    if (sceneData_.ShadowsEnabled) { RenderShadowPass(); }
+    SE_LOG_INFO("EndScene: Starting (ShadowsEnabled={})", sceneData_.ShadowsEnabled);
+    if (sceneData_.ShadowsEnabled) { 
+        SE_LOG_INFO("EndScene: Running shadow pass");
+        RenderShadowPass(); 
+        SE_LOG_INFO("EndScene: Shadow pass complete");
+    }
+    SE_LOG_INFO("EndScene: Running scene pass ({} submissions, {} instanced)", 
+                sceneData_.Submissions.size(), instancedSubmissions_.size());
     RenderScenePass();
+    SE_LOG_INFO("EndScene: Complete");
 }
 
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
@@ -376,21 +384,34 @@ void SceneRenderer::RenderShadowPass() {
 }
 
 void SceneRenderer::RenderScenePass() {
+    SE_LOG_INFO("RenderScenePass: Starting");
+    SE_LOG_INFO("RenderScenePass: Calling glActiveTexture");
     glActiveTexture(GL_TEXTURE0);
-    if (sceneData_.ShadowsEnabled && sceneData_.ShadowDepthTexture)
+    SE_LOG_INFO("RenderScenePass: glActiveTexture done");
+    if (sceneData_.ShadowsEnabled && sceneData_.ShadowDepthTexture) {
+        SE_LOG_INFO("RenderScenePass: Binding shadow texture");
         glBindTexture(GL_TEXTURE_2D, sceneData_.ShadowDepthTexture);
-    else
+    } else {
+        SE_LOG_INFO("RenderScenePass: Binding null texture");
         glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    SE_LOG_INFO("RenderScenePass: Texture binding done");
 
+    SE_LOG_INFO("RenderScenePass: Setting up occlusion culler");
+    SE_LOG_INFO("RenderScenePass: Calling SetViewProjection");
     occlusionCuller_.SetViewProjection(sceneData_.view_projection_matrix);
+    SE_LOG_INFO("RenderScenePass: Calling BeginFrame");
     occlusionCuller_.BeginFrame();
+    SE_LOG_INFO("RenderScenePass: Calling ResetStats");
     occlusionCuller_.ResetStats();
+    SE_LOG_INFO("RenderScenePass: Occlusion culler setup complete");
 
     // Separate into occluders (large) and occludees (small)
     std::vector<const Submission*> occluders;
     std::vector<const Submission*> occludees;
     const float                    kOccluderThreshold = 5.0f;
 
+    SE_LOG_INFO("RenderScenePass: Sorting {} submissions", sceneData_.Submissions.size());
     for (const auto& submission : sceneData_.Submissions) {
         if (!submission.vertex_array || !submission.material) continue;
 
@@ -398,6 +419,7 @@ void SceneRenderer::RenderScenePass() {
 
         // Frustum culling first
         if (frustumCullingEnabled_) {
+            // SE_LOG_INFO("RenderScenePass: Checking frustum for object {}", submission.ObjectId);
             if (!occlusionCuller_.IsSphereVisible(submission.Center, submission.BoundingRadius)) {
                 stats_.FrustumCulled++;
                 continue;
@@ -410,13 +432,24 @@ void SceneRenderer::RenderScenePass() {
             occludees.push_back(&submission);
         }
     }
+    SE_LOG_INFO("RenderScenePass: Submissions sorted: {} occluders, {} occludees", occluders.size(), occludees.size());
 
     // Lambda to render a single object
     auto renderObject = [this](const Submission& submission) {
+        SE_LOG_INFO("renderObject: Binding material for object {}", submission.ObjectId);
+        if (!submission.material) {
+            SE_LOG_ERROR("renderObject: Material is null for object {}", submission.ObjectId);
+            return;
+        }
         submission.material->Bind();
+        
         auto shader = submission.material->GetShader();
-        if (!shader) return;
+        if (!shader) {
+            SE_LOG_ERROR("renderObject: Shader is null for object {}", submission.ObjectId);
+            return;
+        }
 
+        SE_LOG_INFO("renderObject: Setting uniforms for object {}", submission.ObjectId);
         shader->setMat4("uView", sceneData_.ViewMatrix);
         shader->setMat4("uProj", sceneData_.ProjectionMatrix);
         shader->setMat4("uModel", submission.Transform);
@@ -435,27 +468,39 @@ void SceneRenderer::RenderScenePass() {
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
 
+        SE_LOG_INFO("renderObject: Drawing object {}", submission.ObjectId);
+        if (!submission.vertex_array) {
+            SE_LOG_ERROR("renderObject: VertexArray is null for object {}", submission.ObjectId);
+            return;
+        }
         RenderCommand::DrawIndexed(submission.vertex_array.get());
 
         stats_.VisibleObjects++;
         stats_.DrawCalls++;
         stats_.TriangleCount += submission.vertex_array->GetIndexBuffer()->GetCount() / 3;
+        SE_LOG_INFO("renderObject: Object {} done", submission.ObjectId);
     };
 
     // PHASE 1: Render all OCCLUDERS first to fill depth buffer
+    SE_LOG_INFO("RenderScenePass: PHASE 1 - Rendering {} occluders", occluders.size());
     for (const auto* submission : occluders) { renderObject(*submission); }
+    SE_LOG_INFO("RenderScenePass: PHASE 1 complete");
 
     // PHASE 2: Test occludee bounding boxes against depth buffer filled by occluders
     if (occlusionCullingEnabled_ && occlusionCuller_.IsEnabled()) {
+        SE_LOG_INFO("RenderScenePass: PHASE 2 - Occusion testing {} occludees", occludees.size());
         for (const auto* submission : occludees) {
             occlusionCuller_.BeginQuery(submission->ObjectId);
             occlusionCuller_.RenderBoundingBox(submission->Center,
                                                Vector3(submission->BoundingRadius));
             occlusionCuller_.EndQuery();
         }
+        SE_LOG_INFO("RenderScenePass: PHASE 2 complete");
 
         // Collect results immediately (blocking) to use this frame
+        SE_LOG_INFO("RenderScenePass: PHASE 3 - Collecting results");
         occlusionCuller_.CollectResults();
+        SE_LOG_INFO("RenderScenePass: PHASE 3 complete");
     }
 
     // PHASE 3: Render occludees that passed the visibility test
@@ -470,15 +515,23 @@ void SceneRenderer::RenderScenePass() {
     }
 
     // PHASE 4: Render instanced batches (no culling - already handled by RenderSystem)
+    SE_LOG_INFO("RenderScenePass: PHASE 4 - {} instanced batches", instancedSubmissions_.size());
+    int batchNum = 0;
     for (const auto& instanced : instancedSubmissions_) {
         if (!instanced.instancedMesh || !instanced.material) continue;
 
         uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
         if (instanceCount == 0) continue;
 
+        SE_LOG_INFO("RenderScenePass: Batch {} with {} instances", batchNum, instanceCount);
+
         instanced.material->Bind();
         auto shader = instanced.material->GetShader();
-        if (!shader) continue;
+        if (!shader) {
+            batchNum++;
+            continue;
+        }
+        SE_LOG_INFO("RenderScenePass: Shader bound for batch {}", batchNum);
 
         // Set uniforms (same as normal rendering, but no uModel - that comes from instance buffer)
         shader->setMat4("uView", sceneData_.ViewMatrix);

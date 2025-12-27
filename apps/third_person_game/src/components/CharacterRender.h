@@ -27,6 +27,7 @@ public:
     ~CharacterRender() override = default;
 
     void Awake() override;
+    void Start() override;
     void Update(float dt) override;
 
     RenderConfig& GetConfig() { return config_; }
@@ -35,7 +36,6 @@ private:
     void SetupMesh();
     void SetupDebugVisualization();
 
-    Ref<Material> material_;
     RenderConfig  config_;
 };
 

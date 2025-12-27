@@ -156,6 +156,8 @@ void OcclusionCuller::EndQuery() {
 
 void OcclusionCuller::BeginFrame() {
     // Release all queries back to pool (but keep previousFrameVisibility_ intact!)
+    if (!queryPool_) return;  // Not initialized yet
+    
     for (auto& [id, query] : activeQueries_) {
         if (query) { queryPool_->Release(query); }
     }
