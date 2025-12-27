@@ -2,6 +2,7 @@
 
 #include <gtc/matrix_transform.hpp>
 #include <gtx/quaternion.hpp>
+#include <gtx/matrix_decompose.hpp>
 
 #include "engine/Log.h"
 
@@ -12,7 +13,6 @@ Animator::Animator(const SkinnedModelData* modelData) : modelData_(modelData) {
         size_t boneCount = modelData_->Bones.size();
         finalBoneMatrices_.resize(boneCount, glm::mat4(1.0f));
         localTransforms_.resize(boneCount, glm::mat4(1.0f));
-        SE_LOG_INFO("Animator: Initialized with {} bones", boneCount);
     }
 }
 
@@ -27,7 +27,6 @@ void Animator::SetModelData(const SkinnedModelData* modelData) {
 
 void Animator::Play(std::shared_ptr<AnimationClip> clip, bool loop) {
     if (!clip) {
-        SE_LOG_WARN("Animator::Play: null clip");
         return;
     }
     
@@ -37,14 +36,49 @@ void Animator::Play(std::shared_ptr<AnimationClip> clip, bool loop) {
     playing_ = true;
     paused_ = false;
     
-    SE_LOG_INFO("Animator: Playing '{}' (duration: {:.2f}s, loop: {})", 
-                clip->GetName(), clip->GetDurationInSeconds(), loop);
+    // Cancel any active blend
+    isBlending_ = false;
+    blendFromClip_ = nullptr;
+    blendWeight_ = 1.0f;
+}
+
+void Animator::Crossfade(std::shared_ptr<AnimationClip> clip, float duration, bool loop) {
+    if (!clip) {
+        return;
+    }
+    
+    // If same clip, ignore
+    if (currentClip_ == clip) {
+        return;
+    }
+    
+    // If not currently playing, just play immediately
+    if (!playing_ || !currentClip_) {
+        Play(clip, loop);
+        return;
+    }
+    
+    // Store current animation as blend source
+    blendFromClip_ = currentClip_;
+    blendFromTime_ = currentTime_;
+    
+    // Start new animation
+    currentClip_ = clip;
+    currentTime_ = 0.0f;
+    looping_ = loop;
+    
+    // Setup blend
+    blendDuration_ = duration > 0.0f ? duration : 0.01f;
+    blendWeight_ = 0.0f;
+    isBlending_ = true;
 }
 
 void Animator::Stop() {
     playing_ = false;
     paused_ = false;
     currentTime_ = 0.0f;
+    isBlending_ = false;
+    blendFromClip_ = nullptr;
     
     for (auto& mat : finalBoneMatrices_) {
         mat = glm::mat4(1.0f);
@@ -66,7 +100,11 @@ void Animator::SetTime(float time) {
     currentTime_ = fmod(time * currentClip_->GetTicksPerSecond(), duration);
     if (currentTime_ < 0.0f) currentTime_ += duration;
     
-    CalculateBoneTransforms();
+    if (isBlending_) {
+        CalculateBoneTransformsBlended();
+    } else {
+        CalculateBoneTransforms();
+    }
 }
 
 void Animator::Update(float deltaTime) {
@@ -75,6 +113,7 @@ void Animator::Update(float deltaTime) {
     float ticksPerSecond = currentClip_->GetTicksPerSecond();
     float duration = currentClip_->GetDuration();
     
+    // Advance current animation time
     currentTime_ += deltaTime * ticksPerSecond * speed_;
     
     if (currentTime_ >= duration) {
@@ -86,17 +125,48 @@ void Animator::Update(float deltaTime) {
         }
     }
     
-    CalculateBoneTransforms();
+    // Update blend state
+    if (isBlending_) {
+        blendWeight_ += deltaTime / blendDuration_;
+        
+        if (blendWeight_ >= 1.0f) {
+            blendWeight_ = 1.0f;
+            isBlending_ = false;
+            blendFromClip_ = nullptr;
+        }
+        
+        // Also advance blend source animation
+        if (blendFromClip_) {
+            float blendTicksPerSecond = blendFromClip_->GetTicksPerSecond();
+            float blendDuration = blendFromClip_->GetDuration();
+            blendFromTime_ += deltaTime * blendTicksPerSecond * speed_;
+            if (blendFromTime_ >= blendDuration) {
+                blendFromTime_ = fmod(blendFromTime_, blendDuration);
+            }
+        }
+        
+        CalculateBoneTransformsBlended();
+    } else {
+        CalculateBoneTransforms();
+    }
 }
 
 void Animator::CalculateBoneTransforms() {
     if (!modelData_ || !currentClip_) return;
     
-    // Find root bones (bones with no parent)
     for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
         if (modelData_->Bones[i].ParentIndex < 0) {
-            // Start with identity, GlobalInverseTransform is applied at the end
             ProcessBoneHierarchy(static_cast<int>(i), glm::mat4(1.0f));
+        }
+    }
+}
+
+void Animator::CalculateBoneTransformsBlended() {
+    if (!modelData_ || !currentClip_) return;
+    
+    for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
+        if (modelData_->Bones[i].ParentIndex < 0) {
+            ProcessBoneHierarchyBlended(static_cast<int>(i), glm::mat4(1.0f));
         }
     }
 }
@@ -105,15 +175,13 @@ void Animator::ProcessBoneHierarchy(int boneIndex, const glm::mat4& parentTransf
     if (boneIndex < 0 || boneIndex >= static_cast<int>(modelData_->Bones.size())) return;
     
     const BoneInfo& bone = modelData_->Bones[boneIndex];
-    glm::mat4 localTransform = GetBoneLocalTransform(bone.Name, currentTime_);
+    glm::mat4 localTransform = GetBoneLocalTransform(currentClip_.get(), bone.Name, currentTime_);
     
     glm::mat4 globalTransform = parentTransform * localTransform;
     
-    // Final transform = GlobalInverseTransform * GlobalTransform * OffsetMatrix
     finalBoneMatrices_[boneIndex] = modelData_->GlobalInverseTransform * globalTransform * bone.OffsetMatrix;
     localTransforms_[boneIndex] = localTransform;
     
-    // Process children
     for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
         if (modelData_->Bones[i].ParentIndex == boneIndex) {
             ProcessBoneHierarchy(static_cast<int>(i), globalTransform);
@@ -121,11 +189,61 @@ void Animator::ProcessBoneHierarchy(int boneIndex, const glm::mat4& parentTransf
     }
 }
 
-glm::mat4 Animator::GetBoneLocalTransform(const std::string& boneName, float time) const {
-    const AnimationChannel* channel = currentClip_->FindChannel(boneName);
+void Animator::ProcessBoneHierarchyBlended(int boneIndex, const glm::mat4& parentTransform) {
+    if (boneIndex < 0 || boneIndex >= static_cast<int>(modelData_->Bones.size())) return;
+    
+    const BoneInfo& bone = modelData_->Bones[boneIndex];
+    
+    // Get transforms from both animations
+    glm::mat4 fromTransform = blendFromClip_ 
+        ? GetBoneLocalTransform(blendFromClip_.get(), bone.Name, blendFromTime_)
+        : GetBoneLocalTransform(currentClip_.get(), bone.Name, currentTime_);
+    
+    glm::mat4 toTransform = GetBoneLocalTransform(currentClip_.get(), bone.Name, currentTime_);
+    
+    // Decompose matrices for proper interpolation
+    glm::vec3 fromPos, toPos, fromScale, toScale;
+    glm::quat fromRot, toRot;
+    glm::vec3 skew;
+    glm::vec4 perspective;
+    
+    glm::decompose(fromTransform, fromScale, fromRot, fromPos, skew, perspective);
+    glm::decompose(toTransform, toScale, toRot, toPos, skew, perspective);
+    
+    // Lerp/slerp between transforms
+    glm::vec3 blendedPos = glm::mix(fromPos, toPos, blendWeight_);
+    glm::quat blendedRot = glm::slerp(fromRot, toRot, blendWeight_);
+    glm::vec3 blendedScale = glm::mix(fromScale, toScale, blendWeight_);
+    
+    // Reconstruct blended local transform
+    glm::mat4 localTransform = glm::translate(glm::mat4(1.0f), blendedPos)
+                             * glm::toMat4(blendedRot)
+                             * glm::scale(glm::mat4(1.0f), blendedScale);
+    
+    glm::mat4 globalTransform = parentTransform * localTransform;
+    
+    finalBoneMatrices_[boneIndex] = modelData_->GlobalInverseTransform * globalTransform * bone.OffsetMatrix;
+    localTransforms_[boneIndex] = localTransform;
+    
+    for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
+        if (modelData_->Bones[i].ParentIndex == boneIndex) {
+            ProcessBoneHierarchyBlended(static_cast<int>(i), globalTransform);
+        }
+    }
+}
+
+glm::mat4 Animator::GetBoneLocalTransform(const AnimationClip* clip, const std::string& boneName, float time) const {
+    if (!clip) {
+        int boneIndex = modelData_->GetBoneIndex(boneName);
+        if (boneIndex >= 0) {
+            return modelData_->Bones[boneIndex].LocalTransform;
+        }
+        return glm::mat4(1.0f);
+    }
+    
+    const AnimationChannel* channel = clip->FindChannel(boneName);
     
     if (!channel) {
-        // Use the bone's stored local transform from the hierarchy
         int boneIndex = modelData_->GetBoneIndex(boneName);
         if (boneIndex >= 0) {
             return modelData_->Bones[boneIndex].LocalTransform;

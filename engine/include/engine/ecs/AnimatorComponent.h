@@ -67,6 +67,19 @@ struct AnimatorComponent {
     // High-level: Load and play animation from file path
     bool PlayClip(const std::string& path, bool loopAnim = true);
     
+    // Crossfade to a new clip with smooth transition
+    void CrossfadeTo(std::shared_ptr<AnimationClip> clip, float duration = 0.25f, bool loopAnim = true) {
+        if (animator && clip) {
+            animator->Crossfade(clip, duration, loopAnim);
+            currentClip = clip;
+            loop = loopAnim;
+            playing = true;
+        }
+    }
+    
+    // Load and crossfade to animation from path
+    bool CrossfadeToClip(const std::string& path, float duration = 0.25f, bool loopAnim = true);
+    
     void Stop() {
         if (animator) {
             animator->Stop();
@@ -98,7 +111,7 @@ struct AnimatorComponent {
             float normalizedTime = GetNormalizedTime();
             auto* transition = controller->FindTransition(currentStateName, normalizedTime);
             if (transition) {
-                TransitionTo(transition->ToState);
+                TransitionTo(transition->ToState, transition->TransitionDuration);
             }
         }
     }
@@ -120,15 +133,15 @@ struct AnimatorComponent {
         if (controller) controller->SetTrigger(name);
     }
     
-    // Force transition to a specific state
-    void TransitionTo(const std::string& stateName) {
+    // Force transition to a specific state (with crossfade)
+    void TransitionTo(const std::string& stateName, float transitionDuration = 0.25f) {
         if (!controller || !animator) return;
         
         auto* state = controller->GetState(stateName);
         if (state && state->Clip) {
             currentStateName = stateName;
             speed = state->Speed;
-            Play(state->Clip, state->Loop);
+            CrossfadeTo(state->Clip, transitionDuration, state->Loop);
         }
     }
     

@@ -25,7 +25,6 @@ void CharacterRender::Start() {
 }
 
 void CharacterRender::Update(float dt) {
-    // Animation is managed by engine's AnimationSystem
 }
 
 bool CharacterRender::LoadModel() {
@@ -35,7 +34,6 @@ bool CharacterRender::LoadModel() {
         return false;
     }
     
-    // Create child entity for visual (separate from physics collider)
     visualEntity_ = GetScene()->CreateEntity("CharacterModel");
     visualEntity_.SetParent(GetEntity());
     
@@ -59,39 +57,55 @@ bool CharacterRender::SetupAnimator() {
     auto& animComp = visualEntity_.AddComponent<AnimatorComponent>();
     animComp.Init(modelData_);
     
-    if (config_.AutoPlayAnimation && !config_.DefaultAnimationPath.empty()) {
-        PlayAnimation(config_.DefaultAnimationPath, config_.LoopAnimation);
+    // Create animation controller with Idle/Jog states
+    animController_ = std::make_shared<AnimatorController>("CharacterAnimator");
+    
+    // Load clips
+    auto idleClip = AnimationManager::Load(config_.IdleAnimPath);
+    auto jogClip = AnimationManager::Load(config_.JogAnimPath);
+    
+    if (!idleClip || !jogClip) {
+        SE_LOG_ERROR("CharacterRender: Failed to load animation clips");
+        return false;
     }
+    
+    // Add states
+    animController_->AddState({"Idle", idleClip, 1.0f, true});
+    animController_->AddState({"Jog", jogClip, 1.0f, true});
+    animController_->SetDefaultState("Idle");
+    
+    // Add parameter
+    animController_->AddParameter("IsMoving", false);
+    
+    // Add transitions: Idle <-> Jog based on IsMoving parameter
+    AnimationTransition idleToJog;
+    idleToJog.FromState = "Idle";
+    idleToJog.ToState = "Jog";
+    idleToJog.TransitionDuration = config_.TransitionDuration;
+    idleToJog.Conditions.push_back({"IsMoving", TransitionCondition::CompareMode::Equals, true});
+    animController_->AddTransition(idleToJog);
+    
+    AnimationTransition jogToIdle;
+    jogToIdle.FromState = "Jog";
+    jogToIdle.ToState = "Idle";
+    jogToIdle.TransitionDuration = config_.TransitionDuration;
+    jogToIdle.Conditions.push_back({"IsMoving", TransitionCondition::CompareMode::Equals, false});
+    animController_->AddTransition(jogToIdle);
+    
+    // Set controller on animator
+    animComp.SetController(animController_);
     
     return true;
 }
 
-void CharacterRender::PlayAnimation(const std::string& animPath, bool loop) {
-    if (!visualEntity_ || !visualEntity_.HasComponent<AnimatorComponent>()) {
-        SE_LOG_WARN("CharacterRender::PlayAnimation: No AnimatorComponent");
-        return;
-    }
+void CharacterRender::SetMoving(bool moving) {
+    if (isMoving_ == moving) return;
     
-    auto clip = AnimationManager::Load(animPath);
-    if (!clip) {
-        SE_LOG_ERROR("CharacterRender: Failed to load animation '{}'", animPath);
-        return;
-    }
+    isMoving_ = moving;
     
-    visualEntity_.GetComponent<AnimatorComponent>().Play(clip, loop);
-}
-
-void CharacterRender::StopAnimation() {
-    if (visualEntity_ && visualEntity_.HasComponent<AnimatorComponent>()) {
-        visualEntity_.GetComponent<AnimatorComponent>().Stop();
+    if (animController_) {
+        animController_->SetBool("IsMoving", moving);
     }
-}
-
-bool CharacterRender::IsAnimating() const {
-    if (visualEntity_ && visualEntity_.HasComponent<AnimatorComponent>()) {
-        return visualEntity_.GetComponent<AnimatorComponent>().playing;
-    }
-    return false;
 }
 
 } // namespace FirstGame

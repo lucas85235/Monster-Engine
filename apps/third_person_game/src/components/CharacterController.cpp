@@ -2,6 +2,7 @@
 
 #include "CameraController.h"
 #include "Character.h"
+#include "CharacterRender.h"
 #include "engine/Application.h"
 #include "apps/MathUtils.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -54,9 +55,7 @@ void CharacterController::CacheComponents() {
 
     // Get CameraController (lifecycle)
     cameraController_ = entity.GetScript<CameraController>();
-    if (!cameraController_) {
-        SE_LOG_WARN("CharacterController: No CameraController component found!");
-    }
+    characterRender_ = entity.GetScript<CharacterRender>();
 }
 
 
@@ -103,12 +102,19 @@ void CharacterController::ProcessMovementInput() {
     Vector3 moveDir = forward * moveZ + right * moveX;
 
     // Rotate towards movement direction
-    if (glm::length(moveDir) > 0.01f) {
+    bool isMoving = glm::length(moveDir) > 0.01f;
+    
+    if (isMoving) {
         float targetYaw = Math::CalculateYawFromDirection(moveDir.x, moveDir.z);
         character_->RotateTowards(targetYaw);
 
         moveDir = glm::normalize(moveDir);
         character_->Move(moveDir);
+    }
+    
+    // Update animation state
+    if (characterRender_) {
+        characterRender_->SetMoving(isMoving);
     }
 
     // Jump
