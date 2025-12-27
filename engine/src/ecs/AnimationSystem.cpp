@@ -38,8 +38,6 @@ void AnimationSystem::Update(Scene& scene, float deltaTime) {
         }
     }
     
-    // Update bone attachments after animations are processed
-    UpdateBoneAttachments(scene);
 }
 
 void AnimationSystem::UpdateBoneAttachments(Scene& scene) {
@@ -56,44 +54,51 @@ void AnimationSystem::UpdateBoneAttachments(Scene& scene) {
         }
         
         // Get target entity's AnimatorComponent (may be on visual child)
-        AnimatorComponent* animComp = nullptr;
-        
-        // First try direct entity
-        if (registry.all_of<AnimatorComponent>(attachment.TargetEntity.GetHandle())) {
-            animComp = &registry.get<AnimatorComponent>(attachment.TargetEntity.GetHandle());
-        }
+        AnimatorComponent* animComp = registry.try_get<AnimatorComponent>(attachment.TargetEntity.GetHandle());
         
         if (!animComp || !animComp->animator) {
+            static std::unordered_map<uint32_t, bool> warnedEntities;
+            if (warnedEntities.find((uint32_t)entity) == warnedEntities.end()) {
+                SE_LOG_WARN("AnimationSystem: Attached target entity has no AnimatorComponent!");
+                warnedEntities[(uint32_t)entity] = true;
+            }
             continue;
         }
         
-        // Get bone world matrix
-        glm::mat4 boneWorld = animComp->animator->GetBoneWorldMatrix(attachment.BoneName);
+        // 1. Get bone transform relative to character model root
+        glm::mat4 boneModelSpace = animComp->animator->GetBoneWorldMatrix(attachment.BoneName);
         
-        // Get target entity's world transform to combine with bone
-        glm::mat4 targetWorld(1.0f);
-        if (registry.all_of<TransformComponent>(attachment.TargetEntity.GetHandle())) {
-            auto& targetTransform = registry.get<TransformComponent>(attachment.TargetEntity.GetHandle());
-            targetWorld = targetTransform.WorldMatrix;
-        }
+        // 2. Get character world transform
+        TransformComponent* targetTransform = registry.try_get<TransformComponent>(attachment.TargetEntity.GetHandle());
+        glm::mat4 targetWorld = targetTransform ? targetTransform->WorldMatrix : glm::mat4(1.0f);
         
-        // Calculate final world matrix: TargetWorld * BoneWorld * Offset
-        glm::mat4 offsetRotation = glm::toMat4(glm::quat(glm::radians(attachment.RotationOffset)));
-        glm::mat4 offsetTranslation = glm::translate(glm::mat4(1.0f), attachment.PositionOffset);
-        glm::mat4 offsetScale = glm::scale(glm::mat4(1.0f), attachment.ScaleMultiplier);
-        glm::mat4 offsetMatrix = offsetTranslation * offsetRotation * offsetScale;
+        // 3. Decompose transforms to handle them separately (avoid scale inheritance issues)
         
-        glm::mat4 finalWorld = targetWorld * boneWorld * offsetMatrix;
+        // Extract translation from combined matrix (this is the bone's world position)
+        glm::mat4 boneFullWorld = targetWorld * boneModelSpace;
+        glm::vec3 worldPos = glm::vec3(boneFullWorld[3]);
         
-        // Decompose and apply to transform
-        glm::vec3 scale, translation, skew;
-        glm::vec4 perspective;
-        glm::quat rotation;
-        glm::decompose(finalWorld, scale, rotation, translation, skew, perspective);
+        // Extract rotation: Normalize columns of targetWorld * boneModelSpace to get pure rotation
+        glm::vec3 col0 = glm::normalize(glm::vec3(boneFullWorld[0]));
+        glm::vec3 col1 = glm::normalize(glm::vec3(boneFullWorld[1]));
+        glm::vec3 col2 = glm::normalize(glm::vec3(boneFullWorld[2]));
+        glm::mat3 boneWorldRotMat(col0, col1, col2);
+        glm::quat boneWorldRotation = glm::quat_cast(boneWorldRotMat);
         
-        transform.SetPosition(translation);
-        transform.SetRotation(glm::degrees(glm::eulerAngles(rotation)));
-        transform.SetScale(scale);
+        // 4. Apply offsets
+        // Final position: Bone world position + (Bone world rotation * offset)
+        glm::vec3 finalWorldPos = worldPos + (boneWorldRotation * attachment.PositionOffset);
+        
+        // Final rotation: Bone world rotation * Offset rotation
+        glm::quat offsetRot = glm::quat(glm::radians(attachment.RotationOffset));
+        glm::quat finalWorldRot = boneWorldRotation * offsetRot;
+        
+        // 5. Apply to transform
+        transform.SetPosition(finalWorldPos);
+        transform.SetRotation(glm::degrees(glm::eulerAngles(finalWorldRot)));
+        
+        // Force ScaleMultiplier as absolute world scale for root entities
+        transform.SetScale(attachment.ScaleMultiplier);
     }
 }
 

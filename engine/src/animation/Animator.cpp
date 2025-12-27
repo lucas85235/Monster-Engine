@@ -268,19 +268,30 @@ glm::mat4 Animator::GetBoneWorldMatrix(int boneIndex) const {
     }
     
     // finalBoneMatrices_ contains: GlobalInverseTransform * GlobalTransform * OffsetMatrix
-    // We need to undo the GlobalInverseTransform and OffsetMatrix to get world transform
-    // WorldTransform = inverse(GlobalInverseTransform) * finalBoneMatrix * inverse(OffsetMatrix)
     const BoneInfo& bone = modelData_->Bones[boneIndex];
     glm::mat4 globalTransform = glm::inverse(modelData_->GlobalInverseTransform);
-    glm::mat4 boneWorld = globalTransform * finalBoneMatrices_[boneIndex] * glm::inverse(bone.OffsetMatrix);
     
-    return boneWorld;
+    // Reconstruct GlobalTransform from finalBoneMatrix
+    // finalBoneMatrix = GlobalInverseTransform * GlobalTransform * OffsetMatrix
+    // GlobalTransform = inv(GlobalInverseTransform) * finalBoneMatrix * inv(OffsetMatrix)
+    glm::mat4 boneLocalToModelRoot = globalTransform * finalBoneMatrices_[boneIndex] * glm::inverse(bone.OffsetMatrix);
+    
+    return boneLocalToModelRoot;
 }
 
 glm::mat4 Animator::GetBoneWorldMatrix(const std::string& boneName) const {
     if (!modelData_) return glm::mat4(1.0f);
     
     int boneIndex = modelData_->GetBoneIndex(boneName);
+    if (boneIndex == -1) {
+        // Log once to avoid flooding
+        static std::string lastFailedBone = "";
+        if (lastFailedBone != boneName) {
+            SE_LOG_WARN("Animator: Bone '{}' not found in model!", boneName);
+            lastFailedBone = boneName;
+        }
+        return glm::mat4(1.0f);
+    }
     return GetBoneWorldMatrix(boneIndex);
 }
 

@@ -128,18 +128,18 @@ void CharacterRender::SetupBoneAttachmentTest() {
     Entity sphere = GetScene()->CreateEntity("HandSphere");
     sphere.AddComponent<ModelComponent>(sphereModel);
     
-    // Scale down the sphere
-    auto& transform = sphere.GetComponent<TransformComponent>();
-    transform.SetScale({0.8f, 0.8f, 0.8f});
-    
-    // Attach to right hand bone (Y_Bot uses "mixamorig:RightHand")
+    // Attach to right hand bone: "mixamorig:RightHand"
+    // We set PositionOffset to 0 for now to see if it's exactly in the palm.
+    // Scale is in absolute world units (meters). 0.5f means 50cm sphere.
     sphere.AddComponent<BoneAttachmentComponent>(
         visualEntity_,
         "mixamorig:RightHand",
-        glm::vec3(0.0f, 0.0f, 0.0f)  // Position offset
+        glm::vec3(0.0f, 0.2f, 0.0f),               // Position offset (relative to bone)
+        glm::vec3(0.0f),               // Rotation offset
+        glm::vec3(0.1f)                // Scale multiplier (World Scale)
     );
     
-    SE_LOG_INFO("CharacterRender: Created sphere attached to RightHand bone");
+    SE_LOG_INFO("CharacterRender: Created sphere attached to RightHand bone ('mixamorig:RightHand')");
 }
 
 } // namespace FirstGame

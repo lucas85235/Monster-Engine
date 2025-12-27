@@ -137,6 +137,14 @@ void Scene::OnUpdate(float deltaTime) {
     
     // Update transforms AFTER logic and physics to ensure rendering is up to date
     UpdateTransforms();
+
+    // Bone attachment system - must happen AFTER character world matrices are updated
+    // to avoid a 1-frame lag/flickering.
+    AnimationSystem::UpdateBoneAttachments(*this);
+
+    // Update transforms again ONLY if we have attachments to ensure they are rendered correctly.
+    // In a more complex engine, this would be part of a dependency-sorted update.
+    UpdateTransforms();
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {

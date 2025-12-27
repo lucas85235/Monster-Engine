@@ -28,9 +28,10 @@ struct BoneAttachmentComponent {
     BoneAttachmentComponent(Entity target, const std::string& boneName)
         : TargetEntity(target), BoneName(boneName) {}
     BoneAttachmentComponent(Entity target, const std::string& boneName, 
-                            const glm::vec3& posOffset, const glm::vec3& rotOffset = glm::vec3(0.0f))
+                            const glm::vec3& posOffset, const glm::vec3& rotOffset = glm::vec3(0.0f),
+                            const glm::vec3& scaleMult = glm::vec3(1.0f))
         : TargetEntity(target), BoneName(boneName), 
-          PositionOffset(posOffset), RotationOffset(rotOffset) {}
+          PositionOffset(posOffset), RotationOffset(rotOffset), ScaleMultiplier(scaleMult) {}
 };
 
 }  // namespace se
