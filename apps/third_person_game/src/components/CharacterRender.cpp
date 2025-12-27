@@ -29,7 +29,7 @@ void CharacterRender::Update(float dt) {
 }
 
 void CharacterRender::SetupMesh() {
-    const std::string modelPath = "assets/models/characters/skeleton/SKM_Skeleton_Variant_1.fbx";
+    const std::string modelPath = "assets/models/characters/Y_Bot.fbx";
     auto              model     = ModelManager::Load(modelPath);
 
     if (!model) {
@@ -41,20 +41,19 @@ void CharacterRender::SetupMesh() {
     // This allows separating physics (parent) from visual transform (child)
     auto visualEntity = GetScene()->CreateEntity("CharacterModel");
     visualEntity.SetParent(GetEntity());
-    
+
     visualEntity.AddComponent<ModelComponent>(model);
 
     // Apply transform corrections for FBX model on the child entity
     auto& transform = visualEntity.GetComponent<TransformComponent>();
-    transform.SetScale(glm::vec3(1.0f));
+    transform.SetScale(glm::vec3(0.01f));
 
-    // FBX models often have different forward direction - rotate to face forward (-Z in our engine)
     // Rotate -90 degrees on X axis to correct orientation (Standard Z-up to Y-up correction)
-    glm::vec3 currentRotation = transform.Rotation;
-    currentRotation.x         = 90.0f;
-    currentRotation.y         = 90.0f;
-    transform.SetPosition(glm::vec3(0.0f, -0.8f, 0.0f));
-    transform.SetRotation(currentRotation);
+    // glm::vec3 currentRotation = transform.Rotation;
+    // currentRotation.x         = 90.0f;
+    // currentRotation.y         = 90.0f;
+    transform.SetPosition(glm::vec3(0.0f, -0.9f, 0.0f));
+    // transform.SetRotation(currentRotation);
 
     SE_LOG_INFO("CharacterRender: Loaded model '{}' with {} submeshes (Child Entity)",
                 model->GetName(), model->GetSubMeshCount());

@@ -120,9 +120,6 @@ void Scene::UpdateTransforms() {
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    // 1. Update transforms based on hierarchy
-    UpdateTransforms();
-
     // Physics simulation
     if (physics_system_) { physics_system_->Update(deltaTime); }
 
@@ -133,6 +130,9 @@ void Scene::OnUpdate(float deltaTime) {
         component_system_->Update(deltaTime);
         component_system_->LateUpdate(deltaTime);
     }
+    
+    // Update transforms AFTER logic and physics to ensure rendering is up to date
+    UpdateTransforms();
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {

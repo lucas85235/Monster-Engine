@@ -32,8 +32,8 @@ struct CharacterMovementConfig {
 };
 
 struct CharacterPhysicsConfig {
-    float height = 1.0f;
-    float radius = 0.5f;
+    float height = 1.1f;
+    float radius = 0.2f;
     float mass   = 70.0f;
 };
 
@@ -81,21 +81,24 @@ public:
 
 private:
     void SetupPhysics();
+
     void UpdateGroundedState();
+
     void ApplyMovement(float dt);
+
     void ApplyDrag(float dt);
 
     // Component references
-    RigidbodyComponent* rigidbody_      = nullptr;
-    PhysicsSystem*      physicsSystem_  = nullptr;
+    RigidbodyComponent* rigidbody_     = nullptr;
+    PhysicsSystem*      physicsSystem_ = nullptr;
 
     // Configuration
     CharacterMovementConfig movementConfig_;
     CharacterPhysicsConfig  physicsConfig_;
 
     // State
-    bool    isGrounded_            = false;
-    Vector3 desiredMoveDirection_  = Vector3(0.0f);
-    bool    wantsToMove_           = false;
+    bool    isGrounded_           = false;
+    Vector3 desiredMoveDirection_ = Vector3(0.0f);
+    bool    wantsToMove_          = false;
 };
 } // namespace FirstGame

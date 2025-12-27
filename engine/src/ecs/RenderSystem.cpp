@@ -148,12 +148,9 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
 
     // Begin scene rendering
-    SE_LOG_INFO("DEBUG: BeginScene starting");
     glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
     sceneRenderer.BeginScene(camera, projection);
-    SE_LOG_INFO("DEBUG: BeginScene complete");
 
-    // Clear batches from previous frame (reuse containers to avoid allocations)
     for (auto& [key, instances] : instanceBatches_) { instances.clear(); }
 
     // Get all entities with TransformComponent and MeshRenderComponent
@@ -186,9 +183,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
 
     // Process entities with ModelComponent (3D models loaded from files)
-    SE_LOG_INFO("DEBUG: Starting ModelComponent loop");
     auto modelView = scene.GetAllEntitiesWith<TransformComponent, ModelComponent>();
-    int modelCount = 0;
     for (auto entity : modelView) {
         auto& transform = modelView.get<TransformComponent>(entity);
         auto& modelComp = modelView.get<ModelComponent>(entity);
@@ -198,22 +193,10 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        modelCount++;
-        SE_LOG_INFO("RenderSystem: Rendering model with {} submeshes", 
-                    modelComp.model->GetSubMeshCount());
-
         // Render each submesh of the model
-        int submeshIndex = 0;
         for (const auto& submesh : modelComp.model->GetSubMeshes()) {
             auto va = submesh.GetVertexArray();
-            if (!va) {
-                SE_LOG_WARN("RenderSystem: Submesh {} has no vertex array", submeshIndex);
-                submeshIndex++;
-                continue;
-            }
-
-            SE_LOG_INFO("RenderSystem: Submesh {} has VA with {} indices", 
-                        submeshIndex, va->GetIndexBuffer() ? va->GetIndexBuffer()->GetCount() : 0);
+            if (!va) continue;
 
             // Use model material (non-instanced shader with uModel uniform)
             auto material = submesh.GetMaterial();
@@ -222,28 +205,13 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                 material = modelMaterial_;
             }
 
-            if (!material) {
-                SE_LOG_ERROR("RenderSystem: No material available for submesh {}", submeshIndex);
-                submeshIndex++;
-                continue;
-            }
-
-            SE_LOG_INFO("RenderSystem: Submitting submesh {} to scene renderer", submeshIndex);
+            if (!material) continue;
 
             // Submit directly to scene renderer (no instancing for now)
             sceneRenderer.Submit(va, material, transform.WorldMatrix, 
                                  modelComp.CastShadows, modelComp.ReceiveShadows);
-            
-            SE_LOG_INFO("RenderSystem: Submesh {} submitted successfully", submeshIndex);
-            submeshIndex++;
         }
     }
-    
-    if (modelCount > 0) {
-        SE_LOG_INFO("RenderSystem: Processed {} models", modelCount);
-    }
-
-    SE_LOG_INFO("DEBUG: Starting batch processing");
 
     // Process batches
     uint32_t batchCount       = 0;
@@ -299,9 +267,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             }
 
             // Upload instance data and draw
-            SE_LOG_INFO("DEBUG: About to SetInstances");
             instancedMesh->SetInstances(instances);
-            SE_LOG_INFO("DEBUG: SetInstances complete");
 
             // Ensure we have the instanced material loaded
             EnsureInstancedMaterial();
@@ -311,10 +277,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             if (instancedMaterial_) {
                 sceneRenderer.SubmitInstanced(instancedMesh, instancedMaterial_, true, true);
             }
-            SE_LOG_INFO("DEBUG: Batch submitted");
         }
     }
-    SE_LOG_INFO("DEBUG: All batches processed");
 
     lastBatchCount_       = batchCount;
     lastInstancedObjects_ = instancedObjects;
@@ -327,9 +291,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
     frameCount++;
 
-    SE_LOG_INFO("DEBUG: About to call EndScene");
     sceneRenderer.EndScene();
-    SE_LOG_INFO("DEBUG: EndScene complete");
 }
 
 }  // namespace se
