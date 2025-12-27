@@ -38,6 +38,10 @@ std::unique_ptr<SkinnedModelData> SkinnedModelLoader::Load(const std::string& pa
     
     Assimp::Importer importer;
     
+    // Disable pivot preservation to prevent intermediate nodes (_$AssimpFbx$_PreRotation, etc.)
+    // This is crucial for Mixamo FBX animations to work correctly
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    
     unsigned int flags = aiProcess_Triangulate |
                          aiProcess_GenNormals |
                          aiProcess_FlipUVs |

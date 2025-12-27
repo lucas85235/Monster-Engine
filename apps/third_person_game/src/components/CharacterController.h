@@ -1,13 +1,6 @@
 #pragma once
 /**
- * CharacterController.h - Player input controller.
- *
- * This component manages:
- * - Input binding and processing
- * - Translates input to Character movement commands
- * - Delegates camera input to CameraController
- *
- * Requires: Character, CameraController on same entity
+ * CharacterController - Translates user input to Character and Camera actions.
  */
 
 #include "Engine.h"
@@ -19,9 +12,7 @@ using namespace se;
 class Character;
 class CameraController;
 
-// ============================================================================
-// Input Configuration
-// ============================================================================
+
 
 struct MovementInputConfig {
     std::string moveForward = "MoveForward";
@@ -36,9 +27,7 @@ struct CameraInputBindings {
     std::string cameraRotateY = "CameraRotateY";
 };
 
-// ============================================================================
-// CharacterController Component
-// ============================================================================
+
 
 class CharacterController : public Component {
 public:
@@ -53,12 +42,9 @@ public:
 
     void Update(float dt) override;
 
-    // === State ===
-    bool IsMouseCaptured() const { return mouseCaptured_; }
+    // State queries
 
-    // === Configuration ===
-    MovementInputConfig& GetMovementConfig() { return movementConfig_; }
-    CameraInputBindings& GetCameraBindings() { return cameraBindings_; }
+    // Configuration queries
 
 private:
     void BindInputs();

@@ -1,14 +1,6 @@
 #pragma once
 /**
- * CameraController.h - Third-person camera controller.
- *
- * This component manages:
- * - Spring arm camera behavior
- * - Camera collision avoidance
- * - Camera smoothing and interpolation
- *
- * Requires: TransformComponent (on target entity)
- * Adds: SpringArmComponent
+ * CameraController - Spring arm camera with collision avoidance.
  */
 
 #include "Engine.h"
@@ -23,9 +15,7 @@ class RigidbodyComponent;
 namespace FirstGame {
 using namespace se;
 
-// ============================================================================
-// Camera Configuration
-// ============================================================================
+
 
 struct SpringArmConfig {
     float targetArmLength = 4.0f;
@@ -46,9 +36,7 @@ struct CameraInputConfig {
     bool  invertY      = false;
 };
 
-// ============================================================================
-// CameraController Component
-// ============================================================================
+
 
 class CameraController : public Component {
 public:
@@ -60,17 +48,17 @@ public:
     void Start() override;
     void LateUpdate(float dt) override;
 
-    // === Camera Access ===
+    // State queries
     Camera* GetCamera() const { return camera_; }
 
-    // === Input ===
+    // Input handling
     void RotateCamera(float deltaX, float deltaY);
 
-    // === Configuration ===
+    // Configuration
     SpringArmConfig&   GetSpringArmConfig() { return springArmConfig_; }
     CameraInputConfig& GetInputConfig() { return inputConfig_; }
 
-    // === State ===
+
     float GetCurrentYaw() const;
     float GetCurrentPitch() const;
     Vector3 GetForwardDirection() const;

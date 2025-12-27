@@ -1,14 +1,6 @@
 #pragma once
 /**
- * Character.h - Core character data and physics component.
- *
- * This component manages:
- * - Character specifications (movement params, dimensions)
- * - Physics setup (rigidbody, collider)
- * - Character state (grounded, jumping, etc.)
- *
- * Requires: TransformComponent (auto-added by Entity)
- * Adds: CapsuleCollider, RigidbodyComponent
+ * Character - Core physics and movement logic.
  */
 
 #include "engine/physics/Collider.h"
@@ -18,9 +10,7 @@
 namespace FirstGame {
 using namespace se;
 
-// ============================================================================
-// Character Configuration
-// ============================================================================
+
 
 struct CharacterMovementConfig {
     float acceleration     = 0.5f;
@@ -37,9 +27,7 @@ struct CharacterPhysicsConfig {
     float mass   = 70.0f;
 };
 
-// ============================================================================
-// Character Component
-// ============================================================================
+
 
 class Character : public Component {
 public:
@@ -54,7 +42,7 @@ public:
 
     void Update(float dt) override;
 
-    // === Movement API ===
+    // Movement API
     void Move(const Vector3& direction);
 
     void RotateTowards(float targetYaw);
@@ -63,19 +51,19 @@ public:
 
     void StopMovement();
 
-    // === State Queries ===
+    // State queries
     bool IsGrounded() const { return isGrounded_; }
 
     bool IsMoving() const;
 
-    // === Rigidbody Access ===
+    // Rigidbody access
     RigidbodyComponent* GetRigidbody() const { return rigidbody_; }
 
     Vector3 GetVelocity() const;
 
     void SetVelocity(const Vector3& velocity);
 
-    // === Configuration ===
+    // Configuration queries
     CharacterMovementConfig& GetMovementConfig() { return movementConfig_; }
     CharacterPhysicsConfig&  GetPhysicsConfig() { return physicsConfig_; }
 

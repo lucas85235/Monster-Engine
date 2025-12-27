@@ -104,6 +104,7 @@ std::unique_ptr<AnimationClip> AnimationLoader::Load(const std::string& path) {
     SE_LOG_INFO("AnimationLoader: Loading animation from '{}'", path);
     
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
     const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate);
     
     if (!scene) {
@@ -125,6 +126,7 @@ std::vector<std::unique_ptr<AnimationClip>> AnimationLoader::LoadAll(const std::
     std::vector<std::unique_ptr<AnimationClip>> clips;
     
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
     const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate);
     
     if (!scene) {

@@ -3,6 +3,7 @@
 #include "engine/Application.h"
 #include "engine/Camera.h"
 #include "engine/Log.h"
+#include "engine/ecs/AnimationSystem.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/RenderSystem.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -122,6 +123,9 @@ void Scene::UpdateTransforms() {
 void Scene::OnUpdate(float deltaTime) {
     // Physics simulation
     if (physics_system_) { physics_system_->Update(deltaTime); }
+
+    // Animation system - tick all AnimatorComponents
+    AnimationSystem::Update(*this, deltaTime);
 
     // Component lifecycle
     if (component_system_) {

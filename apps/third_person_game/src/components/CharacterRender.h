@@ -1,18 +1,11 @@
 #pragma once
 /**
- * CharacterRender.h - Character visual representation with skeletal animation.
+ * CharacterRender - Visual representation of a character with skeletal animation.
  *
- * This component manages:
- * - Skinned mesh rendering (via SkinnedModelComponent on child entity)
- * - Skeletal animation playback (via AnimatorComponent on same child entity)
- * - Debug visualization
- *
- * Architecture (Unity-style):
- * - SkinnedModelComponent holds the SkinnedModel (mesh with bone data in vertices)
- * - AnimatorComponent holds the Animator and AnimationClip
- * - RenderSystem detects both and sends bone matrices to skinned shader
- *
- * Requires: TransformComponent
+ * Architecture:
+ * - SkinnedModelComponent: Holds mesh with bone data
+ * - AnimatorComponent: Managed by engine's AnimationSystem
+ * - RenderSystem: Reads bone matrices and renders
  */
 
 #include "engine/ecs/Component.h"
@@ -20,44 +13,70 @@
 #include "engine/animation/AnimationClip.h"
 #include "engine/resources/ModelData.h"
 
+#include <glm.hpp>
 #include <memory>
+#include <string>
 
 namespace FirstGame {
 using namespace se;
 
-struct RenderConfig {
-    bool enablePhysicsDebug = false;
-    bool showBoneDebug = false;
+// Configuration for character visual (Open/Closed principle - extend via config)
+struct CharacterRenderConfig {
+    // Model settings
+    std::string ModelPath = "assets/models/characters/Y_Bot.fbx";
+    std::string DefaultAnimationPath = "assets/models/characters/animations/YBot_JogForward.fbx";
+    
+    // Transform corrections for imported models
+    glm::vec3 Scale{0.01f};
+    glm::vec3 Offset{0.0f, -0.85f, 0.0f};
+    
+    // Animation settings
+    bool AutoPlayAnimation = true;
+    bool LoopAnimation = true;
 };
 
-class CharacterRender : public Component {
+// Animation control interface (Interface Segregation)
+class IAnimationController {
+public:
+    virtual ~IAnimationController() = default;
+    virtual void PlayAnimation(const std::string& path, bool loop = true) = 0;
+    virtual void StopAnimation() = 0;
+    virtual bool IsAnimating() const = 0;
+};
+
+class CharacterRender : public Component, public IAnimationController {
 public:
     CharacterRender() = default;
+    explicit CharacterRender(const CharacterRenderConfig& config) : config_(config) {}
     ~CharacterRender() override = default;
 
+    // Component lifecycle
     void Awake() override;
     void Start() override;
     void Update(float dt) override;
 
-    RenderConfig& GetConfig() { return config_; }
+    // Configuration (call before Start for effect)
+    void SetConfig(const CharacterRenderConfig& config) { config_ = config; }
+    CharacterRenderConfig& GetConfig() { return config_; }
+    const CharacterRenderConfig& GetConfig() const { return config_; }
     
-    // Animation control
-    void PlayAnimation(const std::string& animPath, bool loop = true);
-    void StopAnimation();
-    bool IsAnimating() const;
+    // IAnimationController implementation
+    void PlayAnimation(const std::string& animPath, bool loop = true) override;
+    void StopAnimation() override;
+    bool IsAnimating() const override;
+    
+    // Access to visual entity (for advanced usage)
+    Entity GetVisualEntity() const { return visualEntity_; }
 
 private:
-    void SetupMesh();
-    void SetupDebugVisualization();
+    // SRP: Each method does one thing
+    bool LoadModel();
+    bool SetupAnimator();
+    void ApplyTransformCorrections();
 
-    RenderConfig config_;
-    
-    // Visual entity containing SkinnedModelComponent + AnimatorComponent
+    CharacterRenderConfig config_;
     Entity visualEntity_;
-    
-    // Animation data
     std::shared_ptr<SkinnedModelData> modelData_;
-    std::shared_ptr<AnimationClip> currentAnimation_;
 };
 
 } // namespace FirstGame

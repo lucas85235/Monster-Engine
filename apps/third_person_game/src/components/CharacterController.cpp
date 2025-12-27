@@ -7,27 +7,21 @@
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
-// ============================================================================
-// Lifecycle
-// ============================================================================
+
 
 void CharacterController::Awake() {
     BindInputs();
-    SE_LOG_INFO("CharacterController::Awake() - Input bindings set");
 }
 
 void CharacterController::Start() {
     CacheComponents();
-    SE_LOG_INFO("CharacterController::Start() - Ready");
 }
 
 void CharacterController::Update(float dt) {
     ProcessInput(dt);
 }
 
-// ============================================================================
-// Initialization
-// ============================================================================
+
 
 void CharacterController::BindInputs() {
     auto& input = InputManager::Get();
@@ -65,9 +59,7 @@ void CharacterController::CacheComponents() {
     }
 }
 
-// ============================================================================
-// Input Processing
-// ============================================================================
+
 
 void CharacterController::ProcessInput(float /* unused - using Time::DeltaTime() */) {
     HandleMouseToggle();
