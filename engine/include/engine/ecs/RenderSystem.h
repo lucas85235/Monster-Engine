@@ -75,6 +75,10 @@ class RenderSystem {
     // Model rendering material (uses model.vert/frag shader)
     static std::shared_ptr<Material> modelMaterial_;
     static void                      EnsureModelMaterial();
+
+    // Skinned model rendering material (uses skinned_model.vert/frag shader)
+    static std::shared_ptr<Material> skinnedMaterial_;
+    static void                      EnsureSkinnedMaterial();
 };
 
 }  // namespace se

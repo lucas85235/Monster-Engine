@@ -133,7 +133,7 @@ void SceneRenderer::EndScene() {
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
                            const std::shared_ptr<Material>& material, const Matrix4& transform,
                            bool castsShadows, bool receiveShadows, float boundingRadius,
-                           const std::shared_ptr<struct TextureMaterial>& textureMaterial) {
+                           const std::shared_ptr<TextureMaterial>& textureMaterial) {
     Submission submission;
     submission.vertex_array    = vertexArray;
     submission.material        = material;

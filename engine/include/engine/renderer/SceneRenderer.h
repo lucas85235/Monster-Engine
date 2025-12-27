@@ -13,6 +13,9 @@
 
 namespace se {
 
+// Forward declaration
+struct TextureMaterial;
+
 struct RenderStats {
     uint32_t DrawCalls        = 0;
     uint32_t TriangleCount    = 0;
@@ -53,7 +56,7 @@ class SceneRenderer {
     void Submit(const std::shared_ptr<VertexArray>& vertexArray,
                 const std::shared_ptr<Material>& material, const Matrix4& transform = Matrix4(1.0f),
                 bool castsShadows = true, bool receiveShadows = true, float boundingRadius = 1.0f,
-                const std::shared_ptr<struct TextureMaterial>& textureMaterial = nullptr);
+                const std::shared_ptr<TextureMaterial>& textureMaterial = nullptr);
 
     // Submit instanced geometry (multiple transforms in a single draw call)
     void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
@@ -113,7 +116,7 @@ class SceneRenderer {
         float                        BoundingRadius = 1.0f;
         Vector3                      Center{0.0f};
         uint32_t                     ObjectId = 0;
-        std::shared_ptr<struct TextureMaterial> textureMaterial;  // PBR texture data
+        std::shared_ptr<TextureMaterial> textureMaterial;  // PBR texture data
     };
 
     struct SceneData {
