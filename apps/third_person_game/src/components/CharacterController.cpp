@@ -47,13 +47,13 @@ void CharacterController::CacheComponents() {
     Entity entity = GetEntity();
 
     // Get Character component (lifecycle)
-    character_ = entity.GetScript<Character>();
+    character_ = entity.FindComponent<Character>();
     if (!character_) {
         SE_LOG_WARN("CharacterController: No Character component found!");
     }
 
     // Get CameraController (lifecycle)
-    cameraController_ = entity.GetScript<CameraController>();
+    cameraController_ = entity.FindComponent<CameraController>();
 }
 
 

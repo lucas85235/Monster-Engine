@@ -40,17 +40,17 @@ class Entity {
     template <typename T>
     void RemoveComponent();
 
-    // Get a lifecycle-managed component by type (if added via Component inheritance)
+    // Find a lifecycle-managed component by type (returns nullptr if not found)
     template <typename T>
-    T* GetScript();
+    T* FindComponent();
 
     // Check if entity has a specific lifecycle-managed component
     template <typename T>
-    bool HasScript();
+    bool HasLifecycleComponent();
 
     // Remove a lifecycle-managed component by type
     template <typename T>
-    void RemoveScript();
+    void RemoveLifecycleComponent();
 
     // ==================== Hierarchy API ====================
     // Set parent entity

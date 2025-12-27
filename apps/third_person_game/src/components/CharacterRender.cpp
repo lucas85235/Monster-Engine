@@ -27,7 +27,7 @@ void CharacterRender::Start() {
 
 void CharacterRender::Update(float dt) {
     // Query Character for movement state (decoupled from Controller)
-    if (auto* character = GetEntity().GetScript<Character>()) {
+    if (auto* character = GetEntity().FindComponent<Character>()) {
         UpdateMovementState(character->IsMoving());
     }
 }

@@ -62,7 +62,7 @@ void CameraController::CacheComponents() {
     }
 
     // Try to get rigidbody for collision ignore
-    rigidbody_ = entity.GetScript<RigidbodyComponent>();
+    rigidbody_ = entity.FindComponent<RigidbodyComponent>();
 }
 
 

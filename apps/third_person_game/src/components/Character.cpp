@@ -12,7 +12,7 @@ void Character::Awake() {
 }
 
 void Character::Start() {
-    rigidbody_ = GetEntity().GetScript<RigidbodyComponent>();
+    rigidbody_ = GetEntity().FindComponent<RigidbodyComponent>();
     physicsSystem_ = GetEntity().GetScene()->GetPhysicsSystem();
 }
 
