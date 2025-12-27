@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 // =============================================================================
 // PBR Model Fragment Shader - Based on Google's Filament Standard Model
@@ -79,6 +79,11 @@ uniform vec3 uSH[9];
 uniform float uIBLIntensity;
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
+
+// GI (Radiance Cascades) Uniforms
+uniform sampler2D uGIMap;
+uniform int uHasGI;
+uniform float uGIIntensity;
 
 // Camera/Post-processing Uniforms
 uniform float uExposure;
@@ -272,6 +277,15 @@ void main() {
     // -------------------------------------------------------------------------
     // 5. Combine Final Color with HDR Pipeline
     // -------------------------------------------------------------------------
+    
+    // Add GI contribution if available
+    if (uHasGI == 1) {
+        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(uGIMap, 0));
+        vec3 giContribution = texture(uGIMap, screenUV).rgb * uGIIntensity;
+        // Apply GI to diffuse (non-metallic surfaces)
+        indirectLight += giContribution * diffuseColor * (1.0 - metallic);
+    }
+    
     vec3 hdrColor = directLight + indirectLight + emissive;
     
     // Apply exposure, tone mapping, and gamma correction

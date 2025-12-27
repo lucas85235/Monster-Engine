@@ -12,7 +12,7 @@ struct RadianceCascadeConfig {
     int NumCascades = 4;
     int BaseProbeCount = 64;     // Probes in cascade 0 (per axis)
     int BaseRayCount = 4;        // Rays per probe in cascade 0
-    float IntervalLength = 4.0f;  // Base ray length in pixels
+    float IntervalLength = 8.0f;  // Base ray length in pixels
     float RayBias = 0.01f;
     bool Enabled = true;
 };
@@ -68,6 +68,9 @@ private:
     // Cached matrices
     glm::mat4 invProjection_;
     glm::mat4 invView_;
+    
+    // Cached textures for debug
+    uint32_t lastEmissiveTex_ = 0;
 };
 
 }  // namespace se

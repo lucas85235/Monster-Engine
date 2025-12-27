@@ -11,6 +11,7 @@
 #include "engine/input/InputManager.h"
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/Renderer.h"
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
 
@@ -26,6 +27,45 @@ void ImguiDebug() {
     ImGui::Text("Current Resolution: [%d x %d]", window.GetWidth(), window.GetHeight());
     ImGui::Separator();
     ImGui::Text("Press TAB to toggle mouse capture");
+    
+    // Radiance Cascades Debug Controls
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("Radiance Cascades (GI)", ImGuiTreeNodeFlags_DefaultOpen)) {
+        auto& sceneRenderer = app.GetRenderer().GetSceneRenderer();
+        
+        bool rcEnabled = sceneRenderer.IsRadianceCascadesEnabled();
+        if (ImGui::Checkbox("Enable GI", &rcEnabled)) {
+            sceneRenderer.SetRadianceCascadesEnabled(rcEnabled);
+        }
+        
+        if (rcEnabled) {
+            auto* rcPass = sceneRenderer.GetRadianceCascadesPass();
+            if (rcPass) {
+                ImGui::Text("RC Status: Active");
+                ImGui::Text("Radiance Texture ID: %u", rcPass->GetRadianceTexture());
+                
+                // Debug visualization mode
+                static int debugMode = 0;
+                const char* modes[] = { "Off", "Show GI Only", "Apply to Scene" };
+                if (ImGui::Combo("Debug Mode", &debugMode, modes, IM_ARRAYSIZE(modes))) {
+                    // Mode will be used below
+                }
+                
+                // Show miniature of GI texture if available
+                uint32_t giTex = rcPass->GetRadianceTexture();
+                if (giTex != 0 && debugMode > 0) {
+                    ImGui::Text("GI Texture Preview:");
+                    ImVec2 previewSize(200, 150);
+                    ImGui::Image((ImTextureID)(intptr_t)giTex, previewSize, ImVec2(0, 1), ImVec2(1, 0));
+                }
+            } else {
+                ImGui::Text("RC Status: Not initialized");
+            }
+        } else {
+            ImGui::Text("RC Status: Disabled");
+        }
+    }
+    
     ImGui::End();
 }
 

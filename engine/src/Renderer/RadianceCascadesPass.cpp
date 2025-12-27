@@ -31,23 +31,24 @@ uniform vec2 uScreenSize;
 
 const float PI = 3.14159265359;
 
-// Convert screen position to ray start position for this cascade
+// Convert probe index to UV starting position
 vec2 GetProbePosition(int probeX, int probeY) {
-    float spacing = pow(2.0, float(uCascadeIndex));
-    vec2 offset = vec2(spacing * 0.5);
+    vec2 spacing = uScreenSize / vec2(uProbeCountX, uProbeCountY);
+    vec2 offset = spacing * 0.5;
     return (vec2(probeX, probeY) * spacing + offset) / uScreenSize;
 }
 
 // Calculate ray direction from ray index
 vec2 GetRayDirection(int rayIndex) {
     float angle = (float(rayIndex) / float(uRayCount)) * 2.0 * PI;
+    // We need to account for aspect ratio if we want consistent angular sweep in screen space
+    // but standard RC 2D uses uniform angles and handles aspect in the step.
     return vec2(cos(angle), sin(angle));
 }
 
 // Get ray interval start and length for this cascade
 void GetRayInterval(out float start, out float length) {
     float factor = pow(4.0, float(uCascadeIndex));
-    // Geometric series: start = interval * (1 - 4^n) / (1 - 4)
     start = uIntervalLength * (1.0 - factor) / -3.0;
     length = uIntervalLength * factor;
 }
@@ -55,7 +56,7 @@ void GetRayInterval(out float start, out float length) {
 // Sample scene depth and check if ray hit something
 float SampleDepth(vec2 uv) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        return 0.0; // Out of bounds = no hit
+        return 1.0; // Out of bounds = far depth
     }
     return texture(uSceneDepth, uv).r;
 }
@@ -67,7 +68,6 @@ vec3 SampleColor(vec2 uv) {
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
     
-    // Calculate probe and ray indices from texel position
     int probeX = texCoord.x / uRayCount;
     int probeY = texCoord.y;
     int rayIndex = texCoord.x % uRayCount;
@@ -85,34 +85,33 @@ void main() {
     // Raymarch along the ray
     vec4 result = vec4(0.0, 0.0, 0.0, 0.0);
     
-    const int STEPS = 32;
+    const int STEPS = 64; // Increased for better precision
     float stepSize = intervalLength / float(STEPS);
     
     for (int i = 0; i < STEPS; i++) {
         float t = intervalStart + stepSize * (float(i) + 0.5);
-        vec2 sampleUV = probePos + rayDir * (t / uScreenSize.x);
+        // Correct conversion from pixel distance to UV offset
+        vec2 sampleUV = probePos + (rayDir * t) / uScreenSize;
         
         // Check bounds
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
             break;
         }
         
-        float depth = SampleDepth(sampleUV);
+        // Sample emissive color directly
+        vec3 hitColor = SampleColor(sampleUV);
+        float luminance = dot(hitColor, vec3(0.299, 0.587, 0.114));
         
-        // Simple hit test: if depth is significantly different, we hit something
-        if (depth > 0.0 && depth < 0.999) {
-            vec3 hitColor = SampleColor(sampleUV);
-            
-            // Check if this is an emissive surface (bright enough to emit light)
-            float luminance = dot(hitColor, vec3(0.299, 0.587, 0.114));
-            if (luminance > 0.5) {
-                result = vec4(hitColor, 1.0);
-                break;
-            } else {
-                // Non-emissive surface - mark as occluder
-                result = vec4(0.0, 0.0, 0.0, 1.0);
-                break;
-            }
+        if (luminance > 0.01) {
+            result = vec4(hitColor, 1.0);
+            break;
+        }
+        
+        // Check depth occluders
+        float depth = SampleDepth(sampleUV);
+        if (depth > 0.01 && depth < 0.999) {
+            result = vec4(0.0, 0.0, 0.0, 1.0);
+            break;
         }
     }
     
@@ -209,11 +208,13 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(rgba16f, binding = 0) uniform image2D uRadianceOut;
 layout(binding = 1) uniform sampler2D uCascade0;
+layout(binding = 2) uniform sampler2D uSceneEmissive;  // For debug mode 2
 
 uniform int uProbeCountX;
 uniform int uProbeCountY;
 uniform int uRayCount;
 uniform vec2 uScreenSize;
+uniform int uDebugMode;  // 0 = normal, 1 = debug pattern, 2 = show emissive texture, 3 = pure red
 
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -224,9 +225,46 @@ void main() {
     
     vec2 uv = vec2(texCoord) / uScreenSize;
     
-    // Find nearest probes
-    vec2 probeSpacing = uScreenSize / vec2(uProbeCountX, uProbeCountY);
-    vec2 probePos = uv * vec2(uProbeCountX, uProbeCountY);
+    // Debug mode 3: Pure red to verify compute shader is writing
+    if (uDebugMode == 3) {
+        imageStore(uRadianceOut, texCoord, vec4(1.0, 0.0, 0.0, 1.0));
+        return;
+    }
+    
+    // Debug mode 2: Show emissive texture directly with green base to verify sampling
+    if (uDebugMode == 2) {
+        vec3 emissive = texture(uSceneEmissive, uv).rgb;
+        // Add green component to verify the shader is running (if pure green = texture is black)
+        vec3 result = emissive + vec3(0.0, 0.1, 0.0);
+        imageStore(uRadianceOut, texCoord, vec4(result, 1.0));
+        return;
+    }
+    
+    // Debug mode 1: Generate visible gradient pattern to verify compute shader works
+    if (uDebugMode == 1) {
+        // Create a radial gradient that pulses with position
+        float cx = uv.x - 0.5;
+        float cy = uv.y - 0.5;
+        float dist = sqrt(cx*cx + cy*cy);
+        
+        // Color based on position and probes
+        float probeInfluence = sin(uv.x * float(uProbeCountX) * 3.14159) * 
+                               sin(uv.y * float(uProbeCountY) * 3.14159) * 0.5 + 0.5;
+        
+        vec3 debugColor = vec3(
+            probeInfluence * (1.0 - dist),
+            (1.0 - probeInfluence) * dist,
+            dist * uv.x
+        ) * 0.3;  // Keep it subtle
+        
+        imageStore(uRadianceOut, texCoord, vec4(debugColor, 1.0));
+        return;
+    }
+    
+    // Normal mode: Sample radiance at probe positions and interpolate
+    vec2 probeGrid = vec2(uProbeCountX, uProbeCountY);
+    vec2 spacing = (uScreenSize / probeGrid);
+    vec2 probePos = (vec2(texCoord) - spacing * 0.5) / spacing;
     
     ivec2 p00 = ivec2(floor(probePos));
     ivec2 p11 = min(p00 + ivec2(1), ivec2(uProbeCountX - 1, uProbeCountY - 1));
@@ -400,6 +438,9 @@ void RadianceCascadesPass::Execute(uint32_t sceneColorTex, uint32_t sceneDepthTe
     invProjection_ = glm::inverse(projection);
     invView_ = glm::inverse(view);
     
+    // Store emissive texture for debug mode
+    lastEmissiveTex_ = sceneColorTex;
+    
     // Step 1: Raymarch all cascades (from lowest to highest)
     for (int i = 0; i < config_.NumCascades; i++) {
         RaymarchCascade(i, sceneColorTex, sceneDepthTex);
@@ -494,6 +535,10 @@ void RadianceCascadesPass::ResolveRadiance() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, cascadeTextures_[0]);
     
+    // Bind emissive texture for debug mode 2
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, lastEmissiveTex_);
+    
     int probeCount = config_.BaseProbeCount;
     int rayCount = config_.BaseRayCount;
     
@@ -501,6 +546,7 @@ void RadianceCascadesPass::ResolveRadiance() {
     resolveShader_->SetInt("uProbeCountY", probeCount);
     resolveShader_->SetInt("uRayCount", rayCount);
     resolveShader_->SetVec2("uScreenSize", glm::vec2(screenWidth_, screenHeight_));
+    resolveShader_->SetInt("uDebugMode", 2);  // 2 = show emissive texture directly
     
     uint32_t groupsX = (screenWidth_ + 7) / 8;
     uint32_t groupsY = (screenHeight_ + 7) / 8;

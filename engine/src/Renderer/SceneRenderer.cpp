@@ -6,6 +6,7 @@
 #include <gtc/type_ptr.hpp>
 
 #include "engine/Log.h"
+#include "engine/renderer/GBufferPass.h"
 #include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/RenderCommand.h"
 #include "engine/renderer/TextureMaterial.h"
@@ -67,7 +68,27 @@ void SceneRenderer::Init() {
     // Initialize default IBL for outdoor lighting
     iblData_.SetDefaultOutdoor();
     
-    // Initialize Radiance Cascades (Note: requires screen dimensions, deferred init)
+    // Initialize G-Buffer (will be resized on first frame)
+    gbuffer_ = std::make_unique<GBufferPass>();
+    
+    // Load G-Buffer shaders (may fail if files don't exist, handle gracefully)
+    try {
+        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer.vert", "assets/shaders/gbuffer.frag");
+        SE_LOG_INFO("G-Buffer shader loaded");
+    } catch (const std::exception& e) {
+        SE_LOG_ERROR("Error loading gbuffer shader: {}", e.what());
+        gbufferShader_.reset();
+    }
+    
+    try {
+        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer_instanced.vert", "assets/shaders/gbuffer_instanced.frag");
+        SE_LOG_INFO("G-Buffer instanced shader loaded");
+    } catch (const std::exception& e) {
+        SE_LOG_ERROR("Error loading gbuffer instanced shader: {}", e.what());
+        gbufferInstancedShader_.reset();
+    }
+    
+    // Initialize Radiance Cascades (deferred init until we have screen dimensions)
     radianceCascades_ = std::make_unique<RadianceCascadesPass>();
     
     initialized_ = true;
@@ -78,11 +99,17 @@ void SceneRenderer::Shutdown() {
 
     SE_LOG_INFO("Shutting down SceneRenderer");
     
+    if (gbuffer_) {
+        gbuffer_->Shutdown();
+        gbuffer_.reset();
+    }
+    
     if (radianceCascades_) {
         radianceCascades_->Shutdown();
         radianceCascades_.reset();
     }
     
+    gbufferShader_.reset();
     occlusionCuller_.Shutdown();
     DestroyShadowResources();
     initialized_ = false;
@@ -138,6 +165,56 @@ void SceneRenderer::EndScene() {
         RenderShadowPass(); 
         SE_LOG_INFO("EndScene: Shadow pass complete");
     }
+    
+    // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    int width = viewport[2];
+    int height = viewport[3];
+    
+    if (width > 0 && height > 0 && (screenWidth_ != width || screenHeight_ != height)) {
+        screenWidth_ = width;
+        screenHeight_ = height;
+        
+        if (gbuffer_ && !gbuffer_->IsInitialized()) {
+            SE_LOG_INFO("EndScene: Initializing G-Buffer ({}x{})", width, height);
+            gbuffer_->Init(width, height);
+        } else if (gbuffer_ && gbuffer_->IsInitialized()) {
+            gbuffer_->Resize(width, height);
+        }
+        
+        if (radianceCascades_ && !radianceCascades_->IsEnabled()) {
+            SE_LOG_INFO("EndScene: Initializing Radiance Cascades ({}x{})", width, height);
+            radianceCascades_->Init(width, height);
+        }
+    }
+    
+    // Step 1: Render scene to G-Buffer (for emissive data)
+    SE_LOG_INFO("EndScene: gbuffer_={}, gbufferInit={}, radianceCascades_={}, rcEnabled={}",
+                (gbuffer_ != nullptr), 
+                (gbuffer_ ? gbuffer_->IsInitialized() : false),
+                (radianceCascades_ != nullptr), 
+                (radianceCascades_ ? radianceCascades_->IsEnabled() : false));
+    if (gbuffer_ && gbuffer_->IsInitialized() && radianceCascades_ && radianceCascades_->IsEnabled()) {
+        RenderGBufferPass();
+    }
+    
+    // Step 2: Execute Radiance Cascades with G-Buffer data
+    if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+        uint32_t sceneColorTex = 0;
+        uint32_t sceneDepthTex = sceneData_.ShadowDepthTexture;
+        
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
+            sceneColorTex = gbuffer_->GetEmissiveTexture();
+            sceneDepthTex = gbuffer_->GetDepthTexture();
+            SE_LOG_INFO("RC Input: Emissive={}, Depth={}", sceneColorTex, sceneDepthTex);
+        }
+        
+        radianceCascades_->Execute(sceneColorTex, sceneDepthTex, 
+                                   sceneData_.ProjectionMatrix, sceneData_.ViewMatrix);
+    }
+    
+    // Step 3: Render final scene with GI applied
     SE_LOG_INFO("EndScene: Running scene pass ({} submissions, {} instanced)", 
                 sceneData_.Submissions.size(), instancedSubmissions_.size());
     RenderScenePass();
@@ -405,6 +482,73 @@ void SceneRenderer::RenderShadowPass() {
     glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
 }
 
+void SceneRenderer::RenderGBufferPass() {
+    if (!gbuffer_ || !gbuffer_->IsInitialized()) return;
+    if (!gbufferShader_ || !gbufferInstancedShader_) return;
+    
+    SE_LOG_INFO("RenderGBufferPass: {} submissions, {} instanced", 
+                sceneData_.Submissions.size(), instancedSubmissions_.size());
+    
+    // Save previous state
+    GLint previousFramebuffer;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+    GLint previousViewport[4];
+    glGetIntegerv(GL_VIEWPORT, previousViewport);
+    
+    // Bind G-Buffer and clear
+    gbuffer_->Bind();
+    gbuffer_->Clear();
+    
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    
+    // Render regular submissions with gbuffer shader
+    gbufferShader_->bind();
+    gbufferShader_->setMat4("uView", sceneData_.ViewMatrix);
+    gbufferShader_->setMat4("uProj", sceneData_.ProjectionMatrix);
+    
+    int regularCount = 0;
+    for (const auto& submission : sceneData_.Submissions) {
+        if (!submission.vertex_array) continue;
+        
+        gbufferShader_->setMat4("uModel", submission.Transform);
+        // Test emissive color for RC verification
+        gbufferShader_->setVec3("uEmissiveColor", glm::vec3(1.0f, 0.5f, 0.2f));
+        gbufferShader_->setFloat("uEmissiveFactor", 2.0f);
+        
+        RenderCommand::DrawIndexed(submission.vertex_array.get());
+        regularCount++;
+    }
+    
+    SE_LOG_INFO("RenderGBufferPass: Drew {} regular objects", regularCount);
+    
+    // Render instanced submissions with gbuffer instanced shader
+    gbufferInstancedShader_->bind();
+    gbufferInstancedShader_->setMat4("uView", sceneData_.ViewMatrix);
+    gbufferInstancedShader_->setMat4("uProj", sceneData_.ProjectionMatrix);
+    // DEBUG: Set test emissive color to verify RC system
+    gbufferInstancedShader_->setVec3("uEmissiveColor", glm::vec3(1.0f, 0.5f, 0.2f));
+    gbufferInstancedShader_->setFloat("uEmissiveFactor", 2.0f);
+    
+    int instancedCount = 0;
+    for (const auto& instanced : instancedSubmissions_) {
+        if (!instanced.instancedMesh) continue;
+        
+        uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
+        if (instanceCount == 0) continue;
+        
+        instanced.instancedMesh->DrawWithoutMaterial();
+        instancedCount += instanceCount;
+    }
+    
+    SE_LOG_INFO("RenderGBufferPass: Drew {} instanced objects", instancedCount);
+    
+    // Unbind and restore
+    gbuffer_->Unbind();
+    glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+    glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+}
+
 void SceneRenderer::RenderScenePass() {
 
     glActiveTexture(GL_TEXTURE0);
@@ -563,6 +707,20 @@ void SceneRenderer::RenderScenePass() {
         shader->setVec3("uSkyColor", iblData_.SkyColor);
         shader->setVec3("uGroundColor", iblData_.GroundColor);
         
+        // Bind Radiance Cascades GI texture if available
+        int hasGI = 0;
+        if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+            uint32_t giTex = radianceCascades_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        }
+        shader->setInt("uHasGI", hasGI);
+        shader->setFloat("uGIIntensity", 1.0f);
+        
         // HDR exposure control
         shader->setFloat("uExposure", sceneData_.Exposure);
 
@@ -629,6 +787,20 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        
+        // Bind Radiance Cascades GI texture if available
+        int hasGI = 0;
+        if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+            uint32_t giTex = radianceCascades_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        }
+        shader->setInt("uHasGI", hasGI);
+        shader->setFloat("uGIIntensity", 1.0f);
 
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
@@ -668,6 +840,34 @@ const RadianceCascadeConfig& SceneRenderer::GetRadianceCascadeConfig() const {
         return radianceCascades_->GetConfig();
     }
     return fallback;
+}
+
+void SceneRenderer::SetScreenSize(int width, int height) {
+    if (width <= 0 || height <= 0) return;
+    if (screenWidth_ == width && screenHeight_ == height) return;
+    
+    SE_LOG_INFO("SceneRenderer: SetScreenSize({}x{})", width, height);
+    
+    screenWidth_ = width;
+    screenHeight_ = height;
+    
+    // Initialize or resize G-Buffer
+    if (gbuffer_) {
+        if (!gbuffer_->IsInitialized()) {
+            gbuffer_->Init(width, height);
+        } else {
+            gbuffer_->Resize(width, height);
+        }
+    }
+    
+    // Initialize or resize Radiance Cascades
+    if (radianceCascades_) {
+        if (!radianceCascades_->IsEnabled() || radianceCascades_->GetRadianceTexture() == 0) {
+            radianceCascades_->Init(width, height);
+        } else {
+            radianceCascades_->Resize(width, height);
+        }
+    }
 }
 
 }  // namespace se

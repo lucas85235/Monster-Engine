@@ -6,6 +6,7 @@
 
 #include "engine/Camera.h"
 #include "engine/Shader.h"
+#include "engine/renderer/GBufferPass.h"
 #include "engine/renderer/InstancedMesh.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/OcclusionCuller.h"
@@ -99,6 +100,9 @@ class SceneRenderer {
     RadianceCascadeConfig& GetRadianceCascadeConfig();
     const RadianceCascadeConfig& GetRadianceCascadeConfig() const;
     RadianceCascadesPass* GetRadianceCascadesPass() { return radianceCascades_.get(); }
+    
+    // Screen size management (needed for GBuffer and RC)
+    void SetScreenSize(int width, int height);
 
     // Culling settings
     void SetFrustumCullingEnabled(bool enabled) {
@@ -171,6 +175,7 @@ class SceneRenderer {
     void InitializeShadowResources();
     void DestroyShadowResources();
     void RenderShadowPass();
+    void RenderGBufferPass();  // Renders scene to G-Buffer for deferred lighting
     void RenderScenePass();
 
     SceneData       sceneData_;
@@ -183,6 +188,15 @@ class SceneRenderer {
     
     // Radiance Cascades (Global Illumination)
     std::unique_ptr<RadianceCascadesPass> radianceCascades_;
+    
+    // G-Buffer for deferred lighting
+    std::unique_ptr<GBufferPass> gbuffer_;
+    std::shared_ptr<Shader> gbufferShader_;
+    std::shared_ptr<Shader> gbufferInstancedShader_;
+    
+    // Screen dimensions for RC initialization
+    int screenWidth_ = 1280;
+    int screenHeight_ = 720;
 };
 
 }  // namespace se
