@@ -385,7 +385,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         // Set lighting uniforms
         auto light = sceneRenderer.GetDirectionalLight();
-        shader->setVec3("uLightDirection", light.Direction);
+        shader->setVec3("uLightDirection", -light.Direction);
         shader->setVec3("uLightColor", light.Color);
         shader->setFloat("uLightIntensity", light.Intensity);
         shader->setFloat("uAmbientStrength", 0.3f);
@@ -406,17 +406,63 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         for (const auto& mesh : skinnedComp.model->GetMeshes()) {
             auto texMat = mesh.GetMaterial();
             
+            // Reset texture flags
+            int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+            int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
+            
             if (texMat) {
                 if (texMat->HasAlbedo()) {
                     texMat->Albedo->Bind(1);
-                    shader->setInt("uHasAlbedo", 1);
+                    hasAlbedo = 1;
                 }
                 if (texMat->HasNormal()) {
                     texMat->Normal->Bind(2);
-                    shader->setInt("uHasNormal", 1);
+                    hasNormal = 1;
                 }
+                if (texMat->HasSpecular()) {
+                    texMat->Specular->Bind(3);
+                    hasSpecular = 1;
+                }
+                if (texMat->HasAO()) {
+                    texMat->AO->Bind(4);
+                    hasAO = 1;
+                }
+                if (texMat->HasRoughness()) {
+                    texMat->Roughness->Bind(5);
+                    hasRoughness = 1;
+                }
+                if (texMat->HasMetallic()) {
+                    texMat->Metallic->Bind(6);
+                    hasMetallic = 1;
+                }
+                if (texMat->HasEmissive()) {
+                    texMat->Emissive->Bind(7);
+                    hasEmissive = 1;
+                }
+                
                 shader->setVec4("uBaseColor", texMat->BaseColor);
+                shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
+                shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
+                shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
             }
+            
+            // Set sampler uniform locations
+            shader->setInt("uAlbedoMap", 1);
+            shader->setInt("uNormalMap", 2);
+            shader->setInt("uSpecularMap", 3);
+            shader->setInt("uAOMap", 4);
+            shader->setInt("uRoughnessMap", 5);
+            shader->setInt("uMetallicMap", 6);
+            shader->setInt("uEmissiveMap", 7);
+            
+            // Set texture presence flags
+            shader->setInt("uHasAlbedo", hasAlbedo);
+            shader->setInt("uHasNormal", hasNormal);
+            shader->setInt("uHasSpecular", hasSpecular);
+            shader->setInt("uHasAO", hasAO);
+            shader->setInt("uHasRoughness", hasRoughness);
+            shader->setInt("uHasMetallic", hasMetallic);
+            shader->setInt("uHasEmissive", hasEmissive);
             
             mesh.Draw();
         }

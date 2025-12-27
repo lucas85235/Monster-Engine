@@ -261,9 +261,9 @@ MaterialData AssimpModelLoader::ProcessMaterial(const aiMaterial* material, cons
             matData.SpecularTexturePath = findTexture({"_specular", "_spec", "_s."});
         }
         
-        // AO/Occlusion
+        // AO/Occlusion (including common misspelling)
         if (matData.AOTexturePath.empty()) {
-            matData.AOTexturePath = findTexture({"_ao", "_occlusion", "_ambient"});
+            matData.AOTexturePath = findTexture({"_ao", "_occlusion", "_oclussion", "_ambient"});
         }
         
         // Roughness

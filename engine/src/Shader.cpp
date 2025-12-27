@@ -1,5 +1,7 @@
 #include <engine/Shader.h>
 
+#include <engine/ShaderPreprocessor.h>
+
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -112,6 +114,11 @@ void Shader::setVec3(const char* name, const Vector3& value) const {
     if (loc >= 0) glUniform3fv(loc, 1, glm::value_ptr(value));
 }
 
+void Shader::setVec3Array(const char* name, const Vector3* values, int count) const {
+    int loc = uniformLocation(name);
+    if (loc >= 0) glUniform3fv(loc, count, glm::value_ptr(values[0]));
+}
+
 void Shader::setVec4(const char* name, const Vector4& value) const {
     int loc = uniformLocation(name);
     if (loc >= 0) glUniform4fv(loc, 1, glm::value_ptr(value));
@@ -147,21 +154,16 @@ unsigned int Shader::compileStage(unsigned int type, const char* src) {
 
 std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath,
                                                 const std::filesystem::path& fragPath) {
-    // Read files
-    std::ifstream vsFile(vertPath);
-    std::ifstream fsFile(fragPath);
+    // Use ShaderPreprocessor to handle #include directives
+    std::string vertexSource = ShaderPreprocessor::ProcessFile(vertPath);
+    std::string fragmentSource = ShaderPreprocessor::ProcessFile(fragPath);
 
-    if (!vsFile.is_open() || !fsFile.is_open()) {
-        throw std::runtime_error("Failed to open shader files: " + vertPath.string() + ", " +
-                                 fragPath.string());
+    if (vertexSource.empty()) {
+        throw std::runtime_error("Failed to load/process vertex shader: " + vertPath.string());
     }
-
-    std::stringstream vsStream, fsStream;
-    vsStream << vsFile.rdbuf();
-    fsStream << fsFile.rdbuf();
-
-    std::string vertexSource   = vsStream.str();
-    std::string fragmentSource = fsStream.str();
+    if (fragmentSource.empty()) {
+        throw std::runtime_error("Failed to load/process fragment shader: " + fragPath.string());
+    }
 
     // Create and return shared_ptr
     return std::make_shared<Shader>(vertexSource, fragmentSource);

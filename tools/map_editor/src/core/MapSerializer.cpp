@@ -52,6 +52,21 @@ void MapSerializer::WriteHeader(std::ofstream& file, const MapData& data) {
     file.write(reinterpret_cast<const char*>(&hasPlayerStart), sizeof(hasPlayerStart));
     file.write(reinterpret_cast<const char*>(&data.playerStartPosition), sizeof(Vector3));
     file.write(reinterpret_cast<const char*>(&data.playerStartRotation), sizeof(Vector3));
+    
+    // Directional Light data (version 3+)
+    uint8_t hasLight = data.hasDirectionalLight ? 1 : 0;
+    file.write(reinterpret_cast<const char*>(&hasLight), sizeof(hasLight));
+    if (data.hasDirectionalLight) {
+        file.write(reinterpret_cast<const char*>(&data.directionalLight.direction), sizeof(Vector3));
+        file.write(reinterpret_cast<const char*>(&data.directionalLight.position), sizeof(Vector3));
+        file.write(reinterpret_cast<const char*>(&data.directionalLight.rotation), sizeof(Vector3));
+        file.write(reinterpret_cast<const char*>(&data.directionalLight.color), sizeof(Vector3));
+        file.write(reinterpret_cast<const char*>(&data.directionalLight.intensity), sizeof(float));
+        uint8_t castShadows = data.directionalLight.castShadows ? 1 : 0;
+        file.write(reinterpret_cast<const char*>(&castShadows), sizeof(castShadows));
+        uint8_t enabled = data.directionalLight.enabled ? 1 : 0;
+        file.write(reinterpret_cast<const char*>(&enabled), sizeof(enabled));
+    }
 }
 
 void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity) {
@@ -155,6 +170,30 @@ bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& ent
         uint32_t reserved = 0;
         file.read(reinterpret_cast<char*>(&reserved), sizeof(reserved));
         data.hasPlayerStart = false;
+    }
+    
+    // Version 3+ has Directional Light data
+    if (version >= 3) {
+        uint8_t hasLight = 0;
+        file.read(reinterpret_cast<char*>(&hasLight), sizeof(hasLight));
+        data.hasDirectionalLight = (hasLight != 0);
+        if (data.hasDirectionalLight) {
+            file.read(reinterpret_cast<char*>(&data.directionalLight.direction), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&data.directionalLight.position), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&data.directionalLight.rotation), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&data.directionalLight.color), sizeof(Vector3));
+            file.read(reinterpret_cast<char*>(&data.directionalLight.intensity), sizeof(float));
+            uint8_t castShadows = 0;
+            file.read(reinterpret_cast<char*>(&castShadows), sizeof(castShadows));
+            data.directionalLight.castShadows = (castShadows != 0);
+            uint8_t enabled = 0;
+            file.read(reinterpret_cast<char*>(&enabled), sizeof(enabled));
+            data.directionalLight.enabled = (enabled != 0);
+        }
+    } else {
+        // Default light for older maps
+        data.hasDirectionalLight = true;
+        data.directionalLight = MapDirectionalLightData{};
     }
 
     return !file.fail();
