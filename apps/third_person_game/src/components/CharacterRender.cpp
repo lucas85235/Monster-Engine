@@ -1,4 +1,5 @@
 #include "CharacterRender.h"
+#include "Character.h"
 
 #include "engine/Application.h"
 #include "engine/ecs/AnimatorComponent.h"
@@ -25,6 +26,10 @@ void CharacterRender::Start() {
 }
 
 void CharacterRender::Update(float dt) {
+    // Query Character for movement state (decoupled from Controller)
+    if (auto* character = GetEntity().GetScript<Character>()) {
+        UpdateMovementState(character->IsMoving());
+    }
 }
 
 bool CharacterRender::LoadModel() {
@@ -98,7 +103,7 @@ bool CharacterRender::SetupAnimator() {
     return true;
 }
 
-void CharacterRender::SetMoving(bool moving) {
+void CharacterRender::UpdateMovementState(bool moving) {
     if (isMoving_ == moving) return;
     
     isMoving_ = moving;

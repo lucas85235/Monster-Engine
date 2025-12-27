@@ -40,8 +40,7 @@ public:
     void SetConfig(const CharacterRenderConfig& config) { config_ = config; }
     CharacterRenderConfig& GetConfig() { return config_; }
     
-    // Animation state control (called by CharacterController)
-    void SetMoving(bool moving);
+    // State query
     bool IsMoving() const { return isMoving_; }
     
     Entity GetVisualEntity() const { return visualEntity_; }
@@ -50,6 +49,7 @@ private:
     bool LoadModel();
     bool SetupAnimator();
     void ApplyTransformCorrections();
+    void UpdateMovementState(bool moving);
 
     CharacterRenderConfig config_;
     Entity visualEntity_;

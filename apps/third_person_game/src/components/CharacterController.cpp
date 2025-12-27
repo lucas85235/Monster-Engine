@@ -2,7 +2,6 @@
 
 #include "CameraController.h"
 #include "Character.h"
-#include "CharacterRender.h"
 #include "engine/Application.h"
 #include "apps/MathUtils.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -55,7 +54,6 @@ void CharacterController::CacheComponents() {
 
     // Get CameraController (lifecycle)
     cameraController_ = entity.GetScript<CameraController>();
-    characterRender_ = entity.GetScript<CharacterRender>();
 }
 
 
@@ -110,11 +108,6 @@ void CharacterController::ProcessMovementInput() {
 
         moveDir = glm::normalize(moveDir);
         character_->Move(moveDir);
-    }
-    
-    // Update animation state
-    if (characterRender_) {
-        characterRender_->SetMoving(isMoving);
     }
 
     // Jump

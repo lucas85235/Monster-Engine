@@ -11,7 +11,6 @@ using namespace se;
 
 class Character;
 class CameraController;
-class CharacterRender;
 
 
 
@@ -59,7 +58,6 @@ private:
     // Component references
     Character*        character_        = nullptr;
     CameraController* cameraController_ = nullptr;
-    CharacterRender*  characterRender_  = nullptr;
 
     // Configuration
     MovementInputConfig movementConfig_;
