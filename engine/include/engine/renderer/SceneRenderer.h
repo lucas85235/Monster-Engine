@@ -10,6 +10,7 @@
 #include "engine/renderer/Material.h"
 #include "engine/renderer/OcclusionCuller.h"
 #include "engine/renderer/PBRMaterial.h"
+#include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -91,6 +92,13 @@ class SceneRenderer {
     // HDR Exposure control
     void SetExposure(float exposure) { sceneData_.Exposure = exposure; }
     float GetExposure() const { return sceneData_.Exposure; }
+    
+    // Radiance Cascades (Global Illumination)
+    void SetRadianceCascadesEnabled(bool enabled);
+    bool IsRadianceCascadesEnabled() const;
+    RadianceCascadeConfig& GetRadianceCascadeConfig();
+    const RadianceCascadeConfig& GetRadianceCascadeConfig() const;
+    RadianceCascadesPass* GetRadianceCascadesPass() { return radianceCascades_.get(); }
 
     // Culling settings
     void SetFrustumCullingEnabled(bool enabled) {
@@ -172,6 +180,9 @@ class SceneRenderer {
     bool            frustumCullingEnabled_   = true;
     bool            occlusionCullingEnabled_ = true;
     uint32_t        nextObjectId_            = 1;
+    
+    // Radiance Cascades (Global Illumination)
+    std::unique_ptr<RadianceCascadesPass> radianceCascades_;
 };
 
 }  // namespace se

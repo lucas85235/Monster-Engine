@@ -6,6 +6,7 @@
 #include <gtc/type_ptr.hpp>
 
 #include "engine/Log.h"
+#include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/RenderCommand.h"
 #include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/Texture.h"
@@ -66,6 +67,9 @@ void SceneRenderer::Init() {
     // Initialize default IBL for outdoor lighting
     iblData_.SetDefaultOutdoor();
     
+    // Initialize Radiance Cascades (Note: requires screen dimensions, deferred init)
+    radianceCascades_ = std::make_unique<RadianceCascadesPass>();
+    
     initialized_ = true;
 }
 
@@ -73,6 +77,12 @@ void SceneRenderer::Shutdown() {
     if (!initialized_) return;
 
     SE_LOG_INFO("Shutting down SceneRenderer");
+    
+    if (radianceCascades_) {
+        radianceCascades_->Shutdown();
+        radianceCascades_.reset();
+    }
+    
     occlusionCuller_.Shutdown();
     DestroyShadowResources();
     initialized_ = false;
@@ -632,6 +642,32 @@ void SceneRenderer::RenderScenePass() {
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void SceneRenderer::SetRadianceCascadesEnabled(bool enabled) {
+    if (radianceCascades_) {
+        radianceCascades_->SetEnabled(enabled);
+    }
+}
+
+bool SceneRenderer::IsRadianceCascadesEnabled() const {
+    return radianceCascades_ && radianceCascades_->IsEnabled();
+}
+
+RadianceCascadeConfig& SceneRenderer::GetRadianceCascadeConfig() {
+    static RadianceCascadeConfig fallback;
+    if (radianceCascades_) {
+        return const_cast<RadianceCascadeConfig&>(radianceCascades_->GetConfig());
+    }
+    return fallback;
+}
+
+const RadianceCascadeConfig& SceneRenderer::GetRadianceCascadeConfig() const {
+    static RadianceCascadeConfig fallback;
+    if (radianceCascades_) {
+        return radianceCascades_->GetConfig();
+    }
+    return fallback;
 }
 
 }  // namespace se
