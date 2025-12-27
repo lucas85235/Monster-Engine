@@ -385,7 +385,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         // Set lighting uniforms
         auto light = sceneRenderer.GetDirectionalLight();
-        shader->setVec3("uLightDirection", light.Direction);
+        shader->setVec3("uLightDirection", -light.Direction);
         shader->setVec3("uLightColor", light.Color);
         shader->setFloat("uLightIntensity", light.Intensity);
         shader->setFloat("uAmbientStrength", 0.3f);
