@@ -57,6 +57,10 @@ struct MapEntityData {
     // Rigidbody settings
     uint8_t      rigidbodyType = 0;  // 0=Static, 1=Dynamic, 2=Kinematic
     float        mass = 1.0f;
+    
+    // Emissive (GI) properties
+    Vector3      emissiveColor{0.0f, 0.0f, 0.0f};
+    float        emissiveFactor = 0.0f;
 };
 
 // Directional light data for scene lighting
@@ -72,7 +76,7 @@ struct MapDirectionalLightData {
 
 struct MapData {
     static constexpr uint32_t MAGIC   = 0x4D53544D;  // "MSTM"
-    static constexpr uint32_t VERSION = 3;           // Bumped for light support
+    static constexpr uint32_t VERSION = 4;           // Bumped for emissive support
 
     std::string                mapName;
     std::vector<MapEntityData> entities;

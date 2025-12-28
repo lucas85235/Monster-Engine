@@ -32,7 +32,10 @@ se::Entity EntityManager::CreateFromData(const MapEntityData& data) {
     transform.SetScale(data.scale);
     
     if (entity.HasComponent<se::MeshRenderComponent>()) {
-        entity.GetComponent<se::MeshRenderComponent>().Color = data.color;
+        auto& mesh = entity.GetComponent<se::MeshRenderComponent>();
+        mesh.Color = data.color;
+        mesh.EmissiveColor = data.emissiveColor;
+        mesh.EmissiveFactor = data.emissiveFactor;
     }
     
     if (entity.HasComponent<PrimitiveFactory::EditorMetadata>()) {
@@ -78,6 +81,8 @@ se::Entity EntityManager::DuplicateEntity(se::Entity source) {
         auto& srcMesh = source.GetComponent<se::MeshRenderComponent>();
         auto& dupMesh = duplicate.GetComponent<se::MeshRenderComponent>();
         dupMesh.Color = srcMesh.Color;
+        dupMesh.EmissiveColor = srcMesh.EmissiveColor;
+        dupMesh.EmissiveFactor = srcMesh.EmissiveFactor;
     }
     
     eventBus_.Publish(EntityCreatedEvent{duplicate});
@@ -155,7 +160,10 @@ MapEntityData EntityManager::SerializeEntity(se::Entity entity) const {
     }
     
     if (entity.HasComponent<se::MeshRenderComponent>()) {
-        data.color = entity.GetComponent<se::MeshRenderComponent>().Color;
+        auto& mesh = entity.GetComponent<se::MeshRenderComponent>();
+        data.color = mesh.Color;
+        data.emissiveColor = mesh.EmissiveColor;
+        data.emissiveFactor = mesh.EmissiveFactor;
     }
     
     return data;

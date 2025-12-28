@@ -17,9 +17,14 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 // Output cascade texture
 layout(rgba16f, binding = 0) uniform image2D uCascadeOut;
 
-// Scene textures
-layout(binding = 1) uniform sampler2D uSceneColor;
-layout(binding = 2) uniform sampler2D uSceneDepth;
+// Scene textures (screen-space)
+layout(binding = 1) uniform sampler2D uSceneColor;    // Emissive
+layout(binding = 2) uniform sampler2D uSceneDepth;    // Depth
+layout(binding = 3) uniform sampler2D uScenePosition; // World position
+
+// Voxel textures (world-space)
+layout(binding = 4) uniform sampler3D uVoxelAlbedo;   // Albedo + opacity
+layout(binding = 5) uniform sampler3D uVoxelEmissive; // Emissive
 
 uniform int uCascadeIndex;
 uniform int uProbeCountX;
@@ -28,6 +33,13 @@ uniform int uRayCount;
 uniform float uIntervalLength;
 uniform float uRayBias;
 uniform vec2 uScreenSize;
+uniform vec3 uCameraPos;
+
+// Voxel grid uniforms
+uniform vec3 uVoxelGridCenter;
+uniform float uVoxelGridSize;
+uniform int uVoxelResolution;
+uniform bool uUseVoxels;
 
 const float PI = 3.14159265359;
 
@@ -41,8 +53,6 @@ vec2 GetProbePosition(int probeX, int probeY) {
 // Calculate ray direction from ray index
 vec2 GetRayDirection(int rayIndex) {
     float angle = (float(rayIndex) / float(uRayCount)) * 2.0 * PI;
-    // We need to account for aspect ratio if we want consistent angular sweep in screen space
-    // but standard RC 2D uses uniform angles and handles aspect in the step.
     return vec2(cos(angle), sin(angle));
 }
 
@@ -53,16 +63,51 @@ void GetRayInterval(out float start, out float length) {
     length = uIntervalLength * factor;
 }
 
-// Sample scene depth and check if ray hit something
-float SampleDepth(vec2 uv) {
+vec3 SampleColor(vec2 uv) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        return 1.0; // Out of bounds = far depth
+        return vec3(0.0);
     }
-    return texture(uSceneDepth, uv).r;
+    return texture(uSceneColor, uv).rgb;
 }
 
-vec3 SampleColor(vec2 uv) {
-    return texture(uSceneColor, uv).rgb;
+vec3 SampleWorldPos(vec2 uv) {
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        return vec3(0.0);
+    }
+    return texture(uScenePosition, uv).xyz;
+}
+
+bool IsValidPosition(vec3 pos) {
+    // Check if position is valid (not background/sky)
+    return length(pos) > 0.01;
+}
+
+// Convert world position to voxel UV coordinates
+vec3 WorldToVoxelUV(vec3 worldPos) {
+    vec3 localPos = worldPos - uVoxelGridCenter;
+    return (localPos / uVoxelGridSize) + 0.5;
+}
+
+// Sample emissive from voxel grid
+vec4 SampleVoxelEmissive(vec3 worldPos) {
+    if (!uUseVoxels) return vec4(0.0);
+    
+    vec3 voxelUV = WorldToVoxelUV(worldPos);
+    if (any(lessThan(voxelUV, vec3(0.0))) || any(greaterThan(voxelUV, vec3(1.0)))) {
+        return vec4(0.0);
+    }
+    return texture(uVoxelEmissive, voxelUV);
+}
+
+// Sample albedo (opacity) from voxel grid for occlusion
+vec4 SampleVoxelAlbedo(vec3 worldPos) {
+    if (!uUseVoxels) return vec4(0.0);
+    
+    vec3 voxelUV = WorldToVoxelUV(worldPos);
+    if (any(lessThan(voxelUV, vec3(0.0))) || any(greaterThan(voxelUV, vec3(1.0)))) {
+        return vec4(0.0);
+    }
+    return texture(uVoxelAlbedo, voxelUV);
 }
 
 void main() {
@@ -76,43 +121,69 @@ void main() {
         return;
     }
     
-    vec2 probePos = GetProbePosition(probeX, probeY);
+    vec2 probeUV = GetProbePosition(probeX, probeY);
     vec2 rayDir = GetRayDirection(rayIndex);
     
     float intervalStart, intervalLength;
     GetRayInterval(intervalStart, intervalLength);
     
-    // Raymarch along the ray
+    // Get the world position at the probe's screen location
+    vec3 probeWorldPos = SampleWorldPos(probeUV);
+    float probeDistFromCam = length(probeWorldPos - uCameraPos);
+    bool probeHasGeometry = IsValidPosition(probeWorldPos);
+    
     vec4 result = vec4(0.0, 0.0, 0.0, 0.0);
     
-    const int STEPS = 64; // Increased for better precision
+    const int STEPS = 64;
     float stepSize = intervalLength / float(STEPS);
     
+    // March outward from the probe in screen space
     for (int i = 0; i < STEPS; i++) {
         float t = intervalStart + stepSize * (float(i) + 0.5);
-        // Correct conversion from pixel distance to UV offset
-        vec2 sampleUV = probePos + (rayDir * t) / uScreenSize;
+        if (t <= 0.0) continue;
         
-        // Check bounds
+        vec2 sampleUV = probeUV + (rayDir * t) / uScreenSize;
+        
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
             break;
         }
         
-        // Sample emissive color directly
-        vec3 hitColor = SampleColor(sampleUV);
-        float luminance = dot(hitColor, vec3(0.299, 0.587, 0.114));
+        // Get the world position at this sample point
+        vec3 sampleWorldPos = SampleWorldPos(sampleUV);
         
-        if (luminance > 0.01) {
-            result = vec4(hitColor, 1.0);
+        if (!IsValidPosition(sampleWorldPos)) {
+            continue; // No geometry here, keep marching
+        }
+        
+        // Calculate distance from camera of this sampled point
+        float sampleDistFromCam = length(sampleWorldPos - uCameraPos);
+        
+        // Check if emissive first
+        vec3 emissiveColor = SampleColor(sampleUV);
+        float luminance = dot(emissiveColor, vec3(0.299, 0.587, 0.114));
+        
+        if (luminance > 0.001) {
+            // Emissive surface found - collect light with distance falloff
+            float worldDist = length(sampleWorldPos - probeWorldPos);
+            float falloff = 1.0 / (1.0 + worldDist * 0.1);
+            result = vec4(emissiveColor * falloff, 1.0);
             break;
         }
         
-        // Check depth occluders
-        float depth = SampleDepth(sampleUV);
-        if (depth > 0.01 && depth < 0.999) {
-            result = vec4(0.0, 0.0, 0.0, 1.0);
-            break;
+        // Non-emissive surface - check if it should occlude
+        // Block if sample is CLOSER to camera than probe (something in front blocks light)
+        // depthDiff > 0 means sample is BEHIND probe (further from camera) - don't block
+        // depthDiff < 0 means sample is IN FRONT of probe (closer to camera) - block!
+        if (probeHasGeometry) {
+            float depthDiff = sampleDistFromCam - probeDistFromCam;
+            if (depthDiff < -0.5) {
+                // Sample is in front of probe (between camera and probe) - blocks light
+                result = vec4(0.0, 0.0, 0.0, 1.0);
+                break;
+            }
+            // Sample is at same depth or behind probe - keep marching
         }
+        // If probe has no geometry (sky/background), keep marching
     }
     
     imageStore(uCascadeOut, texCoord, result);
@@ -209,12 +280,17 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(rgba16f, binding = 0) uniform image2D uRadianceOut;
 layout(binding = 1) uniform sampler2D uCascade0;
 layout(binding = 2) uniform sampler2D uSceneEmissive;  // For debug mode 2
+layout(binding = 3) uniform sampler2D uScenePosition;  // World position for temporal reprojection
+layout(binding = 4) uniform sampler2D uHistoryRadiance; // Previous frame radiance
 
 uniform int uProbeCountX;
 uniform int uProbeCountY;
 uniform int uRayCount;
 uniform vec2 uScreenSize;
 uniform int uDebugMode;  // 0 = normal, 1 = debug pattern, 2 = show emissive texture, 3 = pure red
+uniform mat4 uPrevViewProj;
+uniform bool uHasPreviousFrame;
+uniform float uTemporalBlend;  // 0.0-1.0, how much to blend with history
 
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -262,39 +338,77 @@ void main() {
     }
     
     // Normal mode: Sample radiance at probe positions and interpolate
+    // For each screen pixel, we find the 4 nearest probes and bilinearly interpolate
+    // their accumulated radiance from all ray directions
+    
     vec2 probeGrid = vec2(uProbeCountX, uProbeCountY);
-    vec2 spacing = (uScreenSize / probeGrid);
-    vec2 probePos = (vec2(texCoord) - spacing * 0.5) / spacing;
+    vec2 spacing = uScreenSize / probeGrid;
+    
+    // Find which probes affect this pixel
+    vec2 probePos = (vec2(texCoord) + 0.5) / spacing - 0.5;
     
     ivec2 p00 = ivec2(floor(probePos));
+    p00 = clamp(p00, ivec2(0), ivec2(uProbeCountX - 1, uProbeCountY - 1));
     ivec2 p11 = min(p00 + ivec2(1), ivec2(uProbeCountX - 1, uProbeCountY - 1));
+    ivec2 p01 = ivec2(p00.x, p11.y);
+    ivec2 p10 = ivec2(p11.x, p00.y);
     
-    vec2 frac = fract(probePos);
+    vec2 fractional = fract(probePos);
     
-    // Sum all rays from nearest probes
-    vec3 totalRadiance = vec3(0.0);
+    // Accumulate radiance from all 4 nearest probes, all ray directions
+    vec3 accum00 = vec3(0.0);
+    vec3 accum01 = vec3(0.0);
+    vec3 accum10 = vec3(0.0);
+    vec3 accum11 = vec3(0.0);
+    
+    float invCascadeSize = 1.0 / vec2(uProbeCountX * uRayCount, uProbeCountY).x;
     
     for (int r = 0; r < uRayCount; r++) {
-        // Bilinear sample from cascade0
-        vec2 uv00 = vec2(p00.x * uRayCount + r, p00.y) / vec2(uProbeCountX * uRayCount, uProbeCountY);
-        vec2 uv11 = vec2(p11.x * uRayCount + r, p11.y) / vec2(uProbeCountX * uRayCount, uProbeCountY);
-        vec2 uv01 = vec2(p00.x * uRayCount + r, p11.y) / vec2(uProbeCountX * uRayCount, uProbeCountY);
-        vec2 uv10 = vec2(p11.x * uRayCount + r, p00.y) / vec2(uProbeCountX * uRayCount, uProbeCountY);
+        // Sample from cascade0 for each probe at this ray direction
+        vec2 uv00 = (vec2(p00.x * uRayCount + r, p00.y) + 0.5) / vec2(uProbeCountX * uRayCount, uProbeCountY);
+        vec2 uv11 = (vec2(p11.x * uRayCount + r, p11.y) + 0.5) / vec2(uProbeCountX * uRayCount, uProbeCountY);
+        vec2 uv01 = (vec2(p01.x * uRayCount + r, p01.y) + 0.5) / vec2(uProbeCountX * uRayCount, uProbeCountY);
+        vec2 uv10 = (vec2(p10.x * uRayCount + r, p10.y) + 0.5) / vec2(uProbeCountX * uRayCount, uProbeCountY);
         
-        vec3 v00 = texture(uCascade0, uv00).rgb;
-        vec3 v11 = texture(uCascade0, uv11).rgb;
-        vec3 v01 = texture(uCascade0, uv01).rgb;
-        vec3 v10 = texture(uCascade0, uv10).rgb;
-        
-        vec3 t0 = mix(v00, v10, frac.x);
-        vec3 t1 = mix(v01, v11, frac.x);
-        totalRadiance += mix(t0, t1, frac.y);
+        accum00 += texture(uCascade0, uv00).rgb;
+        accum11 += texture(uCascade0, uv11).rgb;
+        accum01 += texture(uCascade0, uv01).rgb;
+        accum10 += texture(uCascade0, uv10).rgb;
     }
     
-    // Average over all rays
-    totalRadiance /= float(uRayCount);
+    // Bilinear interpolate the accumulated radiance
+    vec3 t0 = mix(accum00, accum10, fractional.x);
+    vec3 t1 = mix(accum01, accum11, fractional.x);
+    vec3 currentRadiance = mix(t0, t1, fractional.y);
     
-    imageStore(uRadianceOut, texCoord, vec4(totalRadiance, 1.0));
+    // Normalize by dividing by number of rays (hemisphere sampling)
+    float normFactor = 6.28318 / float(uRayCount);
+    currentRadiance *= normFactor;
+    
+    // Apply intensity boost for visibility
+    currentRadiance *= 2.0;
+    
+    // Temporal blending for smooth results and off-screen persistence
+    vec3 finalRadiance = currentRadiance;
+    if (uHasPreviousFrame && uTemporalBlend > 0.0) {
+        // Get world position for this pixel
+        vec3 worldPos = texture(uScenePosition, uv).xyz;
+        
+        if (length(worldPos) > 0.01) {
+            // Reproject to previous frame
+            vec4 prevClip = uPrevViewProj * vec4(worldPos, 1.0);
+            vec2 prevUV = (prevClip.xy / prevClip.w) * 0.5 + 0.5;
+            
+            // Check if in bounds
+            if (prevUV.x >= 0.0 && prevUV.x <= 1.0 && prevUV.y >= 0.0 && prevUV.y <= 1.0) {
+                vec3 historyRadiance = texture(uHistoryRadiance, prevUV).rgb;
+                // Blend: more weight on history for smoother results
+                finalRadiance = mix(currentRadiance, historyRadiance, uTemporalBlend);
+            }
+        }
+    }
+    
+    imageStore(uRadianceOut, texCoord, vec4(finalRadiance, 1.0));
 }
 )";
 
@@ -414,7 +528,18 @@ void RadianceCascadesPass::CreateCascadeTextures() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     
+    // Create history texture for temporal reprojection (same as final)
+    glGenTextures(1, &historyRadianceTex_);
+    glBindTexture(GL_TEXTURE_2D, historyRadianceTex_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, screenWidth_, screenHeight_, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    
     glBindTexture(GL_TEXTURE_2D, 0);
+    
+    hasPreviousFrame_ = false;
 }
 
 void RadianceCascadesPass::DestroyCascadeTextures() {
@@ -429,21 +554,33 @@ void RadianceCascadesPass::DestroyCascadeTextures() {
         glDeleteTextures(1, &finalRadianceTex_);
         finalRadianceTex_ = 0;
     }
+    
+    if (historyRadianceTex_ != 0) {
+        glDeleteTextures(1, &historyRadianceTex_);
+        historyRadianceTex_ = 0;
+    }
+    
+    hasPreviousFrame_ = false;
 }
 
-void RadianceCascadesPass::Execute(uint32_t sceneColorTex, uint32_t sceneDepthTex,
-                                   const glm::mat4& projection, const glm::mat4& view) {
+void RadianceCascadesPass::Execute(uint32_t sceneColorTex, uint32_t sceneDepthTex, uint32_t scenePositionTex,
+                                   const glm::mat4& projection, const glm::mat4& view,
+                                   const glm::vec3& cameraPos,
+                                   uint32_t voxelAlbedoTex, uint32_t voxelEmissiveTex,
+                                   const glm::vec3& voxelGridCenter, float voxelGridSize, int voxelResolution) {
     if (!initialized_ || !config_.Enabled) return;
     
     invProjection_ = glm::inverse(projection);
     invView_ = glm::inverse(view);
     
-    // Store emissive texture for debug mode
+    // Store textures for resolve pass
     lastEmissiveTex_ = sceneColorTex;
+    lastPositionTex_ = scenePositionTex;
     
     // Step 1: Raymarch all cascades (from lowest to highest)
     for (int i = 0; i < config_.NumCascades; i++) {
-        RaymarchCascade(i, sceneColorTex, sceneDepthTex);
+        RaymarchCascade(i, sceneColorTex, sceneDepthTex, scenePositionTex, cameraPos,
+                       voxelAlbedoTex, voxelEmissiveTex, voxelGridCenter, voxelGridSize, voxelResolution);
     }
     
     // Step 2: Merge cascades (from highest to lowest)
@@ -451,9 +588,15 @@ void RadianceCascadesPass::Execute(uint32_t sceneColorTex, uint32_t sceneDepthTe
     
     // Step 3: Resolve final radiance from cascade 0
     ResolveRadiance();
+    
+    // Store current view-projection for next frame's temporal reprojection
+    prevViewProj_ = projection * view;
 }
 
-void RadianceCascadesPass::RaymarchCascade(int cascadeIndex, uint32_t sceneColorTex, uint32_t sceneDepthTex) {
+void RadianceCascadesPass::RaymarchCascade(int cascadeIndex, uint32_t sceneColorTex, uint32_t sceneDepthTex,
+                                           uint32_t scenePositionTex, const glm::vec3& cameraPos,
+                                           uint32_t voxelAlbedoTex, uint32_t voxelEmissiveTex,
+                                           const glm::vec3& voxelGridCenter, float voxelGridSize, int voxelResolution) {
     if (!raymarchShader_ || !raymarchShader_->IsValid()) return;
     
     int probeCount = config_.BaseProbeCount >> cascadeIndex;
@@ -472,6 +615,14 @@ void RadianceCascadesPass::RaymarchCascade(int cascadeIndex, uint32_t sceneColor
     glBindTexture(GL_TEXTURE_2D, sceneColorTex);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, sceneDepthTex);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, scenePositionTex);
+    
+    // Bind voxel textures
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_3D, voxelAlbedoTex);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_3D, voxelEmissiveTex);
     
     raymarchShader_->SetInt("uCascadeIndex", cascadeIndex);
     raymarchShader_->SetInt("uProbeCountX", probeCount);
@@ -480,6 +631,13 @@ void RadianceCascadesPass::RaymarchCascade(int cascadeIndex, uint32_t sceneColor
     raymarchShader_->SetFloat("uIntervalLength", config_.IntervalLength);
     raymarchShader_->SetFloat("uRayBias", config_.RayBias);
     raymarchShader_->SetVec2("uScreenSize", glm::vec2(screenWidth_, screenHeight_));
+    raymarchShader_->SetVec3("uCameraPos", cameraPos);
+    
+    // Voxel uniforms
+    raymarchShader_->SetVec3("uVoxelGridCenter", voxelGridCenter);
+    raymarchShader_->SetFloat("uVoxelGridSize", voxelGridSize);
+    raymarchShader_->SetInt("uVoxelResolution", voxelResolution);
+    raymarchShader_->SetInt("uUseVoxels", voxelAlbedoTex != 0 && voxelEmissiveTex != 0 ? 1 : 0);
     
     uint32_t groupsX = (texWidth + 7) / 8;
     uint32_t groupsY = (texHeight + 7) / 8;
@@ -539,6 +697,14 @@ void RadianceCascadesPass::ResolveRadiance() {
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, lastEmissiveTex_);
     
+    // Bind position texture for temporal reprojection
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, lastPositionTex_);
+    
+    // Bind history radiance for temporal blending
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, historyRadianceTex_);
+    
     int probeCount = config_.BaseProbeCount;
     int rayCount = config_.BaseRayCount;
     
@@ -546,12 +712,27 @@ void RadianceCascadesPass::ResolveRadiance() {
     resolveShader_->SetInt("uProbeCountY", probeCount);
     resolveShader_->SetInt("uRayCount", rayCount);
     resolveShader_->SetVec2("uScreenSize", glm::vec2(screenWidth_, screenHeight_));
-    resolveShader_->SetInt("uDebugMode", 2);  // 2 = show emissive texture directly
+    resolveShader_->SetInt("uDebugMode", 0);  // 0 = normal GI rendering
+    
+    // Temporal uniforms
+    resolveShader_->SetMat4("uPrevViewProj", prevViewProj_);
+    resolveShader_->SetInt("uHasPreviousFrame", hasPreviousFrame_ ? 1 : 0);
+    resolveShader_->SetFloat("uTemporalBlend", 0.9f);  // 90% history, 10% current
     
     uint32_t groupsX = (screenWidth_ + 7) / 8;
     uint32_t groupsY = (screenHeight_ + 7) / 8;
     
     resolveShader_->DispatchAndWait(groupsX, groupsY, 1);
+    
+    // Copy current result to history for next frame
+    glCopyImageSubData(
+        finalRadianceTex_, GL_TEXTURE_2D, 0, 0, 0, 0,
+        historyRadianceTex_, GL_TEXTURE_2D, 0, 0, 0, 0,
+        screenWidth_, screenHeight_, 1
+    );
+    
+    // Store current view-projection for next frame
+    hasPreviousFrame_ = true;
 }
 
 }  // namespace se

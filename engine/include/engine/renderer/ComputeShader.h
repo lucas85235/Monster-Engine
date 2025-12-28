@@ -38,6 +38,7 @@ public:
     [[nodiscard]] bool IsValid() const { return programId_ != 0; }
     
     static std::shared_ptr<ComputeShader> CreateFromFile(const std::string& path);
+    bool LoadFromSource(const std::string& source);  // Load shader from source string
 
 private:
     uint32_t programId_ = 0;

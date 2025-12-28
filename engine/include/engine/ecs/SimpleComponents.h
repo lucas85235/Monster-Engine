@@ -147,6 +147,10 @@ struct MeshRenderComponent {
     bool                         IsVisible      = true;
     bool                         CastShadows    = true;
     bool                         ReceiveShadows = true;
+    
+    // Emissive properties for GI
+    Vector3                      EmissiveColor{0.0f, 0.0f, 0.0f};  // RGB emissive color
+    float                        EmissiveFactor = 0.0f;             // Emission intensity multiplier
 
     MeshRenderComponent()                           = default;
     MeshRenderComponent(const MeshRenderComponent&) = default;

@@ -12,6 +12,8 @@
 #include "engine/renderer/OcclusionCuller.h"
 #include "engine/renderer/PBRMaterial.h"
 #include "engine/renderer/RadianceCascadesPass.h"
+#include "engine/renderer/SceneVoxelizer.h"
+#include "engine/renderer/SparseRadianceCascades.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -59,7 +61,8 @@ class SceneRenderer {
     void Submit(const std::shared_ptr<VertexArray>& vertexArray,
                 const std::shared_ptr<Material>& material, const Matrix4& transform = Matrix4(1.0f),
                 bool castsShadows = true, bool receiveShadows = true, float boundingRadius = 1.0f,
-                const std::shared_ptr<TextureMaterial>& textureMaterial = nullptr);
+                const std::shared_ptr<TextureMaterial>& textureMaterial = nullptr,
+                const Vector3& emissiveColor = Vector3(0.0f), float emissiveFactor = 0.0f);
 
     // Submit instanced geometry (multiple transforms in a single draw call)
     void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
@@ -94,12 +97,19 @@ class SceneRenderer {
     void SetExposure(float exposure) { sceneData_.Exposure = exposure; }
     float GetExposure() const { return sceneData_.Exposure; }
     
-    // Radiance Cascades (Global Illumination)
+    // Radiance Cascades (Global Illumination) - 2D Screen-Space
     void SetRadianceCascadesEnabled(bool enabled);
     bool IsRadianceCascadesEnabled() const;
     RadianceCascadeConfig& GetRadianceCascadeConfig();
     const RadianceCascadeConfig& GetRadianceCascadeConfig() const;
     RadianceCascadesPass* GetRadianceCascadesPass() { return radianceCascades_.get(); }
+    
+    // Sparse Radiance Cascades (Global Illumination) - 3D World-Space
+    void SetSparseRCEnabled(bool enabled);
+    bool IsSparseRCEnabled() const;
+    SparseRCConfig& GetSparseRCConfig();
+    SparseRadianceCascades* GetSparseRadianceCascades() { return sparseRC_.get(); }
+    SceneVoxelizer* GetSceneVoxelizer() { return voxelizer_.get(); }
     
     // Screen size management (needed for GBuffer and RC)
     void SetScreenSize(int width, int height);
@@ -138,6 +148,8 @@ class SceneRenderer {
         Vector3                      Center{0.0f};
         uint32_t                     ObjectId = 0;
         std::shared_ptr<TextureMaterial> textureMaterial;  // PBR texture data
+        Vector3                      EmissiveColor{0.0f, 0.0f, 0.0f};  // Emissive for GI
+        float                        EmissiveFactor = 0.0f;             // Emission intensity
     };
 
     struct SceneData {
@@ -158,6 +170,7 @@ class SceneRenderer {
         float                   AORadius        = 1.0f;
         float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
         bool                    ShadowsEnabled  = true;
+        Vector3                 CameraPosition{0.0f};    // For GI occlusion
         std::vector<Submission> Submissions;
     };
     
@@ -186,8 +199,12 @@ class SceneRenderer {
     bool            occlusionCullingEnabled_ = true;
     uint32_t        nextObjectId_            = 1;
     
-    // Radiance Cascades (Global Illumination)
+    // Radiance Cascades (Global Illumination) - 2D Screen-Space
     std::unique_ptr<RadianceCascadesPass> radianceCascades_;
+    
+    // Sparse Radiance Cascades (Global Illumination) - 3D World-Space
+    std::shared_ptr<SceneVoxelizer> voxelizer_;
+    std::unique_ptr<SparseRadianceCascades> sparseRC_;
     
     // G-Buffer for deferred lighting
     std::unique_ptr<GBufferPass> gbuffer_;

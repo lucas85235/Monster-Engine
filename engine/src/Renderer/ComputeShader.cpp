@@ -137,4 +137,48 @@ std::shared_ptr<ComputeShader> ComputeShader::CreateFromFile(const std::string& 
     return std::make_shared<ComputeShader>(buffer.str());
 }
 
+bool ComputeShader::LoadFromSource(const std::string& source) {
+    if (programId_ != 0) {
+        glDeleteProgram(programId_);
+        programId_ = 0;
+    }
+    
+    // Compile compute shader
+    GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
+    const char* src = source.c_str();
+    glShaderSource(computeShader, 1, &src, nullptr);
+    glCompileShader(computeShader);
+    
+    // Check compilation
+    GLint success;
+    glGetShaderiv(computeShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[1024];
+        glGetShaderInfoLog(computeShader, 1024, nullptr, infoLog);
+        SE_LOG_ERROR("Compute shader compilation failed: {}", infoLog);
+        glDeleteShader(computeShader);
+        return false;
+    }
+    
+    // Link program
+    programId_ = glCreateProgram();
+    glAttachShader(programId_, computeShader);
+    glLinkProgram(programId_);
+    
+    glGetProgramiv(programId_, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[1024];
+        glGetProgramInfoLog(programId_, 1024, nullptr, infoLog);
+        SE_LOG_ERROR("Compute shader linking failed: {}", infoLog);
+        glDeleteProgram(programId_);
+        programId_ = 0;
+        glDeleteShader(computeShader);
+        return false;
+    }
+    
+    glDeleteShader(computeShader);
+    SE_LOG_INFO("Compute shader loaded from source (ID: {})", programId_);
+    return true;
+}
+
 }  // namespace se

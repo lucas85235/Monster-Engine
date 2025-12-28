@@ -43,7 +43,7 @@ MapLoadResult MapLoader::Load(Scene& scene, const std::filesystem::path& path) {
     // Read and create entities
     for (uint32_t i = 0; i < entityCount; ++i) {
         EntityData data;
-        if (!ReadEntity(file, data)) {
+        if (!ReadEntity(file, data, version)) {
             SE_LOG_ERROR("MapLoader: Failed to read entity {} from: {}", i, path.string());
             return result;
         }
@@ -136,7 +136,7 @@ bool MapLoader::ReadHeader(std::ifstream& file, uint32_t& entityCount, MapLoadRe
     return !file.fail();
 }
 
-bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity) {
+bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity, uint32_t version) {
     if (!ReadString(file, entity.name)) return false;
     
     file.read(reinterpret_cast<char*>(&entity.primitiveType), sizeof(entity.primitiveType));
@@ -158,6 +158,15 @@ bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity) {
         // Read rigidbody settings
         file.read(reinterpret_cast<char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
         file.read(reinterpret_cast<char*>(&entity.mass), sizeof(float));
+    }
+    
+    // Version 4+ has emissive properties
+    if (version >= 4) {
+        file.read(reinterpret_cast<char*>(&entity.emissiveColor), sizeof(Vector3));
+        file.read(reinterpret_cast<char*>(&entity.emissiveFactor), sizeof(float));
+    } else {
+        entity.emissiveColor = Vector3{0.0f, 0.0f, 0.0f};
+        entity.emissiveFactor = 0.0f;
     }
     
     return !file.fail();
@@ -189,6 +198,8 @@ void MapLoader::CreateSceneEntity(Scene& scene, const EntityData& data) {
     // Add mesh render component
     auto& meshRender = entity.AddComponent<MeshRenderComponent>(mesh, material);
     meshRender.Color = data.color;
+    meshRender.EmissiveColor = data.emissiveColor;
+    meshRender.EmissiveFactor = data.emissiveFactor;
     
     // Add collider component if has collision
     // NOTE: Do NOT multiply by scale here - PhysicsSystem applies transform.Scale automatically
