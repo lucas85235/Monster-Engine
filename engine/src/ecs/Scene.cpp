@@ -21,7 +21,16 @@ Scene::Scene(const std::string& name, const SceneSettings& settings) : name_(nam
     if (settings.EnablePhysics) {
         physics_system_ = std::make_unique<PhysicsSystem>(this);
         physics_system_->Initialize();
-        SE_LOG_INFO("Scene '{}' physics enabled", name_);
+        
+        // Register pre-tick callback to run FixedUpdate in sync with each Bullet substep
+        // This ensures game logic runs at the exact same rate as physics
+        physics_system_->SetPreTickCallback([this](float fixedDt) {
+            if (component_system_) {
+                component_system_->RunFixedUpdateOnce(fixedDt);
+            }
+        });
+        
+        SE_LOG_INFO("Scene '{}' physics enabled with synced FixedUpdate callback", name_);
     }
 }
 
@@ -121,16 +130,22 @@ void Scene::UpdateTransforms() {
 }
 
 void Scene::OnUpdate(float deltaTime) {
-    // Physics simulation
+    // Process pending component starts before physics
+    if (component_system_) {
+        component_system_->ProcessPendingStarts();
+    }
+    
+    // NOTE: FixedUpdate is now called via Bullet's pre-tick callback
+    // This ensures game logic runs in perfect sync with each physics substep
+
+    // Physics simulation - internally calls our FixedUpdate via pre-tick callback
     if (physics_system_) { physics_system_->Update(deltaTime); }
 
     // Animation system - tick all AnimatorComponents
     AnimationSystem::Update(*this, deltaTime);
 
-    // Component lifecycle
+    // Component Update and LateUpdate (variable rate logic)
     if (component_system_) {
-        component_system_->ProcessPendingStarts();
-        component_system_->FixedUpdate(deltaTime);
         component_system_->Update(deltaTime);
         component_system_->LateUpdate(deltaTime);
     }

@@ -129,6 +129,23 @@ void Shader::setMat4(const char* name, const Matrix4& value) const {
     if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(value));
 }
 
+void Shader::setMat4ByLocation(int location, const Matrix4& value) const {
+    if (location >= 0) glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
+int Shader::getUniformLocation(const char* name) const {
+    if (!program_) return -1;
+    
+    auto it = uniformLocationCache_.find(name);
+    if (it != uniformLocationCache_.end()) {
+        return it->second;
+    }
+    
+    int loc = glGetUniformLocation(program_, name);
+    uniformLocationCache_[name] = loc;
+    return loc;
+}
+
 unsigned int Shader::compileStage(unsigned int type, const char* src) {
     if (!src) throw std::invalid_argument("Shader source is null");
 

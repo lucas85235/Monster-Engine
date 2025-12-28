@@ -8,6 +8,7 @@
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/core/Time.h"
+#include "engine/debug/DebugTools.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
 
@@ -135,15 +136,22 @@ int Application::Run() {
 
         // Skip rendering if minimized
         if (minimized_) continue;
+        
+        // Begin debug profiling frame
+        SE_DEBUG_TOOLS_FRAME_BEGIN();
 
-        // Begin frame
-        renderer_->BeginFrame();
+        {
+            SE_PROFILE_SCOPE("BeginFrame");
+            renderer_->BeginFrame();
+        }
 
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
 
-        // Clear screen with the configured color
-        renderer_->Clear();
+        {
+            SE_PROFILE_SCOPE("Clear");
+            renderer_->Clear();
+        }
 
         if (window_->GetWidth() != static_cast<uint32_t>(width) ||
             window_->GetHeight() != static_cast<uint32_t>(height)) {
@@ -151,22 +159,40 @@ int Application::Run() {
             window_->SetHeight(height);
         }
 
-        // Update all layers
-        for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+        {
+            SE_PROFILE_SCOPE("Layers Update");
+            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+        }
 
-        // Render all layers
-        for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
+        {
+            SE_PROFILE_SCOPE("Layers Render");
+            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
+        }
 
-        // End frame
-        renderer_->EndFrame();
+        {
+            SE_PROFILE_SCOPE("EndFrame");
+            renderer_->EndFrame();
+        }
 
         // ImGui rendering
-        imguiLayer_->Begin();
+        {
+            SE_PROFILE_SCOPE("ImGui");
+            imguiLayer_->Begin();
 
-        // Let layers draw their ImGui
-        for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
+            // Let layers draw their ImGui
+            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
+            
+            // Render debug tools (only in Debug builds)
+            SE_DEBUG_TOOLS_RENDER();
 
-        imguiLayer_->End();
+            imguiLayer_->End();
+        }
+        
+        // End debug profiling frame
+        SE_DEBUG_TOOLS_FRAME_END();
+        
+        // Apply FPS limiting if set
+        window_->ApplyFrameRateLimit();
 
         // Swap buffers
         window_->SwapBuffers();

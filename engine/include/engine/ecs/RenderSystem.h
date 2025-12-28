@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <array>
 #include <glm.hpp>
 #include <memory>
 #include <unordered_map>
@@ -79,6 +80,25 @@ class RenderSystem {
     // Skinned model rendering material (uses skinned_model.vert/frag shader)
     static std::shared_ptr<Material> skinnedMaterial_;
     static void                      EnsureSkinnedMaterial();
+    
+    // Pre-computed bone matrix uniform locations for fast setting
+    static constexpr size_t MAX_BONES = 256;
+    static std::array<int, MAX_BONES> boneUniformLocations_;
+    static bool                       boneLocationsInitialized_;
+    static void                       InitBoneUniformLocations(Shader* shader);
+    
+    // Track instance counts from last frame for reserve() optimization
+    static std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> lastFrameInstanceCounts_;
+    
+    // Cache shared_ptrs and emissive properties per batch to avoid linear search
+    struct BatchResources {
+        std::shared_ptr<VertexArray> va;
+        std::shared_ptr<Material>    material;
+        glm::vec3                    emissiveColor{0.0f};
+        float                        emissiveFactor = 0.0f;
+    };
+    using BatchResourcesCache = std::unordered_map<InstanceBatchKey, BatchResources, InstanceBatchKeyHash>;
+    static BatchResourcesCache batchResources_;
 };
 
 }  // namespace se

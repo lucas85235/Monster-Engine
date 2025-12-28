@@ -4,6 +4,7 @@
 #include <chrono>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace se {
@@ -60,12 +61,12 @@ class PerformanceProfiler {
         }
     }
 
-    void BeginSection(const std::string& name) {
-        section_starts_[name] = std::chrono::high_resolution_clock::now();
+    void BeginSection(std::string_view name) {
+        section_starts_[std::string(name)] = std::chrono::high_resolution_clock::now();
     }
 
-    float EndSection(const std::string& name) {
-        auto it = section_starts_.find(name);
+    float EndSection(std::string_view name) {
+        auto it = section_starts_.find(std::string(name));
         if (it == section_starts_.end()) return 0.0f;
 
         auto                                     now = std::chrono::high_resolution_clock::now();
@@ -135,10 +136,10 @@ class PerformanceProfiler {
     float               fps_         = 0.0f;
 };
 
-// RAII helper for timing sections
+// RAII helper for timing sections (uses const char* to avoid string allocation)
 class ScopedTimer {
    public:
-    ScopedTimer(const std::string& name, float* outputMs = nullptr)
+    ScopedTimer(const char* name, float* outputMs = nullptr)
         : name_(name), output_ms_(outputMs), start_(std::chrono::high_resolution_clock::now()) {}
 
     ~ScopedTimer() {
@@ -148,7 +149,7 @@ class ScopedTimer {
     }
 
    private:
-    std::string                                    name_;
+    const char*                                    name_;
     float*                                         output_ms_;
     std::chrono::high_resolution_clock::time_point start_;
 };

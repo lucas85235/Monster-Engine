@@ -7,6 +7,7 @@
 #include <LinearMath/btThreads.h>
 #include <btBulletCollisionCommon.h>
 
+#include <functional>
 #include <glm.hpp>
 #include <gtc/quaternion.hpp>
 #include <mutex>
@@ -17,6 +18,10 @@
 #include "engine/ecs/Entity.h"
 
 namespace se {
+
+// Callback type for physics pre-tick (called before each Bullet substep)
+// Parameter: fixedTimeStep (1/60 by default)
+using PhysicsPreTickCallback = std::function<void(float)>;
 
 class Scene;
 class PhysicsDebugDraw;
@@ -29,8 +34,13 @@ struct CachedTransform {
 
 // Physics configuration for tuning
 struct PhysicsConfig {
-    int   maxSubSteps   = 2;  // Reduced from 4
-    float fixedTimeStep = 1.0f / 60.0f;
+    // maxSubSteps: How many fixed timestep iterations Bullet can do per frame
+    // With VSync off at high framerates (300+ FPS), dt could be very small (~3ms)
+    // Bullet internally accumulates time and runs fixedTimeStep iterations
+    // Value of 0 = variable timestep (non-deterministic, NOT recommended)
+    // Higher values = catch up faster after frame spikes but cost more CPU
+    int   maxSubSteps   = 10;  // Increased to handle high framerates deterministically
+    float fixedTimeStep = 1.0f / 60.0f;  // 60 Hz physics simulation
     float gravity       = -9.81f;
 
     // Deactivation thresholds
@@ -101,7 +111,15 @@ class PhysicsSystem {
         return all_bodies_sleeping_;
     }
 
+    // Set callback to be called before each physics substep
+    // Use this to sync game logic with physics timing
+    void SetPreTickCallback(PhysicsPreTickCallback callback) {
+        pre_tick_callback_ = std::move(callback);
+    }
+
    private:
+    static void BulletPreTickCallback(btDynamicsWorld* world, btScalar timeStep);
+    
     void ProcessPendingCommands();
     void RemoveBodyInternal(btRigidBody* body);
     void ConfigureBodyDeactivation(btRigidBody* body);
@@ -122,6 +140,8 @@ class PhysicsSystem {
     bool       running_                     = false;
     float      last_physics_execution_time_ = 0.0f;
     bool       all_bodies_sleeping_         = false;
+    
+    PhysicsPreTickCallback pre_tick_callback_;
 
     struct PendingAddBody {
         Entity       entity;

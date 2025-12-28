@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <chrono>
 
 #include "Engine.h"
 #include "engine/events/EventBus.h"
@@ -53,6 +54,11 @@ class Window {
     bool IsVSync() const {
         return vsync_;
     }
+    
+    // FPS Limiting (0 = unlimited)
+    void SetTargetFPS(int fps);
+    int GetTargetFPS() const { return target_fps_; }
+    void ApplyFrameRateLimit();
 
     bool ShouldClose() const;
     void RequestClose() const;
@@ -75,6 +81,10 @@ class Window {
     Scope<GraphicsContext> context_;
     WindowSpec             spec_;
     bool                   vsync_ = true;
+    
+    // FPS limiting
+    int target_fps_ = 0;  // 0 = unlimited
+    std::chrono::high_resolution_clock::time_point last_frame_time_;
 
     inline static EventBus* event_bus_ = nullptr;
 };

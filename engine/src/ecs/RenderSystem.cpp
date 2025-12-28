@@ -4,6 +4,7 @@
 
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
+#include "engine/debug/FrameProfiler.h"
 #include "engine/ecs/AnimatorComponent.h"
 #include "engine/ecs/ModelComponent.h"
 #include "engine/ecs/Scene.h"
@@ -27,6 +28,21 @@ uint32_t                         RenderSystem::lastInstancedObjects_ = 0;
 std::shared_ptr<Material>        RenderSystem::instancedMaterial_    = nullptr;
 std::shared_ptr<Material>        RenderSystem::modelMaterial_        = nullptr;
 std::shared_ptr<Material>        RenderSystem::skinnedMaterial_      = nullptr;
+std::array<int, RenderSystem::MAX_BONES> RenderSystem::boneUniformLocations_ = {};
+bool                             RenderSystem::boneLocationsInitialized_ = false;
+std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> RenderSystem::lastFrameInstanceCounts_;
+RenderSystem::BatchResourcesCache RenderSystem::batchResources_;
+
+void RenderSystem::InitBoneUniformLocations(Shader* shader) {
+    if (!shader || boneLocationsInitialized_) return;
+    
+    char uniformName[64];
+    for (size_t i = 0; i < MAX_BONES; ++i) {
+        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
+        boneUniformLocations_[i] = shader->getUniformLocation(uniformName);
+    }
+    boneLocationsInitialized_ = true;
+}
 
 void RenderSystem::EnsureInstancedMaterial() {
     if (instancedMaterial_) return;
@@ -190,7 +206,17 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
     sceneRenderer.BeginScene(camera, projection);
 
-    for (auto& [key, instances] : instanceBatches_) { instances.clear(); }
+    for (auto& [key, instances] : instanceBatches_) {
+        // Reserve based on last frame's count to minimize reallocations
+        auto lastIt = lastFrameInstanceCounts_.find(key);
+        if (lastIt != lastFrameInstanceCounts_.end() && lastIt->second > 0) {
+            instances.reserve(lastIt->second);
+        }
+        instances.clear();
+    }
+    
+    // Clear batch resources cache (will be re-populated during grouping)
+    batchResources_.clear();
 
     // Get all entities with TransformComponent and MeshRenderComponent
     auto view = scene.GetAllEntitiesWith<TransformComponent, MeshRenderComponent>();
@@ -221,6 +247,16 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         }
 
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
+
+        // Cache shared_ptrs and properties on first encounter for this batch
+        if (batchResources_.find(key) == batchResources_.end()) {
+            batchResources_[key] = BatchResources{
+                meshRender.vertex_array,
+                meshRender.material,
+                meshRender.EmissiveColor,
+                meshRender.EmissiveFactor
+            };
+        }
 
         InstanceData instanceData;
         instanceData.Transform = transform.WorldMatrix;
@@ -283,10 +319,12 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     const auto& boneMatrices = animComp->GetBoneMatrices();
                     shader->setInt("uHasBones", boneMatrices.empty() ? 0 : 1);
                     
+                    // Initialize cached uniform locations once
+                    InitBoneUniformLocations(shader.get());
+                    
+                    // Use cached locations for fast bone matrix setting
                     for (size_t i = 0; i < boneMatrices.size() && i < MAX_BONES; ++i) {
-                        char uniformName[64];
-                        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
-                        shader->setMat4(uniformName, boneMatrices[i]);
+                        shader->setMat4ByLocation(boneUniformLocations_[i], boneMatrices[i]);
                     }
                     
                     if (shouldLog) {
@@ -381,10 +419,13 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         
         if (hasBones) {
             const auto& boneMatrices = animComp->GetBoneMatrices();
+            
+            // Initialize cached uniform locations once
+            InitBoneUniformLocations(shader.get());
+            
+            // Use cached locations for fast bone matrix setting
             for (size_t i = 0; i < boneMatrices.size() && i < MAX_BONES; ++i) {
-                char uniformName[64];
-                snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
-                shader->setMat4(uniformName, boneMatrices[i]);
+                shader->setMat4ByLocation(boneUniformLocations_[i], boneMatrices[i]);
             }
         }
 
@@ -495,29 +536,20 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         batchCount++;
 
-        // Find original material and emissive properties from the key
-        std::shared_ptr<Material>    material = nullptr;
-        std::shared_ptr<VertexArray> va       = nullptr;
-        Vector3 emissiveColor{0.0f};
-        float emissiveFactor = 0.0f;
-
-        // Search for matching material in entities (we need shared_ptr)
-        for (auto entity : view) {
-            auto& meshRender = view.get<MeshRenderComponent>(entity);
-            if (meshRender.vertex_array.get() == key.va && meshRender.material.get() == key.mat) {
-                material = meshRender.material;
-                va       = meshRender.vertex_array;
-                emissiveColor = meshRender.EmissiveColor;
-                emissiveFactor = meshRender.EmissiveFactor;
-                break;
-            }
-        }
+        // Use cached resources instead of linear search (O(1) lookup)
+        auto resourceIt = batchResources_.find(key);
+        if (resourceIt == batchResources_.end()) continue;
+        
+        const auto& resources = resourceIt->second;
+        const auto& va = resources.va;
+        const auto& material = resources.material;
 
         if (!material || !va) continue;
 
         if (instances.size() == 1) {
             // Single instance - use normal submit with emissive properties
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, emissiveColor, emissiveFactor);
+            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, 
+                                 resources.emissiveColor, resources.emissiveFactor);
         } else {
             // Multiple instances - use instanced rendering
             instancedObjects += static_cast<uint32_t>(instances.size());
@@ -567,6 +599,11 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     instancedObjects, skippedCount);
     }
     frameCount++;
+    
+    // Track instance counts for next frame's reserve() optimization
+    for (const auto& [key, instances] : instanceBatches_) {
+        lastFrameInstanceCounts_[key] = instances.size();
+    }
 
     sceneRenderer.EndScene();
 }
