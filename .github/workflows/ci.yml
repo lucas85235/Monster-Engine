@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       
       - name: Cache CMake build
         uses: actions/cache@v4
@@ -34,16 +32,36 @@ jobs:
       
       - name: Build Release
         run: |
-          cmake --build build --config Release --parallel
+          cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
+      
+      - name: Create distribution
+        run: |
+          $GAME_NAME = "ThirdPersonGame"
+          $DIST_DIR = "dist/$GAME_NAME"
+          
+          # Create distribution directory
+          New-Item -ItemType Directory -Force -Path $DIST_DIR
+          
+          # Copy executable
+          Copy-Item "build/apps/third_person_game/Release/*.exe" -Destination $DIST_DIR -Force
+          
+          # Copy DLLs if any
+          $dlls = Get-ChildItem "build/apps/third_person_game/Release/*.dll" -ErrorAction SilentlyContinue
+          if ($dlls) {
+            Copy-Item $dlls -Destination $DIST_DIR -Force
+          }
+          
+          # Copy assets
+          if (Test-Path "assets") {
+            Copy-Item "assets" -Destination "$DIST_DIR/assets" -Recurse -Force
+          }
       
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release
-          path: |
-            build/apps/third_person_game/Release/*.exe
-            build/apps/third_person_game/Release/*.dll
-          if-no-files-found: warn
+          name: ThirdPersonGame-Windows
+          path: dist/ThirdPersonGame
+          if-no-files-found: error
 
   build-linux:
     name: Linux Build
@@ -52,8 +70,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       
       - name: Install dependencies
         run: |
@@ -80,12 +96,27 @@ jobs:
       
       - name: Build Release
         run: |
-          cmake --build build --parallel
+          cmake --build build --parallel $(nproc)
+      
+      - name: Create distribution
+        run: |
+          GAME_NAME="ThirdPersonGame"
+          DIST_DIR="dist/$GAME_NAME"
+          
+          # Create distribution directory
+          mkdir -p "$DIST_DIR"
+          
+          # Copy executable
+          cp build/apps/third_person_game/third_person_game "$DIST_DIR/"
+          
+          # Copy assets
+          if [ -d "assets" ]; then
+            cp -r assets "$DIST_DIR/"
+          fi
       
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-release
-          path: |
-            build/apps/third_person_game/third_person_game
-          if-no-files-found: warn
+          name: ThirdPersonGame-Linux
+          path: dist/ThirdPersonGame
+          if-no-files-found: error

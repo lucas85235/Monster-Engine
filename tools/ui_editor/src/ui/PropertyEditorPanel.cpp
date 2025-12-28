@@ -1,10 +1,21 @@
 #include "PropertyEditorPanel.h"
 
+#include <cstdio>
+#include <cstring>
 #include <set>
 #include <string>
-#include <cstdio>
 
 #include "core/UIEditorContext.h"
+
+namespace {
+// Cross-platform safe strncpy
+inline void SafeStrncpy(char* dest, const char* src, size_t destSize) {
+    if (destSize > 0) {
+        std::strncpy(dest, src, destSize - 1);
+        dest[destSize - 1] = '\0';
+    }
+}
+}  // namespace
 
 namespace ued {
 
@@ -26,7 +37,7 @@ void PropertyEditorPanel::Render(UIEditorContext& ctx) {
     
     if (ImGui::CollapsingHeader("Identity", ImGuiTreeNodeFlags_DefaultOpen)) {
         // ID
-        strncpy_s(idBuffer_, selected->id.c_str(), sizeof(idBuffer_) - 1);
+        SafeStrncpy(idBuffer_, selected->id.c_str(), sizeof(idBuffer_));
         if (ImGui::InputText("ID", idBuffer_, sizeof(idBuffer_))) {
             selected->id = idBuffer_;
             ctx.GetDocument().SetDirty();
@@ -53,7 +64,7 @@ void PropertyEditorPanel::Render(UIEditorContext& ctx) {
 
 void PropertyEditorPanel::RenderAttributeEditor(UIEditorContext& ctx, UIWidgetNode* node) {
     // Text content
-    strncpy_s(textBuffer_, node->textContent.c_str(), sizeof(textBuffer_) - 1);
+    SafeStrncpy(textBuffer_, node->textContent.c_str(), sizeof(textBuffer_));
     if (ImGui::InputTextMultiline("Text", textBuffer_, sizeof(textBuffer_), ImVec2(-1, 60))) {
         node->textContent = textBuffer_;
         ctx.GetDocument().SetDirty();
@@ -67,7 +78,7 @@ void PropertyEditorPanel::RenderAttributeEditor(UIEditorContext& ctx, UIWidgetNo
             break;
         }
     }
-    strncpy_s(classBuffer_, classValue.c_str(), sizeof(classBuffer_) - 1);
+    SafeStrncpy(classBuffer_, classValue.c_str(), sizeof(classBuffer_));
     if (ImGui::InputText("Class", classBuffer_, sizeof(classBuffer_))) {
         bool found = false;
         for (auto& [key, value] : node->attributes) {
@@ -95,8 +106,8 @@ void PropertyEditorPanel::RenderAttributeEditor(UIEditorContext& ctx, UIWidgetNo
         ImGui::PushID(i);
         
         char keyBuf[64], valBuf[256];
-        strncpy_s(keyBuf, key.c_str(), sizeof(keyBuf) - 1);
-        strncpy_s(valBuf, value.c_str(), sizeof(valBuf) - 1);
+        SafeStrncpy(keyBuf, key.c_str(), sizeof(keyBuf));
+        SafeStrncpy(valBuf, value.c_str(), sizeof(valBuf));
         
         ImGui::SetNextItemWidth(80);
         if (ImGui::InputText("##key", keyBuf, sizeof(keyBuf))) {
@@ -154,7 +165,7 @@ static bool ParseHexColor(const std::string& hex, float* rgba) {
     if (h.length() != 8) return false;
     
     unsigned int r, g, b, a;
-    if (sscanf_s(h.c_str(), "%02x%02x%02x%02x", &r, &g, &b, &a) == 4) {
+    if (std::sscanf(h.c_str(), "%02x%02x%02x%02x", &r, &g, &b, &a) == 4) {
         rgba[0] = r / 255.0f;
         rgba[1] = g / 255.0f;
         rgba[2] = b / 255.0f;
@@ -234,7 +245,7 @@ void PropertyEditorPanel::RenderStyleEditor(UIEditorContext& ctx, UIWidgetNode* 
         } else {
             // Default text input
             char valBuf[128];
-            strncpy_s(valBuf, value.c_str(), sizeof(valBuf) - 1);
+            SafeStrncpy(valBuf, value.c_str(), sizeof(valBuf));
             ImGui::SetNextItemWidth(100);
             if (ImGui::InputText("##val", valBuf, sizeof(valBuf))) {
                 value = valBuf;
