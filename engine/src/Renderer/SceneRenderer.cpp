@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "engine/Log.h"
+#include "engine/debug/FrameProfiler.h"
 #include "engine/renderer/GBufferPass.h"
 #include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/RenderCommand.h"
@@ -171,11 +172,11 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
 }
 
 void SceneRenderer::EndScene() {
-    SE_LOG_INFO("EndScene: Starting (ShadowsEnabled={})", sceneData_.ShadowsEnabled);
+    SE_PROFILE_SCOPE("SceneRenderer::EndScene");
+    
     if (sceneData_.ShadowsEnabled) { 
-        SE_LOG_INFO("EndScene: Running shadow pass");
+        SE_PROFILE_SCOPE("ShadowPass");
         RenderShadowPass(); 
-        SE_LOG_INFO("EndScene: Shadow pass complete");
     }
     
     // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
@@ -189,34 +190,23 @@ void SceneRenderer::EndScene() {
         screenHeight_ = height;
         
         if (gbuffer_ && !gbuffer_->IsInitialized()) {
-            SE_LOG_INFO("EndScene: Initializing G-Buffer ({}x{})", width, height);
             gbuffer_->Init(width, height);
         } else if (gbuffer_ && gbuffer_->IsInitialized()) {
             gbuffer_->Resize(width, height);
         }
-        
-        // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
-        // if (radianceCascades_ && radianceCascades_->GetRadianceTexture() == 0) {
-        //     SE_LOG_INFO("EndScene: Initializing Radiance Cascades ({}x{}) - disabled by default", width, height);
-        //     radianceCascades_->Init(width, height);
-        //     radianceCascades_->SetEnabled(false);
-        // } else if (radianceCascades_ && radianceCascades_->IsEnabled()) {
-        //     radianceCascades_->Resize(width, height);
-        // }
     }
     
     // Step 1: Render scene to G-Buffer (for emissive data)
     bool needGBuffer = (radianceCascades_ && radianceCascades_->IsEnabled()) ||
                        (sparseRC_ && sparseRC_->IsEnabled());
     
-    SE_LOG_INFO("EndScene: needGBuffer={}, sparseRC={}", 
-                needGBuffer, (sparseRC_ && sparseRC_->IsEnabled()));
-    
     if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
+        SE_PROFILE_SCOPE("GBufferPass");
         RenderGBufferPass();
         
         // Voxelize from GBuffer for world-space GI
         if (sparseRC_ && sparseRC_->IsEnabled() && voxelizer_ && voxelizer_->IsInitialized()) {
+            SE_PROFILE_SCOPE("Voxelize");
             voxelizer_->VoxelizeFromGBuffer(
                 gbuffer_->GetPositionTexture(),
                 gbuffer_->GetAlbedoTexture(),
@@ -228,6 +218,7 @@ void SceneRenderer::EndScene() {
 
     // Step 2: Execute Radiance Cascades with G-Buffer data
     if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+        SE_PROFILE_SCOPE("RadianceCascades");
         uint32_t sceneColorTex = 0;
         uint32_t sceneDepthTex = sceneData_.ShadowDepthTexture;
         uint32_t scenePositionTex = 0;
@@ -236,7 +227,6 @@ void SceneRenderer::EndScene() {
             sceneColorTex = gbuffer_->GetEmissiveTexture();
             sceneDepthTex = gbuffer_->GetDepthTexture();
             scenePositionTex = gbuffer_->GetPositionTexture();
-            SE_LOG_INFO("RC Input: Emissive={}, Depth={}, Position={}", sceneColorTex, sceneDepthTex, scenePositionTex);
         }
         
         // Get voxel data if available
@@ -266,38 +256,31 @@ void SceneRenderer::EndScene() {
     frameNumber++;
     
     if (sparseRC_ && sparseRC_->IsEnabled()) {
+        SE_PROFILE_SCOPE("SparseRC");
         // Provide GBuffer access
         if (gbuffer_ && gbuffer_->IsInitialized()) {
             sparseRC_->SetGBufferPass(gbuffer_.get());
         }
         
-        
-        // TEST: Fix voxelizer grid at origin for world-space stability
-        // For a proper implementation, the grid should move in discrete steps
         if (voxelizer_ && voxelizer_->IsInitialized()) {
-            // Fix at origin for now - objects within WorldSize/2 of origin will be lit
-            voxelizer_->SetCenter(glm::vec3(0.0f, 1.0f, 0.0f));  // Slightly above ground
+            voxelizer_->SetCenter(glm::vec3(0.0f, 1.0f, 0.0f));
         }
-
-
         
         sparseRC_->Execute(sceneData_.ProjectionMatrix, sceneData_.ViewMatrix,
                            sceneData_.CameraPosition, frameNumber);
     }
     
     // Step 3: Render final scene with GI applied
-
-    SE_LOG_INFO("EndScene: Running scene pass ({} submissions, {} instanced)", 
-                sceneData_.Submissions.size(), instancedSubmissions_.size());
-    RenderScenePass();
+    {
+        SE_PROFILE_SCOPE("ScenePass");
+        RenderScenePass();
+    }
     
     // Step 4: Render debug visualization for Sparse RC
     if (sparseRC_ && sparseRC_->IsEnabled()) {
         glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
         sparseRC_->RenderDebug(viewProj);
     }
-    
-    SE_LOG_INFO("EndScene: Complete");
 }
 
 

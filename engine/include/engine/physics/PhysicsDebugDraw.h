@@ -14,16 +14,23 @@ namespace se {
 
 class PhysicsDebugDraw : public btIDebugDraw {
    public:
+    // User-friendly debug draw modes (wraps Bullet's debug modes)
+    enum class DebugDrawMode {
+        None,           // No debug drawing
+        Wireframe,      // Draw collision shapes as wireframes
+        Aabb,           // Draw axis-aligned bounding boxes
+        ContactPoints,  // Draw contact points
+        All             // Draw everything
+    };
+
     PhysicsDebugDraw();
     ~PhysicsDebugDraw();
 
-    void drawLine(const btVector3& from, const btVector3& to, const btVector3& color) override;
-    void drawContactPoint(const btVector3& PointOnB, const btVector3& normalOnB, btScalar distance,
-                          int lifeTime, const btVector3& color) override;
-    void reportErrorWarning(const char* warningString) override;
-    void draw3dText(const btVector3& location, const char* textString) override;
-    void setDebugMode(int debugMode) override;
-    int  getDebugMode() const override;
+    // User-friendly API
+    void SetDebugDrawEnabled(bool enabled);
+    bool IsDebugDrawEnabled() const;
+    void SetMode(DebugDrawMode mode);
+    DebugDrawMode GetMode() const;
 
     void Flush(const Camera& camera);
 
@@ -38,6 +45,15 @@ class PhysicsDebugDraw : public btIDebugDraw {
     void UpdateTimedElements(float deltaTime);
 
    private:
+    // btIDebugDraw interface (called by Bullet physics world)
+    void drawLine(const btVector3& from, const btVector3& to, const btVector3& color) override;
+    void drawContactPoint(const btVector3& PointOnB, const btVector3& normalOnB, btScalar distance,
+                          int lifeTime, const btVector3& color) override;
+    void reportErrorWarning(const char* warningString) override;
+    void draw3dText(const btVector3& location, const char* textString) override;
+    void setDebugMode(int debugMode) override;
+    int  getDebugMode() const override;
+
     struct DebugLine {
         Vector3 From;
         Vector3 To;
@@ -51,13 +67,17 @@ class PhysicsDebugDraw : public btIDebugDraw {
         float   RemainingTime;
     };
 
+    static constexpr uint32_t kInitialLineCapacity = 512;
+
     std::vector<DebugLine>      lines_;
     std::vector<TimedDebugLine> timedLines_;
     std::shared_ptr<Shader>     shader_;
     int                         debug_mode_ = 0;
+    DebugDrawMode               currentMode_ = DebugDrawMode::None;
 
     std::shared_ptr<VertexArray>  vertex_array_;
     std::shared_ptr<VertexBuffer> vertex_buffer_;
+    uint32_t                      bufferCapacity_ = 0;  // Current VBO capacity in bytes
 
     std::mutex mutex_;
 };

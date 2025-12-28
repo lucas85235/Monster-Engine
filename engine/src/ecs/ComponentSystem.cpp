@@ -75,6 +75,16 @@ void ComponentSystem::FixedUpdate(float dt) {
     }
 }
 
+void ComponentSystem::RunFixedUpdateOnce(float dt) {
+    // Called by Bullet's pre-tick callback - runs FixedUpdate exactly once
+    // No accumulator needed since Bullet already manages the fixed timestep
+    for (auto* component : active_components_) {
+        if (component && component->IsEnabled() && component->HasStarted()) {
+            component->FixedUpdate(dt);
+        }
+    }
+}
+
 void ComponentSystem::LateUpdate(float dt) {
     for (auto* component : active_components_) {
         if (component && component->IsEnabled() && component->HasStarted()) {

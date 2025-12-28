@@ -4,6 +4,7 @@
 
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
+#include "engine/debug/FrameProfiler.h"
 #include "engine/ecs/AnimatorComponent.h"
 #include "engine/ecs/ModelComponent.h"
 #include "engine/ecs/Scene.h"
@@ -30,6 +31,7 @@ std::shared_ptr<Material>        RenderSystem::skinnedMaterial_      = nullptr;
 std::array<int, RenderSystem::MAX_BONES> RenderSystem::boneUniformLocations_ = {};
 bool                             RenderSystem::boneLocationsInitialized_ = false;
 std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> RenderSystem::lastFrameInstanceCounts_;
+RenderSystem::BatchResourcesCache RenderSystem::batchResources_;
 
 void RenderSystem::InitBoneUniformLocations(Shader* shader) {
     if (!shader || boneLocationsInitialized_) return;
@@ -212,6 +214,9 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         }
         instances.clear();
     }
+    
+    // Clear batch resources cache (will be re-populated during grouping)
+    batchResources_.clear();
 
     // Get all entities with TransformComponent and MeshRenderComponent
     auto view = scene.GetAllEntitiesWith<TransformComponent, MeshRenderComponent>();
@@ -242,6 +247,16 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         }
 
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
+
+        // Cache shared_ptrs and properties on first encounter for this batch
+        if (batchResources_.find(key) == batchResources_.end()) {
+            batchResources_[key] = BatchResources{
+                meshRender.vertex_array,
+                meshRender.material,
+                meshRender.EmissiveColor,
+                meshRender.EmissiveFactor
+            };
+        }
 
         InstanceData instanceData;
         instanceData.Transform = transform.WorldMatrix;
@@ -521,29 +536,20 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         batchCount++;
 
-        // Find original material and emissive properties from the key
-        std::shared_ptr<Material>    material = nullptr;
-        std::shared_ptr<VertexArray> va       = nullptr;
-        Vector3 emissiveColor{0.0f};
-        float emissiveFactor = 0.0f;
-
-        // Search for matching material in entities (we need shared_ptr)
-        for (auto entity : view) {
-            auto& meshRender = view.get<MeshRenderComponent>(entity);
-            if (meshRender.vertex_array.get() == key.va && meshRender.material.get() == key.mat) {
-                material = meshRender.material;
-                va       = meshRender.vertex_array;
-                emissiveColor = meshRender.EmissiveColor;
-                emissiveFactor = meshRender.EmissiveFactor;
-                break;
-            }
-        }
+        // Use cached resources instead of linear search (O(1) lookup)
+        auto resourceIt = batchResources_.find(key);
+        if (resourceIt == batchResources_.end()) continue;
+        
+        const auto& resources = resourceIt->second;
+        const auto& va = resources.va;
+        const auto& material = resources.material;
 
         if (!material || !va) continue;
 
         if (instances.size() == 1) {
             // Single instance - use normal submit with emissive properties
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, emissiveColor, emissiveFactor);
+            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, 
+                                 resources.emissiveColor, resources.emissiveFactor);
         } else {
             // Multiple instances - use instanced rendering
             instancedObjects += static_cast<uint32_t>(instances.size());

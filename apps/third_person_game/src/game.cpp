@@ -10,6 +10,7 @@ int main() {
                                       .WindowHeight = 600,
                                       .WindowDecorated = true,
                                       .Fullscreen = false,
+                                      .VSync = false,
                                       .Resizable = true};
 
     Application app{app_spec};

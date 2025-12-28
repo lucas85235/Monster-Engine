@@ -76,6 +76,10 @@ void PhysicsSystem::Initialize(const PhysicsConfig& config) {
 
     debug_drawer_ = new PhysicsDebugDraw();
     dynamics_world_->setDebugDrawer(debug_drawer_);
+    
+    // Set pre-tick callback to sync game logic with physics substeps
+    // isPreTick=true means callback runs BEFORE each substep
+    dynamics_world_->setInternalTickCallback(BulletPreTickCallback, this, true);
 
     SE_LOG_INFO(
         "Physics initialized (MULTITHREADED): {} Bullet worker threads, {} solver iters, {} max "
@@ -252,6 +256,15 @@ void PhysicsSystem::Update(float dt) {
 
             transform_component.MarkDirty();
         }
+    }
+}
+
+void PhysicsSystem::BulletPreTickCallback(btDynamicsWorld* world, btScalar timeStep) {
+    // Get PhysicsSystem instance from user pointer
+    PhysicsSystem* physics = static_cast<PhysicsSystem*>(world->getWorldUserInfo());
+    if (physics && physics->pre_tick_callback_) {
+        // Call the registered callback with the fixed timestep
+        physics->pre_tick_callback_(static_cast<float>(timeStep));
     }
 }
 

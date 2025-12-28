@@ -13,15 +13,19 @@
 
 namespace se {
 
+// Fixed timestep for animation (60Hz)
+static constexpr float ANIMATION_TIMESTEP = 1.0f / 60.0f;
+static float s_animAccumulator = 0.0f;
+
 void AnimationSystem::Update(Scene& scene, float deltaTime) {
     auto& registry = scene.GetRegistry();
     
     auto view = registry.view<AnimatorComponent>();
     
+    // Auto-initialize any new AnimatorComponents
     for (auto entity : view) {
         auto& animComp = view.get<AnimatorComponent>(entity);
         
-        // Auto-initialize if AnimatorComponent has no modelData but entity has SkinnedModelComponent
         if (!animComp.modelData && registry.all_of<SkinnedModelComponent>(entity)) {
             auto& skinnedComp = registry.get<SkinnedModelComponent>(entity);
             if (skinnedComp.model && skinnedComp.model->HasSkeleton()) {
@@ -31,13 +35,20 @@ void AnimationSystem::Update(Scene& scene, float deltaTime) {
                 }
             }
         }
-        
-        // Update animation if playing
-        if (animComp.playing) {
-            animComp.Update(deltaTime);
-        }
     }
     
+    // Fixed timestep animation update (60Hz)
+    s_animAccumulator += deltaTime;
+    
+    while (s_animAccumulator >= ANIMATION_TIMESTEP) {
+        for (auto entity : view) {
+            auto& animComp = view.get<AnimatorComponent>(entity);
+            if (animComp.playing) {
+                animComp.Update(ANIMATION_TIMESTEP);
+            }
+        }
+        s_animAccumulator -= ANIMATION_TIMESTEP;
+    }
 }
 
 void AnimationSystem::UpdateBoneAttachments(Scene& scene) {

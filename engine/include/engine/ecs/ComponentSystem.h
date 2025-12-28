@@ -24,6 +24,10 @@ class ComponentSystem {
     void Update(float dt);
 
     void FixedUpdate(float dt);
+    
+    // Run FixedUpdate exactly once with the given dt (no accumulator)
+    // Used by Bullet physics tick callback for perfect sync
+    void RunFixedUpdateOnce(float dt);
 
     void LateUpdate(float dt);
 

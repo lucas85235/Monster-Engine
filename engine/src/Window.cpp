@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include <stdexcept>
+#include <thread>
 
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
@@ -48,6 +49,32 @@ bool Window::ShouldClose() const {
 void Window::RequestClose() const {
     if (event_bus_) { event_bus_->Invoke<WindowCloseEvent>(); }
     glfwSetWindowShouldClose(window_handle_, GLFW_TRUE);
+}
+
+void Window::SetTargetFPS(int fps) {
+    target_fps_ = fps;
+    if (fps > 0) {
+        // Disable VSync when using manual FPS limiting
+        SetVSync(false);
+    }
+}
+
+void Window::ApplyFrameRateLimit() {
+    if (target_fps_ <= 0) return;
+    
+    auto now = std::chrono::high_resolution_clock::now();
+    auto frame_duration = std::chrono::duration<double>(1.0 / target_fps_);
+    auto elapsed = now - last_frame_time_;
+    
+    if (elapsed < frame_duration) {
+        auto sleep_time = frame_duration - elapsed;
+        auto sleep_ms = std::chrono::duration_cast<std::chrono::milliseconds>(sleep_time);
+        if (sleep_ms.count() > 0) {
+            std::this_thread::sleep_for(sleep_ms);
+        }
+    }
+    
+    last_frame_time_ = std::chrono::high_resolution_clock::now();
 }
 
 void Window::SwapBuffers() const {
@@ -175,6 +202,10 @@ void Window::Init() {
     int frame_buffer_width, frame_buffer_height;
     glfwGetFramebufferSize(window_handle_, &frame_buffer_width, &frame_buffer_height);
     glViewport(0, 0, frame_buffer_width, frame_buffer_height);
+    
+    // Apply VSync setting from WindowSpec
+    SetVSync(spec_.VSync);
+    SE_LOG_INFO("VSync: {}", spec_.VSync ? "enabled" : "disabled");
 }
 
 void Window::Shutdown() {

@@ -59,24 +59,26 @@
 
 ### Prioridade A — Alto Impacto / Baixo Risco
 
-- [ ] **A1**: RenderSystem - Adicionar `reserve()` para `instanceBatches_`
-- [ ] **A2**: RenderSystem - Cache uniform location IDs ao invés de snprintf por bone
-- [ ] **A3**: RenderSystem - Evitar busca linear por material (usar cache/mapa direto)
-- [ ] **A4**: PhysicsDebugDraw - `reserve()` para `vertices` vector
-- [ ] **A5**: EventChannel - Pre-allocar vetores de eventos com capacidade inicial
+- [x] **A1**: RenderSystem - Adicionar `reserve()` para `instanceBatches_`
+- [x] **A2**: RenderSystem - Cache uniform location IDs ao invés de snprintf por bone
+- [x] **A3**: RenderSystem - Evitar busca linear por material (usar cache/mapa direto)
+- [x] **A4**: PhysicsDebugDraw - `reserve()` para `vertices` vector
+- [x] **A5**: EventChannel - Pre-allocar vetores de eventos com capacidade inicial
 - [ ] **A6**: ThreadPool - Considerar usar `std::move_only_function` (C++23) ou function_ref
 
 ### Prioridade B — Médio Risco / Alto Ganho
 
 - [ ] **B1**: Introduzir Frame Allocator (arena per-frame) para temporários
 - [ ] **B2**: Substituir `std::shared_ptr` por raw pointers onde ownership é clara
-- [ ] **B3**: Cache de uniform locations para todos shaders
-- [ ] **B4**: Pooling de InstancedMesh ao invés de realocação
+- [x] **B3**: Cache de uniform locations para todos shaders (parcial: bones apenas)
+- [x] **B4**: Pooling de InstancedMesh ao invés de realocação (já implementado via instancedMeshCache_)
+- [x] **B5**: PhysicsDebugDraw - Reutilizar VBO/VAO ao invés de alocar por frame
+- [x] **B6**: PerformanceProfiler - string_view para section names
 
 ### Prioridade C — Build/Otimizações Avançadas
 
-- [ ] **C1**: Verificar Release build flags (LTO, /O2)
-- [ ] **C2**: Remover logs em hot paths (gated por constexpr)
+- [x] **C1**: Verificar Release build flags (LTO, /O2) — já configurado
+- [x] **C2**: Remover logs em hot paths (gated por constexpr) — já usa pattern de log periódico
 - [ ] **C3**: Verificar RTTI/exceptions impact
 
 ---

@@ -13,10 +13,11 @@ using namespace se;
 
 
 struct CharacterMovementConfig {
-    float acceleration     = 0.5f;
+    // Values are per-second (multiply by dt when used)
+    float acceleration     = 30.0f;   //  ~30/s for similar feel at 60fps
     float maxMovementSpeed = 5.0f;
-    float rotationSpeed    = 30.0f;
-    float jumpForce        = 5.0f;
+    float rotationSpeed    = 15.0f;   // Degrees per second - increased for snappier rotation
+    float jumpForce        = 5.0f;    // Impulse - not affected by dt
     float groundDrag       = 9.0f;
     float airDrag          = 0.98f;
 };
@@ -41,6 +42,8 @@ public:
     void Start() override;
 
     void Update(float dt) override;
+    
+    void FixedUpdate(float dt) override;
 
     // Movement API
     void Move(const Vector3& direction);
@@ -72,6 +75,10 @@ private:
 
     void UpdateGroundedState();
 
+    void ApplyRotation(float dt);
+    
+    void ApplyJump();
+    
     void ApplyMovement(float dt);
 
     void ApplyDrag(float dt);
@@ -88,5 +95,8 @@ private:
     bool    isGrounded_           = false;
     Vector3 desiredMoveDirection_ = Vector3(0.0f);
     bool    wantsToMove_          = false;
+    float   targetYaw_            = 0.0f;
+    bool    hasTargetRotation_    = false;
+    bool    wantsToJump_          = false;
 };
 } // namespace FirstGame
