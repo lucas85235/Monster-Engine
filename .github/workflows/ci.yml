@@ -1,0 +1,91 @@
+name: CI Build
+
+on:
+  push:
+    branches: [main, dev, feature/*]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build-windows:
+    name: Windows Build
+    runs-on: windows-2022
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: windows-build-${{ hashFiles('**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            windows-build-${{ hashFiles('**/CMakeLists.txt') }}-
+            windows-build-
+      
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" `
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      
+      - name: Build Release
+        run: |
+          cmake --build build --config Release --parallel
+      
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            build/apps/third_person_game/Release/*.exe
+            build/apps/third_person_game/Release/*.dll
+          if-no-files-found: warn
+
+  build-linux:
+    name: Linux Build
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          chmod +x scripts/setup.sh
+          ./scripts/setup.sh
+      
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: linux-build-${{ hashFiles('**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            linux-build-${{ hashFiles('**/CMakeLists.txt') }}-
+            linux-build-
+      
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_BUILD_TYPE=Release
+      
+      - name: Build Release
+        run: |
+          cmake --build build --parallel
+      
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            build/apps/third_person_game/third_person_game
+          if-no-files-found: warn
