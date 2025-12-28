@@ -27,7 +27,7 @@ jobs:
       - name: Get current version
         id: current
         run: |
-          VERSION=$(cat VERSION)
+          VERSION=$(cat ENGINE_VERSION)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $VERSION"
       
@@ -88,17 +88,17 @@ jobs:
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
       
-      - name: Update VERSION file
+      - name: Update ENGINE_VERSION file
         if: steps.bump.outputs.bump_type != 'none'
         run: |
-          echo "${{ steps.new.outputs.new_version }}" > VERSION
+          echo "${{ steps.new.outputs.new_version }}" > ENGINE_VERSION
       
       - name: Commit and tag
         if: steps.bump.outputs.bump_type != 'none'
         run: |
           NEW_VERSION="${{ steps.new.outputs.new_version }}"
           
-          git add VERSION
+          git add ENGINE_VERSION
           git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
           git tag -a "v${NEW_VERSION}-dev" -m "Development version ${NEW_VERSION}"
           git push origin dev --follow-tags
