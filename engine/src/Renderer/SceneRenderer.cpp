@@ -89,8 +89,8 @@ void SceneRenderer::Init() {
         gbufferInstancedShader_.reset();
     }
     
-    // Initialize Radiance Cascades (deferred init until we have screen dimensions)
-    radianceCascades_ = std::make_unique<RadianceCascadesPass>();
+    // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+    // radianceCascades_ = std::make_unique<RadianceCascadesPass>();
     
     initialized_ = true;
 }
@@ -195,12 +195,14 @@ void SceneRenderer::EndScene() {
             gbuffer_->Resize(width, height);
         }
         
-        if (radianceCascades_ && !radianceCascades_->IsEnabled()) {
-            SE_LOG_INFO("EndScene: Initializing Radiance Cascades ({}x{})", width, height);
-            radianceCascades_->Init(width, height);
-        } else if (radianceCascades_ && radianceCascades_->IsEnabled()) {
-            radianceCascades_->Resize(width, height);
-        }
+        // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+        // if (radianceCascades_ && radianceCascades_->GetRadianceTexture() == 0) {
+        //     SE_LOG_INFO("EndScene: Initializing Radiance Cascades ({}x{}) - disabled by default", width, height);
+        //     radianceCascades_->Init(width, height);
+        //     radianceCascades_->SetEnabled(false);
+        // } else if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+        //     radianceCascades_->Resize(width, height);
+        // }
     }
     
     // Step 1: Render scene to G-Buffer (for emissive data)
@@ -958,32 +960,32 @@ void SceneRenderer::SetScreenSize(int width, int height) {
         }
     }
     
-    // Initialize or resize Radiance Cascades (2D)
-    if (radianceCascades_) {
-        if (!radianceCascades_->IsEnabled() || radianceCascades_->GetRadianceTexture() == 0) {
-            radianceCascades_->Init(width, height);
-        } else {
-            radianceCascades_->Resize(width, height);
-        }
-    }
+    // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+    // if (radianceCascades_) {
+    //     if (!radianceCascades_->IsEnabled() || radianceCascades_->GetRadianceTexture() == 0) {
+    //         radianceCascades_->Init(width, height);
+    //     } else {
+    //         radianceCascades_->Resize(width, height);
+    //     }
+    // }
     
-    // Initialize Sparse RC (3D) if not yet created
-    if (!voxelizer_) {
-        voxelizer_ = std::make_shared<SceneVoxelizer>();
-        VoxelGridConfig voxelConfig;
-        voxelConfig.Resolution = 128;
-        voxelConfig.WorldSize = 50.0f;
-        voxelConfig.Center = glm::vec3(0.0f);
-        voxelizer_->Init(voxelConfig);
-    }
-    
-    if (!sparseRC_) {
-        sparseRC_ = std::make_unique<SparseRadianceCascades>();
-        sparseRC_->Init(width, height, voxelizer_);
-        sparseRC_->SetEnabled(false);  // Disabled by default
-    } else {
-        sparseRC_->Resize(width, height);
-    }
+    // TODO(GI): Re-enable Sparse Radiance Cascades (3D) initialization when feature is ready
+    // if (!voxelizer_) {
+    //     voxelizer_ = std::make_shared<SceneVoxelizer>();
+    //     VoxelGridConfig voxelConfig;
+    //     voxelConfig.Resolution = 128;
+    //     voxelConfig.WorldSize = 50.0f;
+    //     voxelConfig.Center = glm::vec3(0.0f);
+    //     voxelizer_->Init(voxelConfig);
+    // }
+    // 
+    // if (!sparseRC_) {
+    //     sparseRC_ = std::make_unique<SparseRadianceCascades>();
+    //     sparseRC_->Init(width, height, voxelizer_);
+    //     sparseRC_->SetEnabled(false);
+    // } else {
+    //     sparseRC_->Resize(width, height);
+    // }
 }
 
 void SceneRenderer::SetSparseRCEnabled(bool enabled) {
