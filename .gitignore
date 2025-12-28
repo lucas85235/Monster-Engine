@@ -2,7 +2,7 @@
 .vscode
 .vs
 build/
-# dist/
+dist/
 logs/
 compile_commands.json
 .idea/
