@@ -17,13 +17,14 @@ namespace FirstGame {
 using namespace se;
 
 struct CharacterRenderConfig {
-    std::string ModelPath = "assets/models/characters/skeleton/SKM_Skeleton_Variant_1.fbx";
+    std::string ModelPath = "assets/models/characters/Y_Bot.fbx";
     std::string IdleAnimPath = "assets/models/characters/animations/YBot_Idle.fbx";
     std::string JogAnimPath = "assets/models/characters/animations/YBot_JogForward.fbx";
     
-    // glm::vec3 Scale{0.01f};
-    glm::vec3 Scale{1.0f};
-    glm::vec3 Rotation{90.0f, 90.0f, 0.0f};
+    glm::vec3 Scale{0.01f};
+    // glm::vec3 Scale{1.0f};
+    // glm::vec3 Rotation{90.0f, 90.0f, 0.0f};
+    glm::vec3 Rotation{0.0f};
     glm::vec3 Offset{0.0f, -0.85f, 0.0f};
     
     float TransitionDuration = 0.2f;
