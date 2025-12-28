@@ -57,8 +57,8 @@ Application::Application(const ApplicationSpecification& specification) {
     // Set default clear color
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
-    // Create and attach ImGui layer
-    imguiLayer_ = std::make_shared<ImGuiLayer>();
+    // Create and attach ImGui layer with app name for per-app ini file
+    imguiLayer_ = std::make_shared<ImGuiLayer>(specification.Name);
     imguiLayer_->SetWindow(window_->GetNativeWindow());
     imguiLayer_->OnAttach();
 

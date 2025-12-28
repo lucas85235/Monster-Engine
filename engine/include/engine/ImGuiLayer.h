@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "engine/Layer.h"
 
 struct GLFWwindow;
@@ -9,6 +11,7 @@ namespace se {
 class ImGuiLayer : public Layer {
    public:
     ImGuiLayer();
+    explicit ImGuiLayer(const std::string& appName);
     ~ImGuiLayer() override;
 
     void OnAttach() override;
@@ -20,9 +23,12 @@ class ImGuiLayer : public Layer {
     void End();    // Render ImGui draw data
 
     void SetWindow(GLFWwindow* window);
+    void SetAppName(const std::string& appName);
 
    private:
     GLFWwindow* window_ = nullptr;
+    std::string appName_ = "default";
+    std::string iniFilePath_;
 };
 
 }  // namespace se

@@ -27,7 +27,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(cat VERSION)
+          VERSION=$(cat ENGINE_VERSION)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Release version: $VERSION"
       

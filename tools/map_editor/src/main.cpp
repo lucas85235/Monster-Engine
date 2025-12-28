@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 
     try {
         se::ApplicationSpecification spec;
-        spec.Name           = "Monster Engine - Map Editor";
+        spec.Name           = "Monster_engine_Map_Editor";
         spec.WindowWidth    = 1600;
         spec.WindowHeight   = 900;
         spec.VSync          = true;

@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 
     try {
         se::ApplicationSpecification spec;
-        spec.Name = "UI Editor";
+        spec.Name = "Monster_engine_UI_Editor";
         spec.WindowWidth = 1600;
         spec.WindowHeight = 900;
         spec.VSync = true;

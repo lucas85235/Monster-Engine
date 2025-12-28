@@ -11,14 +11,20 @@ namespace se {
 
 ImGuiLayer::ImGuiLayer() : Layer("ImGuiLayer") {}
 
+ImGuiLayer::ImGuiLayer(const std::string& appName) : Layer("ImGuiLayer"), appName_(appName) {}
+
 ImGuiLayer::~ImGuiLayer() {}
 
 void ImGuiLayer::SetWindow(GLFWwindow* window) {
     window_ = window;
 }
 
+void ImGuiLayer::SetAppName(const std::string& appName) {
+    appName_ = appName;
+}
+
 void ImGuiLayer::OnAttach() {
-    SE_LOG_INFO("ImGuiLayer::OnAttach");
+    SE_LOG_INFO("ImGuiLayer::OnAttach for app: {}", appName_);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -26,8 +32,10 @@ void ImGuiLayer::OnAttach() {
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
 
-    // Use imgui.ini from assets folder (copied to dist)
-    io.IniFilename = "assets/imgui.ini";
+    // Use per-application ini file (e.g., assets/imgui_map_editor.ini)
+    iniFilePath_ = "assets/imgui_" + appName_ + ".ini";
+    io.IniFilename = iniFilePath_.c_str();
+    SE_LOG_INFO("ImGui ini file: {}", iniFilePath_);
 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
