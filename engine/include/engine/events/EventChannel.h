@@ -10,6 +10,14 @@ class EventChannel : public IEventChannel {
    public:
     using ListenerId = std::size_t;
     using ListenerFn = std::function<void(const EventT&)>;
+    
+    EventChannel() {
+        // Reserve initial capacity to reduce allocations in hot paths
+        current_events_.reserve(32);
+        next_events_.reserve(32);
+        current_listeners_.reserve(16);
+        pending_listeners_.reserve(8);
+    }
 
     ListenerId AddListener(const ListenerFn& listener) {
         const ListenerId id = next_listener_id_++;

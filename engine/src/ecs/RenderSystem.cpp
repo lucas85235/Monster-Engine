@@ -27,6 +27,20 @@ uint32_t                         RenderSystem::lastInstancedObjects_ = 0;
 std::shared_ptr<Material>        RenderSystem::instancedMaterial_    = nullptr;
 std::shared_ptr<Material>        RenderSystem::modelMaterial_        = nullptr;
 std::shared_ptr<Material>        RenderSystem::skinnedMaterial_      = nullptr;
+std::array<int, RenderSystem::MAX_BONES> RenderSystem::boneUniformLocations_ = {};
+bool                             RenderSystem::boneLocationsInitialized_ = false;
+std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> RenderSystem::lastFrameInstanceCounts_;
+
+void RenderSystem::InitBoneUniformLocations(Shader* shader) {
+    if (!shader || boneLocationsInitialized_) return;
+    
+    char uniformName[64];
+    for (size_t i = 0; i < MAX_BONES; ++i) {
+        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
+        boneUniformLocations_[i] = shader->getUniformLocation(uniformName);
+    }
+    boneLocationsInitialized_ = true;
+}
 
 void RenderSystem::EnsureInstancedMaterial() {
     if (instancedMaterial_) return;
@@ -190,7 +204,14 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
     sceneRenderer.BeginScene(camera, projection);
 
-    for (auto& [key, instances] : instanceBatches_) { instances.clear(); }
+    for (auto& [key, instances] : instanceBatches_) {
+        // Reserve based on last frame's count to minimize reallocations
+        auto lastIt = lastFrameInstanceCounts_.find(key);
+        if (lastIt != lastFrameInstanceCounts_.end() && lastIt->second > 0) {
+            instances.reserve(lastIt->second);
+        }
+        instances.clear();
+    }
 
     // Get all entities with TransformComponent and MeshRenderComponent
     auto view = scene.GetAllEntitiesWith<TransformComponent, MeshRenderComponent>();
@@ -283,10 +304,12 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     const auto& boneMatrices = animComp->GetBoneMatrices();
                     shader->setInt("uHasBones", boneMatrices.empty() ? 0 : 1);
                     
+                    // Initialize cached uniform locations once
+                    InitBoneUniformLocations(shader.get());
+                    
+                    // Use cached locations for fast bone matrix setting
                     for (size_t i = 0; i < boneMatrices.size() && i < MAX_BONES; ++i) {
-                        char uniformName[64];
-                        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
-                        shader->setMat4(uniformName, boneMatrices[i]);
+                        shader->setMat4ByLocation(boneUniformLocations_[i], boneMatrices[i]);
                     }
                     
                     if (shouldLog) {
@@ -381,10 +404,13 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         
         if (hasBones) {
             const auto& boneMatrices = animComp->GetBoneMatrices();
+            
+            // Initialize cached uniform locations once
+            InitBoneUniformLocations(shader.get());
+            
+            // Use cached locations for fast bone matrix setting
             for (size_t i = 0; i < boneMatrices.size() && i < MAX_BONES; ++i) {
-                char uniformName[64];
-                snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
-                shader->setMat4(uniformName, boneMatrices[i]);
+                shader->setMat4ByLocation(boneUniformLocations_[i], boneMatrices[i]);
             }
         }
 
@@ -567,6 +593,11 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     instancedObjects, skippedCount);
     }
     frameCount++;
+    
+    // Track instance counts for next frame's reserve() optimization
+    for (const auto& [key, instances] : instanceBatches_) {
+        lastFrameInstanceCounts_[key] = instances.size();
+    }
 
     sceneRenderer.EndScene();
 }
