@@ -11,8 +11,10 @@
 #include "engine/input/InputManager.h"
 #include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/Renderer.h"
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
+
 
 namespace FirstGame {
 

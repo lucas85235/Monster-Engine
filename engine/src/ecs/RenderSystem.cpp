@@ -212,6 +212,14 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
+        // Emissive objects must be rendered individually to pass their emissive properties
+        if (meshRender.EmissiveFactor > 0.0f) {
+            sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
+                                 transform.WorldMatrix, true, true, 1.0f, nullptr,
+                                 meshRender.EmissiveColor, meshRender.EmissiveFactor);
+            continue;
+        }
+
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
 
         InstanceData instanceData;
@@ -487,9 +495,11 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         batchCount++;
 
-        // Find original material from the key
+        // Find original material and emissive properties from the key
         std::shared_ptr<Material>    material = nullptr;
         std::shared_ptr<VertexArray> va       = nullptr;
+        Vector3 emissiveColor{0.0f};
+        float emissiveFactor = 0.0f;
 
         // Search for matching material in entities (we need shared_ptr)
         for (auto entity : view) {
@@ -497,6 +507,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             if (meshRender.vertex_array.get() == key.va && meshRender.material.get() == key.mat) {
                 material = meshRender.material;
                 va       = meshRender.vertex_array;
+                emissiveColor = meshRender.EmissiveColor;
+                emissiveFactor = meshRender.EmissiveFactor;
                 break;
             }
         }
@@ -504,8 +516,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         if (!material || !va) continue;
 
         if (instances.size() == 1) {
-            // Single instance - use normal submit for simplicity
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true);
+            // Single instance - use normal submit with emissive properties
+            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, emissiveColor, emissiveFactor);
         } else {
             // Multiple instances - use instanced rendering
             instancedObjects += static_cast<uint32_t>(instances.size());

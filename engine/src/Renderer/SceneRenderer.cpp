@@ -4,8 +4,11 @@
 
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
+#include <vector>
 
 #include "engine/Log.h"
+#include "engine/renderer/GBufferPass.h"
+#include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/RenderCommand.h"
 #include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/Texture.h"
@@ -66,6 +69,29 @@ void SceneRenderer::Init() {
     // Initialize default IBL for outdoor lighting
     iblData_.SetDefaultOutdoor();
     
+    // Initialize G-Buffer (will be resized on first frame)
+    gbuffer_ = std::make_unique<GBufferPass>();
+    
+    // Load G-Buffer shaders (may fail if files don't exist, handle gracefully)
+    try {
+        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer.vert", "assets/shaders/gbuffer.frag");
+        SE_LOG_INFO("G-Buffer shader loaded");
+    } catch (const std::exception& e) {
+        SE_LOG_ERROR("Error loading gbuffer shader: {}", e.what());
+        gbufferShader_.reset();
+    }
+    
+    try {
+        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer_instanced.vert", "assets/shaders/gbuffer_instanced.frag");
+        SE_LOG_INFO("G-Buffer instanced shader loaded");
+    } catch (const std::exception& e) {
+        SE_LOG_ERROR("Error loading gbuffer instanced shader: {}", e.what());
+        gbufferInstancedShader_.reset();
+    }
+    
+    // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+    // radianceCascades_ = std::make_unique<RadianceCascadesPass>();
+    
     initialized_ = true;
 }
 
@@ -73,6 +99,28 @@ void SceneRenderer::Shutdown() {
     if (!initialized_) return;
 
     SE_LOG_INFO("Shutting down SceneRenderer");
+    
+    if (gbuffer_) {
+        gbuffer_->Shutdown();
+        gbuffer_.reset();
+    }
+    
+    if (radianceCascades_) {
+        radianceCascades_->Shutdown();
+        radianceCascades_.reset();
+    }
+    
+    if (sparseRC_) {
+        sparseRC_->Shutdown();
+        sparseRC_.reset();
+    }
+    
+    if (voxelizer_) {
+        voxelizer_->Shutdown();
+        voxelizer_.reset();
+    }
+    
+    gbufferShader_.reset();
     occlusionCuller_.Shutdown();
     DestroyShadowResources();
     initialized_ = false;
@@ -82,6 +130,7 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     sceneData_.ViewMatrix             = camera.getViewMatrix();
     sceneData_.ProjectionMatrix       = projection;
     sceneData_.view_projection_matrix = projection * sceneData_.ViewMatrix;
+    sceneData_.CameraPosition         = glm::inverse(sceneData_.ViewMatrix)[3];  // Extract camera world position
     sceneData_.Submissions.clear();
     instancedSubmissions_.clear();
 
@@ -128,16 +177,135 @@ void SceneRenderer::EndScene() {
         RenderShadowPass(); 
         SE_LOG_INFO("EndScene: Shadow pass complete");
     }
+    
+    // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    int width = viewport[2];
+    int height = viewport[3];
+    
+    if (width > 0 && height > 0 && (screenWidth_ != width || screenHeight_ != height)) {
+        screenWidth_ = width;
+        screenHeight_ = height;
+        
+        if (gbuffer_ && !gbuffer_->IsInitialized()) {
+            SE_LOG_INFO("EndScene: Initializing G-Buffer ({}x{})", width, height);
+            gbuffer_->Init(width, height);
+        } else if (gbuffer_ && gbuffer_->IsInitialized()) {
+            gbuffer_->Resize(width, height);
+        }
+        
+        // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+        // if (radianceCascades_ && radianceCascades_->GetRadianceTexture() == 0) {
+        //     SE_LOG_INFO("EndScene: Initializing Radiance Cascades ({}x{}) - disabled by default", width, height);
+        //     radianceCascades_->Init(width, height);
+        //     radianceCascades_->SetEnabled(false);
+        // } else if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+        //     radianceCascades_->Resize(width, height);
+        // }
+    }
+    
+    // Step 1: Render scene to G-Buffer (for emissive data)
+    bool needGBuffer = (radianceCascades_ && radianceCascades_->IsEnabled()) ||
+                       (sparseRC_ && sparseRC_->IsEnabled());
+    
+    SE_LOG_INFO("EndScene: needGBuffer={}, sparseRC={}", 
+                needGBuffer, (sparseRC_ && sparseRC_->IsEnabled()));
+    
+    if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
+        RenderGBufferPass();
+        
+        // Voxelize from GBuffer for world-space GI
+        if (sparseRC_ && sparseRC_->IsEnabled() && voxelizer_ && voxelizer_->IsInitialized()) {
+            voxelizer_->VoxelizeFromGBuffer(
+                gbuffer_->GetPositionTexture(),
+                gbuffer_->GetAlbedoTexture(),
+                gbuffer_->GetEmissiveTexture(),
+                screenWidth_, screenHeight_);
+        }
+    }
+    
+
+    // Step 2: Execute Radiance Cascades with G-Buffer data
+    if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+        uint32_t sceneColorTex = 0;
+        uint32_t sceneDepthTex = sceneData_.ShadowDepthTexture;
+        uint32_t scenePositionTex = 0;
+        
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
+            sceneColorTex = gbuffer_->GetEmissiveTexture();
+            sceneDepthTex = gbuffer_->GetDepthTexture();
+            scenePositionTex = gbuffer_->GetPositionTexture();
+            SE_LOG_INFO("RC Input: Emissive={}, Depth={}, Position={}", sceneColorTex, sceneDepthTex, scenePositionTex);
+        }
+        
+        // Get voxel data if available
+        uint32_t voxelAlbedoTex = 0;
+        uint32_t voxelEmissiveTex = 0;
+        glm::vec3 voxelGridCenter = glm::vec3(0.0f);
+        float voxelGridSize = 50.0f;
+        int voxelResolution = 128;
+        
+        if (voxelizer_ && voxelizer_->IsInitialized()) {
+            voxelAlbedoTex = voxelizer_->GetVoxelTexture();
+            voxelEmissiveTex = voxelizer_->GetVoxelEmissiveTexture();
+            voxelGridCenter = voxelizer_->GetConfig().Center;
+            voxelGridSize = voxelizer_->GetConfig().WorldSize;
+            voxelResolution = voxelizer_->GetConfig().Resolution;
+        }
+        
+        radianceCascades_->Execute(sceneColorTex, sceneDepthTex, scenePositionTex,
+                                   sceneData_.ProjectionMatrix, sceneData_.ViewMatrix,
+                                   sceneData_.CameraPosition,
+                                   voxelAlbedoTex, voxelEmissiveTex,
+                                   voxelGridCenter, voxelGridSize, voxelResolution);
+    }
+    
+    // Step 2b: Execute Sparse Radiance Cascades (World-Space GI) if enabled
+    static uint32_t frameNumber = 0;
+    frameNumber++;
+    
+    if (sparseRC_ && sparseRC_->IsEnabled()) {
+        // Provide GBuffer access
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
+            sparseRC_->SetGBufferPass(gbuffer_.get());
+        }
+        
+        
+        // TEST: Fix voxelizer grid at origin for world-space stability
+        // For a proper implementation, the grid should move in discrete steps
+        if (voxelizer_ && voxelizer_->IsInitialized()) {
+            // Fix at origin for now - objects within WorldSize/2 of origin will be lit
+            voxelizer_->SetCenter(glm::vec3(0.0f, 1.0f, 0.0f));  // Slightly above ground
+        }
+
+
+        
+        sparseRC_->Execute(sceneData_.ProjectionMatrix, sceneData_.ViewMatrix,
+                           sceneData_.CameraPosition, frameNumber);
+    }
+    
+    // Step 3: Render final scene with GI applied
+
     SE_LOG_INFO("EndScene: Running scene pass ({} submissions, {} instanced)", 
                 sceneData_.Submissions.size(), instancedSubmissions_.size());
     RenderScenePass();
+    
+    // Step 4: Render debug visualization for Sparse RC
+    if (sparseRC_ && sparseRC_->IsEnabled()) {
+        glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
+        sparseRC_->RenderDebug(viewProj);
+    }
+    
     SE_LOG_INFO("EndScene: Complete");
 }
+
 
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
                            const std::shared_ptr<Material>& material, const Matrix4& transform,
                            bool castsShadows, bool receiveShadows, float boundingRadius,
-                           const std::shared_ptr<TextureMaterial>& textureMaterial) {
+                           const std::shared_ptr<TextureMaterial>& textureMaterial,
+                           const Vector3& emissiveColor, float emissiveFactor) {
     Submission submission;
     submission.vertex_array    = vertexArray;
     submission.material        = material;
@@ -145,6 +313,8 @@ void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
     submission.CastsShadows    = castsShadows;
     submission.ReceiveShadows  = receiveShadows;
     submission.textureMaterial = textureMaterial;
+    submission.EmissiveColor   = emissiveColor;
+    submission.EmissiveFactor  = emissiveFactor;
 
     // Extract position from transform
     submission.Center = Vector3(transform[3]);
@@ -170,19 +340,23 @@ void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
 
 void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
                                     const std::shared_ptr<Material>& material, bool castsShadows,
-                                    bool receiveShadows) {
+                                    bool receiveShadows,
+                                    const glm::vec3& emissiveColor, float emissiveFactor) {
     if (!instancedMesh || !material) {
         SE_LOG_WARN("SubmitInstanced called with null instancedMesh or material");
         return;
     }
 
     InstancedSubmission submission;
-    submission.instancedMesh  = instancedMesh;
-    submission.material       = material;
-    submission.castsShadows   = castsShadows;
-    submission.receiveShadows = receiveShadows;
+    submission.instancedMesh   = instancedMesh;
+    submission.material        = material;
+    submission.castsShadows    = castsShadows;
+    submission.receiveShadows  = receiveShadows;
+    submission.EmissiveColor   = emissiveColor;
+    submission.EmissiveFactor  = emissiveFactor;
     instancedSubmissions_.emplace_back(std::move(submission));
 }
+
 
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
@@ -395,6 +569,60 @@ void SceneRenderer::RenderShadowPass() {
     glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
 }
 
+void SceneRenderer::RenderGBufferPass() {
+    if (!gbuffer_ || !gbuffer_->IsInitialized()) return;
+    if (!gbufferShader_ || !gbufferInstancedShader_) return;
+    
+    // Save previous state
+    GLint previousFramebuffer;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+    GLint previousViewport[4];
+    glGetIntegerv(GL_VIEWPORT, previousViewport);
+    
+    // Bind G-Buffer and clear
+    gbuffer_->Bind();
+    gbuffer_->Clear();
+    
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    
+    // Render regular submissions with per-object emissive values
+    gbufferShader_->bind();
+    gbufferShader_->setMat4("uView", sceneData_.ViewMatrix);
+    gbufferShader_->setMat4("uProj", sceneData_.ProjectionMatrix);
+    
+    for (const auto& submission : sceneData_.Submissions) {
+        if (!submission.vertex_array) continue;
+        gbufferShader_->setMat4("uModel", submission.Transform);
+        gbufferShader_->setVec3("uEmissiveColor", submission.EmissiveColor);
+        gbufferShader_->setFloat("uEmissiveFactor", submission.EmissiveFactor);
+        RenderCommand::DrawIndexed(submission.vertex_array.get());
+    }
+    
+    // Render instanced submissions with per-batch emissive
+    gbufferInstancedShader_->bind();
+    gbufferInstancedShader_->setMat4("uView", sceneData_.ViewMatrix);
+    gbufferInstancedShader_->setMat4("uProj", sceneData_.ProjectionMatrix);
+    
+    for (const auto& instanced : instancedSubmissions_) {
+        if (!instanced.instancedMesh) continue;
+        if (instanced.instancedMesh->GetInstanceCount() == 0) continue;
+        
+        // Use per-submission emissive values
+        gbufferInstancedShader_->setVec3("uEmissiveColor", instanced.EmissiveColor);
+        gbufferInstancedShader_->setFloat("uEmissiveFactor", instanced.EmissiveFactor);
+        instanced.instancedMesh->DrawWithoutMaterial();
+    }
+
+    
+    // Unbind FBO and restore previous state
+    gbuffer_->Unbind();
+    glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+    glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+}
+
 void SceneRenderer::RenderScenePass() {
 
     glActiveTexture(GL_TEXTURE0);
@@ -553,6 +781,37 @@ void SceneRenderer::RenderScenePass() {
         shader->setVec3("uSkyColor", iblData_.SkyColor);
         shader->setVec3("uGroundColor", iblData_.GroundColor);
         
+        // Bind Radiance Cascades GI texture if available
+        int hasGI = 0;
+        if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+            uint32_t giTex = radianceCascades_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        } else if (sparseRC_ && sparseRC_->IsEnabled()) {
+            uint32_t giTex = sparseRC_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        }
+        shader->setInt("uHasGI", hasGI);
+        float giIntensity = sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f;
+        shader->setFloat("uGIIntensity", giIntensity);
+        
+        // Debug log first submission only to avoid spam
+        static int giLogCount = 0;
+        if (hasGI && giLogCount++ < 10) {
+            SE_LOG_INFO("GI Binding: hasGI={}, giIntensity={}", hasGI, giIntensity);
+        }
+
+
+        
         // HDR exposure control
         shader->setFloat("uExposure", sceneData_.Exposure);
 
@@ -619,6 +878,29 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        
+        // Bind Radiance Cascades GI texture if available
+        int hasGI = 0;
+        if (radianceCascades_ && radianceCascades_->IsEnabled()) {
+            uint32_t giTex = radianceCascades_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        } else if (sparseRC_ && sparseRC_->IsEnabled()) {
+            uint32_t giTex = sparseRC_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
+        }
+        shader->setInt("uHasGI", hasGI);
+        shader->setFloat("uGIIntensity", sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f);
+
 
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
@@ -632,6 +914,118 @@ void SceneRenderer::RenderScenePass() {
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void SceneRenderer::SetRadianceCascadesEnabled(bool enabled) {
+    if (radianceCascades_) {
+        radianceCascades_->SetEnabled(enabled);
+    }
+}
+
+bool SceneRenderer::IsRadianceCascadesEnabled() const {
+    return radianceCascades_ && radianceCascades_->IsEnabled();
+}
+
+RadianceCascadeConfig& SceneRenderer::GetRadianceCascadeConfig() {
+    static RadianceCascadeConfig fallback;
+    if (radianceCascades_) {
+        return const_cast<RadianceCascadeConfig&>(radianceCascades_->GetConfig());
+    }
+    return fallback;
+}
+
+const RadianceCascadeConfig& SceneRenderer::GetRadianceCascadeConfig() const {
+    static RadianceCascadeConfig fallback;
+    if (radianceCascades_) {
+        return radianceCascades_->GetConfig();
+    }
+    return fallback;
+}
+
+void SceneRenderer::SetScreenSize(int width, int height) {
+    if (width <= 0 || height <= 0) return;
+    if (screenWidth_ == width && screenHeight_ == height) return;
+    
+    SE_LOG_INFO("SceneRenderer: SetScreenSize({}x{})", width, height);
+    
+    screenWidth_ = width;
+    screenHeight_ = height;
+    
+    // Initialize or resize G-Buffer
+    if (gbuffer_) {
+        if (!gbuffer_->IsInitialized()) {
+            gbuffer_->Init(width, height);
+        } else {
+            gbuffer_->Resize(width, height);
+        }
+    }
+    
+    // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
+    // if (radianceCascades_) {
+    //     if (!radianceCascades_->IsEnabled() || radianceCascades_->GetRadianceTexture() == 0) {
+    //         radianceCascades_->Init(width, height);
+    //     } else {
+    //         radianceCascades_->Resize(width, height);
+    //     }
+    // }
+    
+    // TODO(GI): Re-enable Sparse Radiance Cascades (3D) initialization when feature is ready
+    // if (!voxelizer_) {
+    //     voxelizer_ = std::make_shared<SceneVoxelizer>();
+    //     VoxelGridConfig voxelConfig;
+    //     voxelConfig.Resolution = 128;
+    //     voxelConfig.WorldSize = 50.0f;
+    //     voxelConfig.Center = glm::vec3(0.0f);
+    //     voxelizer_->Init(voxelConfig);
+    // }
+    // 
+    // if (!sparseRC_) {
+    //     sparseRC_ = std::make_unique<SparseRadianceCascades>();
+    //     sparseRC_->Init(width, height, voxelizer_);
+    //     sparseRC_->SetEnabled(false);
+    // } else {
+    //     sparseRC_->Resize(width, height);
+    // }
+}
+
+void SceneRenderer::SetSparseRCEnabled(bool enabled) {
+    // Auto-initialize Sparse RC if trying to enable but not yet created
+    if (enabled && !sparseRC_ && screenWidth_ > 0 && screenHeight_ > 0) {
+        SE_LOG_INFO("Auto-initializing Sparse RC on enable");
+        
+        if (!voxelizer_) {
+            voxelizer_ = std::make_shared<SceneVoxelizer>();
+            VoxelGridConfig voxelConfig;
+            voxelConfig.Resolution = 128;
+            voxelConfig.WorldSize = 50.0f;
+            voxelConfig.Center = glm::vec3(0.0f);
+            voxelizer_->Init(voxelConfig);
+        }
+        
+        sparseRC_ = std::make_unique<SparseRadianceCascades>();
+        sparseRC_->Init(screenWidth_, screenHeight_, voxelizer_);
+    }
+    
+    if (sparseRC_) {
+        sparseRC_->SetEnabled(enabled);
+        // When enabling Sparse RC, disable old 2D RC
+        if (enabled && radianceCascades_) {
+            radianceCascades_->SetEnabled(false);
+        }
+    }
+}
+
+
+bool SceneRenderer::IsSparseRCEnabled() const {
+    return sparseRC_ && sparseRC_->IsEnabled();
+}
+
+SparseRCConfig& SceneRenderer::GetSparseRCConfig() {
+    static SparseRCConfig fallback;
+    if (sparseRC_) {
+        return const_cast<SparseRCConfig&>(sparseRC_->GetConfig());
+    }
+    return fallback;
 }
 
 }  // namespace se

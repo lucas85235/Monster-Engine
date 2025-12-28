@@ -24,8 +24,8 @@ class MapSerializer {
     static void WriteEntity(std::ofstream& file, const MapEntityData& entity);
     
     static bool ReadString(std::ifstream& file, std::string& str);
-    static bool ReadHeader(std::ifstream& file, MapData& data, uint32_t& entityCount);
-    static bool ReadEntity(std::ifstream& file, MapEntityData& entity);
+    static bool ReadHeader(std::ifstream& file, MapData& data, uint32_t& entityCount, uint32_t& version);
+    static bool ReadEntity(std::ifstream& file, MapEntityData& entity, uint32_t version);
 };
 
 }  // namespace mst

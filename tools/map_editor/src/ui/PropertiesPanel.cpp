@@ -89,6 +89,11 @@ void PropertiesPanel::RenderMeshRenderer(se::MeshRenderComponent& mesh) {
         ImGui::Checkbox("Cast Shadows", &mesh.CastShadows);
         ImGui::Checkbox("Receive Shadows", &mesh.ReceiveShadows);
         ImGui::ColorEdit4("Color", &mesh.Color.x);
+        
+        ImGui::Separator();
+        ImGui::Text("Emissive (GI)");
+        ImGui::ColorEdit3("Emissive Color", &mesh.EmissiveColor.x);
+        ImGui::DragFloat("Emissive Factor", &mesh.EmissiveFactor, 0.1f, 0.0f, 10.0f, "%.2f");
     }
 }
 

@@ -93,6 +93,10 @@ void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity
         file.write(reinterpret_cast<const char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
         file.write(reinterpret_cast<const char*>(&entity.mass), sizeof(float));
     }
+    
+    // Emissive properties (version 4+)
+    file.write(reinterpret_cast<const char*>(&entity.emissiveColor), sizeof(Vector3));
+    file.write(reinterpret_cast<const char*>(&entity.emissiveFactor), sizeof(float));
 }
 
 bool MapSerializer::Import(MapData& data, const std::filesystem::path& path) {
@@ -105,7 +109,8 @@ bool MapSerializer::Import(MapData& data, const std::filesystem::path& path) {
     }
 
     uint32_t entityCount = 0;
-    if (!ReadHeader(file, data, entityCount)) {
+    uint32_t version = 0;
+    if (!ReadHeader(file, data, entityCount, version)) {
         SE_LOG_ERROR("MapSerializer: Failed to read header from: {}", path.string());
         return false;
     }
@@ -120,7 +125,7 @@ bool MapSerializer::Import(MapData& data, const std::filesystem::path& path) {
 
     for (uint32_t i = 0; i < entityCount; ++i) {
         MapEntityData entity;
-        if (!ReadEntity(file, entity)) {
+        if (!ReadEntity(file, entity, version)) {
             SE_LOG_ERROR("MapSerializer: Failed to read entity {} from: {}", i, path.string());
             return false;
         }
@@ -144,7 +149,7 @@ bool MapSerializer::ReadString(std::ifstream& file, std::string& str) {
     return !file.fail();
 }
 
-bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& entityCount) {
+bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& entityCount, uint32_t& version) {
     uint32_t magic = 0;
     file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
     if (magic != MapData::MAGIC) {
@@ -153,7 +158,7 @@ bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& ent
         return false;
     }
 
-    uint32_t version = 0;
+    version = 0;
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
     
     file.read(reinterpret_cast<char*>(&entityCount), sizeof(entityCount));
@@ -199,7 +204,7 @@ bool MapSerializer::ReadHeader(std::ifstream& file, MapData& data, uint32_t& ent
     return !file.fail();
 }
 
-bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity) {
+bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity, uint32_t version) {
     if (!ReadString(file, entity.name)) return false;
 
     file.read(reinterpret_cast<char*>(&entity.primitiveType), sizeof(entity.primitiveType));
@@ -222,6 +227,16 @@ bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity) {
         // Rigidbody settings
         file.read(reinterpret_cast<char*>(&entity.rigidbodyType), sizeof(entity.rigidbodyType));
         file.read(reinterpret_cast<char*>(&entity.mass), sizeof(float));
+    }
+    
+    // Emissive properties (version 4+)
+    if (version >= 4) {
+        file.read(reinterpret_cast<char*>(&entity.emissiveColor), sizeof(Vector3));
+        file.read(reinterpret_cast<char*>(&entity.emissiveFactor), sizeof(float));
+    } else {
+        // Default values for older maps
+        entity.emissiveColor = Vector3{0.0f, 0.0f, 0.0f};
+        entity.emissiveFactor = 0.0f;
     }
 
     return !file.fail();

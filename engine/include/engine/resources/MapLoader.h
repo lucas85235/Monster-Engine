@@ -63,11 +63,14 @@ class MapLoader {
         float         colliderHeight = 1.0f;
         uint8_t       rigidbodyType = 0;  // 0=Static, 1=Dynamic, 2=Kinematic
         float         mass = 1.0f;
+        // Version 4+ fields
+        Vector3       emissiveColor{0.0f, 0.0f, 0.0f};
+        float         emissiveFactor = 0.0f;
     };
 
     static bool ReadString(std::ifstream& file, std::string& str);
     static bool ReadHeader(std::ifstream& file, uint32_t& entityCount, MapLoadResult& result, uint32_t& version);
-    static bool ReadEntity(std::ifstream& file, EntityData& entity);
+    static bool ReadEntity(std::ifstream& file, EntityData& entity, uint32_t version);
     static void CreateSceneEntity(Scene& scene, const EntityData& data);
     static void CreateDirectionalLight(Scene& scene, const MapLoadResult& result);
 };

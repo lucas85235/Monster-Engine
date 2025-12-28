@@ -24,7 +24,7 @@ struct CharacterRenderConfig {
     glm::vec3 Scale{0.01f};
     // glm::vec3 Scale{1.0f};
     // glm::vec3 Rotation{90.0f, 90.0f, 0.0f};
-    glm::vec3 Rotation{0.0f,0.0f, 0.0f};
+    glm::vec3 Rotation{0.0f};
     glm::vec3 Offset{0.0f, -0.85f, 0.0f};
     
     float TransitionDuration = 0.2f;

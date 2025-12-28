@@ -31,6 +31,7 @@ class VertexArray {
     const std::shared_ptr<IndexBuffer>& GetIndexBuffer() const {
         return indexBuffer_;
     }
+    uint32_t GetRendererId() const { return rendererId_; }
 
    private:
     uint32_t                                   rendererId_;
