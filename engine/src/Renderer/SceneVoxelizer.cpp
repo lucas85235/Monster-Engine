@@ -201,6 +201,47 @@ void SceneVoxelizer::Voxelize(Scene& scene, const glm::mat4& viewMatrix, const g
     // This is called from SceneRenderer after G-Buffer pass
 }
 
+void SceneVoxelizer::VoxelizeFromGBuffer(uint32_t positionTex, uint32_t albedoTex, uint32_t emissiveTex,
+                                          int screenWidth, int screenHeight) {
+    if (!initialized_ || !voxelizeShader_ || !voxelizeShader_->IsValid()) {
+        SE_LOG_WARN("VoxelizeFromGBuffer: not ready (init={}, shader={})", 
+                    initialized_, voxelizeShader_ != nullptr);
+        return;
+    }
+    
+    // Clear first
+    Clear();
+    
+    voxelizeShader_->Bind();
+    
+    // Bind output voxel textures
+    glBindImageTexture(0, voxelTexture_, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
+    glBindImageTexture(1, voxelEmissiveTexture_, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA16F);
+    
+    // Bind GBuffer input textures
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, positionTex);
+    
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, albedoTex);
+    
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, emissiveTex);
+    
+    // Set uniforms
+    voxelizeShader_->SetVec3("uGridCenter", config_.Center);
+    voxelizeShader_->SetFloat("uGridWorldSize", config_.WorldSize);
+    voxelizeShader_->SetInt("uGridResolution", config_.Resolution);
+    voxelizeShader_->SetVec2("uScreenSize", glm::vec2(screenWidth, screenHeight));
+    
+    // Dispatch compute shader
+    int groupsX = (screenWidth + 7) / 8;
+    int groupsY = (screenHeight + 7) / 8;
+    voxelizeShader_->DispatchAndWait(groupsX, groupsY, 1);
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 glm::ivec3 SceneVoxelizer::WorldToVoxel(const glm::vec3& worldPos) const {
     glm::vec3 localPos = worldPos - config_.Center;
     glm::vec3 normalizedPos = (localPos / config_.WorldSize) + 0.5f;
@@ -214,3 +255,4 @@ glm::vec3 SceneVoxelizer::VoxelToWorld(const glm::ivec3& voxelPos) const {
 }
 
 }  // namespace se
+

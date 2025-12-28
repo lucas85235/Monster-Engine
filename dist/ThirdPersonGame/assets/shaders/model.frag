@@ -280,11 +280,18 @@ void main() {
     
     // Add GI contribution if available
     if (uHasGI == 1) {
-        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(uGIMap, 0));
+        // Use texture dimensions to compute screen UV (texture is screen-sized)
+        ivec2 texSize = textureSize(uGIMap, 0);
+        vec2 screenUV = gl_FragCoord.xy / vec2(texSize);
+        // Ensure UV is clamped
+        screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
         vec3 giContribution = texture(uGIMap, screenUV).rgb * uGIIntensity;
-        // Apply GI to diffuse (non-metallic surfaces)
-        indirectLight += giContribution * diffuseColor * (1.0 - metallic);
+        indirectLight += giContribution * mix(diffuseColor, vec3(0.04), metallic);
     }
+
+
+
+
     
     vec3 hdrColor = directLight + indirectLight + emissive;
     

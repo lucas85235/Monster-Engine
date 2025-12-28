@@ -67,7 +67,9 @@ class SceneRenderer {
     // Submit instanced geometry (multiple transforms in a single draw call)
     void SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
                          const std::shared_ptr<Material>& material, bool castsShadows = true,
-                         bool receiveShadows = true);
+                         bool receiveShadows = true,
+                         const Vector3& emissiveColor = Vector3(0.0f), float emissiveFactor = 0.0f);
+
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -182,7 +184,10 @@ class SceneRenderer {
         std::shared_ptr<Material>      material;
         bool                           castsShadows   = true;
         bool                           receiveShadows = true;
+        glm::vec3                      EmissiveColor = glm::vec3(0.0f);
+        float                          EmissiveFactor = 0.0f;
     };
+
     std::vector<InstancedSubmission> instancedSubmissions_;
 
     void InitializeShadowResources();

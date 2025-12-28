@@ -204,15 +204,26 @@ void SceneRenderer::EndScene() {
     }
     
     // Step 1: Render scene to G-Buffer (for emissive data)
-    SE_LOG_INFO("EndScene: gbuffer_={}, gbufferInit={}, radianceCascades_={}, rcEnabled={}",
-                (gbuffer_ != nullptr), 
-                (gbuffer_ ? gbuffer_->IsInitialized() : false),
-                (radianceCascades_ != nullptr), 
-                (radianceCascades_ ? radianceCascades_->IsEnabled() : false));
-    if (gbuffer_ && gbuffer_->IsInitialized() && radianceCascades_ && radianceCascades_->IsEnabled()) {
+    bool needGBuffer = (radianceCascades_ && radianceCascades_->IsEnabled()) ||
+                       (sparseRC_ && sparseRC_->IsEnabled());
+    
+    SE_LOG_INFO("EndScene: needGBuffer={}, sparseRC={}", 
+                needGBuffer, (sparseRC_ && sparseRC_->IsEnabled()));
+    
+    if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
         RenderGBufferPass();
+        
+        // Voxelize from GBuffer for world-space GI
+        if (sparseRC_ && sparseRC_->IsEnabled() && voxelizer_ && voxelizer_->IsInitialized()) {
+            voxelizer_->VoxelizeFromGBuffer(
+                gbuffer_->GetPositionTexture(),
+                gbuffer_->GetAlbedoTexture(),
+                gbuffer_->GetEmissiveTexture(),
+                screenWidth_, screenHeight_);
+        }
     }
     
+
     // Step 2: Execute Radiance Cascades with G-Buffer data
     if (radianceCascades_ && radianceCascades_->IsEnabled()) {
         uint32_t sceneColorTex = 0;
@@ -248,12 +259,45 @@ void SceneRenderer::EndScene() {
                                    voxelGridCenter, voxelGridSize, voxelResolution);
     }
     
+    // Step 2b: Execute Sparse Radiance Cascades (World-Space GI) if enabled
+    static uint32_t frameNumber = 0;
+    frameNumber++;
+    
+    if (sparseRC_ && sparseRC_->IsEnabled()) {
+        // Provide GBuffer access
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
+            sparseRC_->SetGBufferPass(gbuffer_.get());
+        }
+        
+        
+        // TEST: Fix voxelizer grid at origin for world-space stability
+        // For a proper implementation, the grid should move in discrete steps
+        if (voxelizer_ && voxelizer_->IsInitialized()) {
+            // Fix at origin for now - objects within WorldSize/2 of origin will be lit
+            voxelizer_->SetCenter(glm::vec3(0.0f, 1.0f, 0.0f));  // Slightly above ground
+        }
+
+
+        
+        sparseRC_->Execute(sceneData_.ProjectionMatrix, sceneData_.ViewMatrix,
+                           sceneData_.CameraPosition, frameNumber);
+    }
+    
     // Step 3: Render final scene with GI applied
+
     SE_LOG_INFO("EndScene: Running scene pass ({} submissions, {} instanced)", 
                 sceneData_.Submissions.size(), instancedSubmissions_.size());
     RenderScenePass();
+    
+    // Step 4: Render debug visualization for Sparse RC
+    if (sparseRC_ && sparseRC_->IsEnabled()) {
+        glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
+        sparseRC_->RenderDebug(viewProj);
+    }
+    
     SE_LOG_INFO("EndScene: Complete");
 }
+
 
 void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
                            const std::shared_ptr<Material>& material, const Matrix4& transform,
@@ -294,19 +338,23 @@ void SceneRenderer::Submit(const std::shared_ptr<VertexArray>& vertexArray,
 
 void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instancedMesh,
                                     const std::shared_ptr<Material>& material, bool castsShadows,
-                                    bool receiveShadows) {
+                                    bool receiveShadows,
+                                    const glm::vec3& emissiveColor, float emissiveFactor) {
     if (!instancedMesh || !material) {
         SE_LOG_WARN("SubmitInstanced called with null instancedMesh or material");
         return;
     }
 
     InstancedSubmission submission;
-    submission.instancedMesh  = instancedMesh;
-    submission.material       = material;
-    submission.castsShadows   = castsShadows;
-    submission.receiveShadows = receiveShadows;
+    submission.instancedMesh   = instancedMesh;
+    submission.material        = material;
+    submission.castsShadows    = castsShadows;
+    submission.receiveShadows  = receiveShadows;
+    submission.EmissiveColor   = emissiveColor;
+    submission.EmissiveFactor  = emissiveFactor;
     instancedSubmissions_.emplace_back(std::move(submission));
 }
+
 
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
@@ -551,18 +599,21 @@ void SceneRenderer::RenderGBufferPass() {
         RenderCommand::DrawIndexed(submission.vertex_array.get());
     }
     
-    // Render instanced submissions (no per-instance emissive yet)
+    // Render instanced submissions with per-batch emissive
     gbufferInstancedShader_->bind();
     gbufferInstancedShader_->setMat4("uView", sceneData_.ViewMatrix);
     gbufferInstancedShader_->setMat4("uProj", sceneData_.ProjectionMatrix);
-    gbufferInstancedShader_->setVec3("uEmissiveColor", glm::vec3(0.0f));
-    gbufferInstancedShader_->setFloat("uEmissiveFactor", 0.0f);
     
     for (const auto& instanced : instancedSubmissions_) {
         if (!instanced.instancedMesh) continue;
         if (instanced.instancedMesh->GetInstanceCount() == 0) continue;
+        
+        // Use per-submission emissive values
+        gbufferInstancedShader_->setVec3("uEmissiveColor", instanced.EmissiveColor);
+        gbufferInstancedShader_->setFloat("uEmissiveFactor", instanced.EmissiveFactor);
         instanced.instancedMesh->DrawWithoutMaterial();
     }
+
     
     // Unbind FBO and restore previous state
     gbuffer_->Unbind();
@@ -738,9 +789,26 @@ void SceneRenderer::RenderScenePass() {
                 shader->setInt("uGIMap", 8);
                 hasGI = 1;
             }
+        } else if (sparseRC_ && sparseRC_->IsEnabled()) {
+            uint32_t giTex = sparseRC_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
         }
         shader->setInt("uHasGI", hasGI);
-        shader->setFloat("uGIIntensity", 1.0f);
+        float giIntensity = sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f;
+        shader->setFloat("uGIIntensity", giIntensity);
+        
+        // Debug log first submission only to avoid spam
+        static int giLogCount = 0;
+        if (hasGI && giLogCount++ < 10) {
+            SE_LOG_INFO("GI Binding: hasGI={}, giIntensity={}", hasGI, giIntensity);
+        }
+
+
         
         // HDR exposure control
         shader->setFloat("uExposure", sceneData_.Exposure);
@@ -819,9 +887,18 @@ void SceneRenderer::RenderScenePass() {
                 shader->setInt("uGIMap", 8);
                 hasGI = 1;
             }
+        } else if (sparseRC_ && sparseRC_->IsEnabled()) {
+            uint32_t giTex = sparseRC_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+            }
         }
         shader->setInt("uHasGI", hasGI);
-        shader->setFloat("uGIIntensity", 1.0f);
+        shader->setFloat("uGIIntensity", sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f);
+
 
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
@@ -910,6 +987,23 @@ void SceneRenderer::SetScreenSize(int width, int height) {
 }
 
 void SceneRenderer::SetSparseRCEnabled(bool enabled) {
+    // Auto-initialize Sparse RC if trying to enable but not yet created
+    if (enabled && !sparseRC_ && screenWidth_ > 0 && screenHeight_ > 0) {
+        SE_LOG_INFO("Auto-initializing Sparse RC on enable");
+        
+        if (!voxelizer_) {
+            voxelizer_ = std::make_shared<SceneVoxelizer>();
+            VoxelGridConfig voxelConfig;
+            voxelConfig.Resolution = 128;
+            voxelConfig.WorldSize = 50.0f;
+            voxelConfig.Center = glm::vec3(0.0f);
+            voxelizer_->Init(voxelConfig);
+        }
+        
+        sparseRC_ = std::make_unique<SparseRadianceCascades>();
+        sparseRC_->Init(screenWidth_, screenHeight_, voxelizer_);
+    }
+    
     if (sparseRC_) {
         sparseRC_->SetEnabled(enabled);
         // When enabling Sparse RC, disable old 2D RC
@@ -918,6 +1012,7 @@ void SceneRenderer::SetSparseRCEnabled(bool enabled) {
         }
     }
 }
+
 
 bool SceneRenderer::IsSparseRCEnabled() const {
     return sparseRC_ && sparseRC_->IsEnabled();

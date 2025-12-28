@@ -160,10 +160,14 @@ void main() {
     
     // Add GI contribution if available
     if (uHasGI == 1) {
-        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(uGIMap, 0));
+        ivec2 texSize = textureSize(uGIMap, 0);
+        vec2 screenUV = gl_FragCoord.xy / vec2(texSize);
+        screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
         vec3 giContribution = texture(uGIMap, screenUV).rgb * uGIIntensity;
-        indirectLight += giContribution * diffuseColor * (1.0 - metallic);
+        indirectLight += giContribution * mix(diffuseColor, vec3(0.04), metallic);
     }
+
+
     
     // HDR Pipeline: exposure, tone mapping, gamma
     vec3 hdrColor = directLight + indirectLight;

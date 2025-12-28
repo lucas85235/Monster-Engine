@@ -25,7 +25,10 @@ public:
     void Shutdown();
     
     void Voxelize(Scene& scene, const glm::mat4& viewMatrix, const glm::mat4& projMatrix);
+    void VoxelizeFromGBuffer(uint32_t positionTex, uint32_t albedoTex, uint32_t emissiveTex,
+                              int screenWidth, int screenHeight);
     void Clear();
+
     
     uint32_t GetVoxelTexture() const { return voxelTexture_; }
     uint32_t GetVoxelEmissiveTexture() const { return voxelEmissiveTexture_; }
