@@ -43,6 +43,7 @@ message(STATUS "SimpleEngine v${VERSION_STRING} (${GIT_HASH}) - ${BUILD_TYPE}")
 add_subdirectory(engine)
 #add_subdirectory(apps/sandbox)
 add_subdirectory(apps/third_person_game)
+add_subdirectory(apps/ssgi_test)
 add_subdirectory(tools/map_editor)
 add_subdirectory(tools/ui_editor)
 

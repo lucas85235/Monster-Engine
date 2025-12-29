@@ -14,6 +14,7 @@
 #include "engine/renderer/RadianceCascadesPass.h"
 #include "engine/renderer/SceneVoxelizer.h"
 #include "engine/renderer/SparseRadianceCascades.h"
+#include "engine/renderer/SSGIPass.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -112,6 +113,13 @@ class SceneRenderer {
     SparseRCConfig& GetSparseRCConfig();
     SparseRadianceCascades* GetSparseRadianceCascades() { return sparseRC_.get(); }
     SceneVoxelizer* GetSceneVoxelizer() { return voxelizer_.get(); }
+    
+    // SSGI (Screen Space Global Illumination) - HBIL
+    void SetSSGIEnabled(bool enabled);
+    bool IsSSGIEnabled() const;
+    SSGIConfig& GetSSGIConfig();
+    const SSGIConfig& GetSSGIConfig() const;
+    SSGIPass* GetSSGIPass() { return ssgiPass_.get(); }
     
     // Screen size management (needed for GBuffer and RC)
     void SetScreenSize(int width, int height);
@@ -215,6 +223,9 @@ class SceneRenderer {
     std::unique_ptr<GBufferPass> gbuffer_;
     std::shared_ptr<Shader> gbufferShader_;
     std::shared_ptr<Shader> gbufferInstancedShader_;
+    
+    // SSGI (Screen Space Global Illumination)
+    std::unique_ptr<SSGIPass> ssgiPass_;
     
     // Screen dimensions for RC initialization
     int screenWidth_ = 1280;
