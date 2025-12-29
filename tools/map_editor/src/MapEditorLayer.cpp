@@ -4,6 +4,7 @@
 #include <ImGuizmo.h>
 #include <imgui.h>
 
+#include "commands/EntityCommands.h"
 #include "engine/Application.h"
 #include "engine/Log.h"
 #include "engine/input/InputManager.h"
@@ -22,6 +23,14 @@ void MapEditorLayer::OnAttach() {
     
     viewportPanel_ = CreateScope<ViewportPanel>();
     statusBarPanel_ = CreateScope<StatusBarPanel>();
+    
+    // Connect panel visibility to menu bar
+    PanelVisibility visibility;
+    visibility.viewport = &viewportVisible_;
+    visibility.hierarchy = &hierarchyVisible_;
+    visibility.properties = &propertiesVisible_;
+    visibility.statusBar = &statusBarVisible_;
+    menuBar_.SetPanelVisibility(visibility);
     
     SetupEventHandlers();
     
@@ -78,16 +87,24 @@ void MapEditorLayer::OnImGuiRender() {
     
     ImGui::End();  // End dockspace
     
-    hierarchyPanel_.Render(context_->GetScene(), context_->GetSelection());
-    ProcessHierarchyActions();
+    if (hierarchyVisible_) {
+        hierarchyPanel_.Render(context_->GetScene(), context_->GetSelection());
+        ProcessHierarchyActions();
+    }
     
-    propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo());
+    if (propertiesVisible_) {
+        propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo());
+    }
     
-    viewportPanel_->Render(*context_);
+    if (viewportVisible_) {
+        viewportPanel_->Render(*context_);
+    }
     
-    statusBarPanel_->SetGridVisible(viewportPanel_->GetRenderer().GetSettings().showGrid);
-    statusBarPanel_->SetColliderDebugVisible(viewportPanel_->GetRenderer().GetSettings().showColliderDebug);
-    statusBarPanel_->Render(*context_);
+    if (statusBarVisible_) {
+        statusBarPanel_->SetGridVisible(viewportPanel_->GetRenderer().GetSettings().showGrid);
+        statusBarPanel_->SetColliderDebugVisible(viewportPanel_->GetRenderer().GetSettings().showColliderDebug);
+        statusBarPanel_->Render(*context_);
+    }
     
     fileDialogs_.Render(*context_);
 }
@@ -129,10 +146,11 @@ void MapEditorLayer::SetupDockspace() {
 }
 
 void MapEditorLayer::ProcessCameraInput(float ts) {
-    if (!viewportPanel_->IsHovered()) return;
+    if (!viewportPanel_->IsHovered() && !viewportPanel_->IsFocused()) return;
     if (context_->GetGizmo().IsUsing()) return;
     
     auto& input = se::InputManager::Get();
+    auto& camera = context_->GetCamera();
     
     float mouseX = input.GetMousePosition().x;
     float mouseY = input.GetMousePosition().y;
@@ -146,20 +164,47 @@ void MapEditorLayer::ProcessCameraInput(float ts) {
     bool middleButton = input.IsMouseButtonDown(2);
     bool rightButton = input.IsMouseButtonDown(1);
     
-    bool orbiting = (altPressed && leftButton) || rightButton;
-    bool panning = middleButton || (altPressed && middleButton);
-    
-    auto& camera = context_->GetCamera();
-    
-    if (orbiting) {
+    // Right-click: rotate camera + WASD movement
+    if (rightButton) {
         camera.OnMouseMove(dx, dy, false, false, true);
-    } else if (panning) {
+        
+        // WASD movement while right-click is held
+        if (input.IsKeyDown(GLFW_KEY_W)) {
+            camera.MoveForward(ts);
+        }
+        if (input.IsKeyDown(GLFW_KEY_S)) {
+            camera.MoveForward(-ts);
+        }
+        if (input.IsKeyDown(GLFW_KEY_A)) {
+            camera.MoveRight(-ts);
+        }
+        if (input.IsKeyDown(GLFW_KEY_D)) {
+            camera.MoveRight(ts);
+        }
+        if (input.IsKeyDown(GLFW_KEY_E) || input.IsKeyDown(GLFW_KEY_SPACE)) {
+            camera.MoveUp(ts);
+        }
+        if (input.IsKeyDown(GLFW_KEY_Q) || input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) {
+            camera.MoveUp(-ts);
+        }
+    }
+    
+    // Alt + left-click: orbit (legacy)
+    if (altPressed && leftButton) {
+        camera.OnMouseMove(dx, dy, false, false, true);
+    }
+    
+    // Middle-click: pan
+    if (middleButton) {
         camera.OnMouseMove(dx, dy, false, true, false);
     }
     
-    float scroll = ImGui::GetIO().MouseWheel;
-    if (scroll != 0.0f) {
-        camera.OnMouseScroll(scroll);
+    // Mouse scroll: zoom (only when viewport is hovered)
+    if (viewportPanel_->IsHovered()) {
+        float scroll = ImGui::GetIO().MouseWheel;
+        if (scroll != 0.0f) {
+            camera.OnMouseScroll(scroll);
+        }
     }
 }
 
@@ -178,17 +223,19 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
         fileDialogs_.ShowOpenDialog([this](const FileDialogResult& result) {
             if (result.confirmed) {
                 context_->GetSelection().ClearSelection();
-                context_->GetDocument().Open(result.filename);
+                context_->GetDocument().Open(result.fullPath);
                 context_->GetCommandSystem().Clear();
+                SE_LOG_INFO("Opened map: {}", result.fullPath);
             }
         });
     }
     
     if (actions.exportMap) {
-        fileDialogs_.ShowExportDialog([this](const FileDialogResult& result) {
+        fileDialogs_.ShowSaveDialog([this](const FileDialogResult& result) {
             if (result.confirmed) {
                 context_->GetDocument().SetMapName(result.filename);
-                context_->GetDocument().SaveAs(result.filename);
+                context_->GetDocument().SaveAs(result.fullPath);
+                SE_LOG_INFO("Saved map: {}", result.fullPath);
             }
         });
     }
@@ -198,24 +245,24 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     }
     
     if (actions.createCube) {
-        auto entity = entityManager.CreatePrimitive(PrimitiveType::Cube);
-        selection.Select(entity);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<CreatePrimitiveCommand>(*context_, PrimitiveType::Cube));
     }
     if (actions.createSphere) {
-        auto entity = entityManager.CreatePrimitive(PrimitiveType::Sphere);
-        selection.Select(entity);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<CreatePrimitiveCommand>(*context_, PrimitiveType::Sphere));
     }
     if (actions.createCapsule) {
-        auto entity = entityManager.CreatePrimitive(PrimitiveType::Capsule);
-        selection.Select(entity);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<CreatePrimitiveCommand>(*context_, PrimitiveType::Capsule));
     }
     if (actions.createCylinder) {
-        auto entity = entityManager.CreatePrimitive(PrimitiveType::Cylinder);
-        selection.Select(entity);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<CreatePrimitiveCommand>(*context_, PrimitiveType::Cylinder));
     }
     if (actions.createPlane) {
-        auto entity = entityManager.CreatePrimitive(PrimitiveType::Plane);
-        selection.Select(entity);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<CreatePrimitiveCommand>(*context_, PrimitiveType::Plane));
     }
     
     if (actions.createPlayerStart) {
@@ -228,15 +275,14 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     if (actions.deleteSelected && selection.HasSelection()) {
         auto entities = selection.GetSelectedEntities();
         selection.ClearSelection();
-        entityManager.DeleteEntities(entities);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<DeleteEntitiesCommand>(*context_, entities));
     }
     
     if (actions.duplicateSelected && selection.HasSelection()) {
         auto entity = selection.GetPrimarySelection();
-        auto duplicate = entityManager.DuplicateEntity(entity);
-        if (duplicate.IsValid()) {
-            selection.Select(duplicate);
-        }
+        context_->GetCommandSystem().Execute(
+            std::make_unique<DuplicateEntityCommand>(*context_, entity));
     }
     
     if (actions.toggleGrid) {
@@ -254,20 +300,18 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
 
 void MapEditorLayer::ProcessHierarchyActions() {
     auto& selection = context_->GetSelection();
-    auto& entityManager = context_->GetEntityManager();
     
     if (hierarchyPanel_.WantsDelete() && selection.HasSelection()) {
         auto entities = selection.GetSelectedEntities();
         selection.ClearSelection();
-        entityManager.DeleteEntities(entities);
+        context_->GetCommandSystem().Execute(
+            std::make_unique<DeleteEntitiesCommand>(*context_, entities));
     }
     
     if (hierarchyPanel_.WantsDuplicate() && selection.HasSelection()) {
         auto entity = selection.GetPrimarySelection();
-        auto duplicate = entityManager.DuplicateEntity(entity);
-        if (duplicate.IsValid()) {
-            selection.Select(duplicate);
-        }
+        context_->GetCommandSystem().Execute(
+            std::make_unique<DuplicateEntityCommand>(*context_, entity));
     }
     
     hierarchyPanel_.ClearActions();

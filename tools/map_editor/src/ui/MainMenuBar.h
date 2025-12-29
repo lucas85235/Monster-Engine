@@ -31,15 +31,27 @@ struct MenuBarActions {
     void Reset() { *this = MenuBarActions{}; }
 };
 
+// Panel visibility state for View menu
+struct PanelVisibility {
+    bool* viewport   = nullptr;
+    bool* hierarchy  = nullptr;
+    bool* properties = nullptr;
+    bool* statusBar  = nullptr;
+};
+
 class MainMenuBar {
    public:
     MenuBarActions Render();
+    
+    void SetPanelVisibility(PanelVisibility visibility) { panelVisibility_ = visibility; }
 
    private:
     void RenderFileMenu(MenuBarActions& actions);
     void RenderEditMenu(MenuBarActions& actions);
     void RenderCreateMenu(MenuBarActions& actions);
     void RenderViewMenu(MenuBarActions& actions);
+    
+    PanelVisibility panelVisibility_;
 };
 
 }  // namespace mst

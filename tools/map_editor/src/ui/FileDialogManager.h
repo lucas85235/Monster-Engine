@@ -1,13 +1,15 @@
 #pragma once
 /**
- * FileDialogManager.h - Modal file dialog management.
+ * FileDialogManager.h - ImGui-based file browser dialog.
  *
- * Handles export and open dialogs, providing a clean interface
- * for file operations without cluttering the main layer.
+ * Full file browser with directory navigation, file listing,
+ * and path selection - all within ImGui.
  */
 
 #include <string>
 #include <functional>
+#include <vector>
+#include <filesystem>
 
 namespace mst {
 
@@ -16,31 +18,47 @@ class EditorContext;
 struct FileDialogResult {
     bool confirmed = false;
     std::string filename;
+    std::string fullPath;
 };
 
 class FileDialogManager {
 public:
     using DialogCallback = std::function<void(const FileDialogResult&)>;
     
-    void ShowExportDialog(DialogCallback callback);
+    FileDialogManager();
+    
+    void ShowSaveDialog(DialogCallback callback);
     void ShowOpenDialog(DialogCallback callback);
     
     void Render(EditorContext& ctx);
     
-    bool IsDialogOpen() const { return showExport_ || showOpen_; }
+    bool IsDialogOpen() const { return showSave_ || showOpen_; }
 
 private:
-    void RenderExportDialog();
+    void RenderSaveDialog();
     void RenderOpenDialog();
+    void RenderFileBrowser(bool isSaveMode);
+    void RefreshDirectory();
+    void NavigateTo(const std::filesystem::path& path);
     
-    bool showExport_ = false;
+    bool showSave_ = false;
     bool showOpen_ = false;
     
-    char exportFileName_[256] = "untitled";
-    char openFileName_[256] = "";
+    char fileName_[256] = "untitled";
+    std::filesystem::path currentPath_;
     
-    DialogCallback exportCallback_;
+    struct FileEntry {
+        std::string name;
+        bool isDirectory;
+        uintmax_t size;
+    };
+    std::vector<FileEntry> entries_;
+    int selectedIndex_ = -1;
+    
+    DialogCallback saveCallback_;
     DialogCallback openCallback_;
+    
+    std::string fileExtension_ = ".mstmap";
 };
 
 }  // namespace mst

@@ -1,6 +1,7 @@
 #include "InputHandler.h"
 
 #include "EditorContext.h"
+#include "../commands/EntityCommands.h"
 #include "engine/input/InputManager.h"
 #include "engine/Log.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -44,25 +45,21 @@ void InputHandler::ProcessGizmoShortcuts(EditorContext& ctx) {
 
 void InputHandler::ProcessEntityShortcuts(EditorContext& ctx) {
     auto& selection = ctx.GetSelection();
-    auto& entityManager = ctx.GetEntityManager();
     
     if (IsKeyJustPressed(GLFW_KEY_DELETE)) {
         if (selection.HasSelection()) {
             auto entities = selection.GetSelectedEntities();
             selection.ClearSelection();
-            entityManager.DeleteEntities(entities);
-            ctx.GetDocument().MarkDirty();
+            ctx.GetCommandSystem().Execute(
+                std::make_unique<DeleteEntitiesCommand>(ctx, entities));
         }
     }
     
     if (IsCtrlDown() && IsKeyJustPressed(GLFW_KEY_D)) {
         if (selection.HasSelection()) {
             auto entity = selection.GetPrimarySelection();
-            auto duplicate = entityManager.DuplicateEntity(entity);
-            if (duplicate.IsValid()) {
-                selection.Select(duplicate);
-                ctx.GetDocument().MarkDirty();
-            }
+            ctx.GetCommandSystem().Execute(
+                std::make_unique<DuplicateEntityCommand>(ctx, entity));
         }
     }
     
@@ -85,16 +82,23 @@ void InputHandler::ProcessViewShortcuts(EditorContext& ctx) {
 }
 
 void InputHandler::ProcessFileShortcuts(EditorContext& ctx) {
-    if (IsCtrlDown() && IsKeyJustPressed(GLFW_KEY_Z)) {
-        ctx.GetCommandSystem().Undo();
+    // Check for Redo first (Ctrl+Shift+Z) before Undo (Ctrl+Z)
+    if (IsCtrlDown() && IsKeyDown(GLFW_KEY_LEFT_SHIFT) && IsKeyJustPressed(GLFW_KEY_Z)) {
+        SE_LOG_INFO("InputHandler: Redo (Ctrl+Shift+Z)");
+        ctx.GetCommandSystem().Redo();
+        return;
     }
     
     if (IsCtrlDown() && IsKeyJustPressed(GLFW_KEY_Y)) {
+        SE_LOG_INFO("InputHandler: Redo (Ctrl+Y)");
         ctx.GetCommandSystem().Redo();
+        return;
     }
     
-    if (IsCtrlDown() && IsKeyDown(GLFW_KEY_LEFT_SHIFT) && IsKeyJustPressed(GLFW_KEY_Z)) {
-        ctx.GetCommandSystem().Redo();
+    if (IsCtrlDown() && IsKeyJustPressed(GLFW_KEY_Z)) {
+        SE_LOG_INFO("InputHandler: Undo (Ctrl+Z), canUndo={}", ctx.GetCommandSystem().CanUndo());
+        ctx.GetCommandSystem().Undo();
+        return;
     }
 }
 
