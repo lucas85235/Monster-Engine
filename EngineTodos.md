@@ -8,3 +8,4 @@
 6. implementar uma forma eficiente de renderizar point lights na engine. 
 7. implementar técnica de shadow cascades para que funcione de distancias maiores mas de forma mais leve e com debug para vermos possíveis erros.
 8. implementar controller input para que funcione com steam deck entre outras plataformas.
+9. 
