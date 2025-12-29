@@ -1,0 +1,124 @@
+name: CI Build
+
+on:
+  push:
+    branches: [main, dev, feature/*]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build-windows:
+    name: Windows Build
+    runs-on: windows-2022
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" `
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      
+      - name: Build Release
+        run: |
+          cmake --build build --config Release --parallel $env:NUMBER_OF_PROCESSORS
+      
+      - name: Create distribution
+        run: |
+          $GAME_NAME = "ThirdPersonGame"
+          $DIST_DIR = "dist/$GAME_NAME"
+          
+          # Create distribution directory
+          New-Item -ItemType Directory -Force -Path $DIST_DIR
+          
+          # Copy executable
+          Copy-Item "build/apps/third_person_game/Release/*.exe" -Destination $DIST_DIR -Force
+          
+          # Copy DLLs if any
+          $dlls = Get-ChildItem "build/apps/third_person_game/Release/*.dll" -ErrorAction SilentlyContinue
+          if ($dlls) {
+            Copy-Item $dlls -Destination $DIST_DIR -Force
+          }
+          
+          # Copy assets
+          if (Test-Path "assets") {
+            Copy-Item "assets" -Destination "$DIST_DIR/assets" -Recurse -Force
+          }
+      
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThirdPersonGame-Windows
+          path: dist/ThirdPersonGame
+          if-no-files-found: error
+
+  build-linux:
+    name: Linux Build
+    runs-on: ubuntu-24.04
+    
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1G
+      CCACHE_COMPRESS: "true"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          chmod +x scripts/setup.sh
+          ./scripts/setup.sh
+          sudo apt install -y ccache
+      
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: linux-ccache-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            linux-ccache-${{ github.ref_name }}-
+            linux-ccache-dev-
+            linux-ccache-
+      
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      
+      - name: Build Release
+        run: |
+          ccache -z
+          cmake --build build --parallel $(nproc)
+          ccache -s
+      
+      - name: Create distribution
+        run: |
+          GAME_NAME="ThirdPersonGame"
+          DIST_DIR="dist/$GAME_NAME"
+          
+          # Create distribution directory
+          mkdir -p "$DIST_DIR"
+          
+          # Copy executable
+          cp build/apps/third_person_game/third_person_game "$DIST_DIR/"
+          
+          # Copy assets
+          if [ -d "assets" ]; then
+            cp -r assets "$DIST_DIR/"
+          fi
+      
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThirdPersonGame-Linux
+          path: dist/ThirdPersonGame
+          if-no-files-found: error

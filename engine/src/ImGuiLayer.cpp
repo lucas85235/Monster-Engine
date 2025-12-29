@@ -26,6 +26,9 @@ void ImGuiLayer::OnAttach() {
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
 
+    // Use imgui.ini from assets folder (copied to dist)
+    io.IniFilename = "assets/imgui.ini";
+
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;

@@ -1,5 +1,7 @@
 #include "StyleEditorPanel.h"
 
+#include <cstring>
+
 #include "core/UIEditorContext.h"
 
 namespace ued {
@@ -19,7 +21,8 @@ void StyleEditorPanel::Render(UIEditorContext& ctx) {
     if (buffer.size() < styleContent.size() + 4096) {
         buffer.resize(styleContent.size() + 4096);
     }
-    strcpy_s(buffer.data(), buffer.size(), styleContent.c_str());
+    std::strncpy(buffer.data(), styleContent.c_str(), buffer.size() - 1);
+    buffer[buffer.size() - 1] = '\0';
     
     ImVec2 availSize = ImGui::GetContentRegionAvail();
     availSize.y -= 30; // Leave room for buttons
