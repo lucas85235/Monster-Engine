@@ -22,6 +22,8 @@
 
 namespace mst {
 
+class FileDialogManager;
+
 class EditorContext {
 public:
     EditorContext();
@@ -43,6 +45,10 @@ public:
     
     // Convenience accessors
     se::Scene& GetScene() { return sceneManager_->GetScene(); }
+    
+    // File dialogs
+    void SetFileDialogManager(FileDialogManager* fdm) { fileDialogs_ = fdm; }
+    FileDialogManager* GetFileDialogs() { return fileDialogs_; }
     
     // Material management
     size_t GetMaterialCount() const { return materials_.size(); }
@@ -69,6 +75,9 @@ private:
     SelectionManager selection_;
     GizmoController gizmo_;
     EditorCamera camera_;
+    
+    // File dialogs reference
+    FileDialogManager* fileDialogs_ = nullptr;
     
     // Material library
     std::vector<EditorMaterialData> materials_;

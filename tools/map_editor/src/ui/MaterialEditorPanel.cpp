@@ -4,6 +4,7 @@
 
 #include "core/EditorContext.h"
 #include "core/MaterialSerializer.h"
+#include "ui/FileDialogManager.h"
 #include "engine/Log.h"
 
 namespace mst {
@@ -73,7 +74,7 @@ void MaterialEditorPanel::Render(EditorContext& context) {
                 ImGui::Separator();
 
                 // Texture slots
-                RenderTextureSlots(*material);
+                RenderTextureSlots(*material, context);
 
                 ImGui::Separator();
 
@@ -160,23 +161,47 @@ void MaterialEditorPanel::RenderPBRParameters(EditorMaterialData& material) {
 
         // Base Color
         changed |= ImGui::ColorEdit4("Base Color", &material.baseColor.x);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("The diffuse color of the material.\nFor metals, this defines the specular color.");
+        }
         
         // Core parameters
         changed |= ImGui::SliderFloat("Metallic", &material.metallic, 0.0f, 1.0f, "%.2f");
-        changed |= ImGui::SliderFloat("Roughness", &material.roughness, 0.0f, 1.0f, "%.2f");
-        changed |= ImGui::SliderFloat("Reflectance", &material.reflectance, 0.0f, 1.0f, "%.2f");
-        
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Fresnel reflectance at normal incidence\n0.5 = 4%% (common dielectrics)");
+            ImGui::SetTooltip("0.0 = Dielectric (plastic, wood, skin)\n1.0 = Metal (gold, silver, copper)");
+        }
+        
+        changed |= ImGui::SliderFloat("Roughness", &material.roughness, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("0.0 = Mirror-like reflection\n1.0 = Completely matte/diffuse");
+        }
+        
+        changed |= ImGui::SliderFloat("Reflectance", &material.reflectance, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Fresnel reflectance at normal incidence.\n0.5 = 4%% (common dielectrics like plastic)\n0.35 = Water\n1.0 = Crystal");
         }
         
         changed |= ImGui::SliderFloat("AO", &material.ao, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Ambient Occlusion multiplier.\n1.0 = No occlusion\n0.0 = Fully occluded (darker crevices)");
+        }
+        
         changed |= ImGui::SliderFloat("Normal Scale", &material.normalScale, 0.0f, 2.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Scales the effect of normal maps.\n1.0 = Default strength\n0.0 = Disabled");
+        }
 
         ImGui::Separator();
         ImGui::Text("Emissive");
         changed |= ImGui::ColorEdit3("Emissive Color", &material.emissiveColor.x);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("The color of light emitted by this material.\nUsed for GI (Global Illumination).");
+        }
+        
         changed |= ImGui::DragFloat("Emissive Factor", &material.emissiveFactor, 0.1f, 0.0f, 10.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Intensity of emitted light.\n0.0 = No emission\n>1.0 = Bright light source");
+        }
 
         if (changed) {
             material.isDirty = true;
@@ -184,7 +209,7 @@ void MaterialEditorPanel::RenderPBRParameters(EditorMaterialData& material) {
     }
 }
 
-void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material) {
+void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material, EditorContext& context) {
     if (ImGui::CollapsingHeader("Textures", ImGuiTreeNodeFlags_DefaultOpen)) {
         bool changed = false;
         
@@ -194,10 +219,27 @@ void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material) {
             changed |= ImGui::Checkbox("##use", &useTexture);
             ImGui::SameLine();
             
-            // Thumbnail placeholder
-            ImGui::Button("##thumb", ImVec2(32, 32));
+            // Thumbnail placeholder (click to open dialog)
+            if (ImGui::Button("##thumb", ImVec2(32, 32))) {
+                pendingTexturePath_ = &path;
+                pendingTextureUse_ = &useTexture;
+                if (auto* fdm = context.GetFileDialogs()) {
+                    fdm->ShowOpenTextureDialog([this, &material](const FileDialogResult& result) {
+                        if (result.confirmed && pendingTexturePath_ && pendingTextureUse_) {
+                            *pendingTexturePath_ = result.fullPath;
+                            *pendingTextureUse_ = true;
+                            material.isDirty = true;
+                            SE_LOG_INFO("MaterialEditor: Loaded texture: {}", result.fullPath);
+                        }
+                        pendingTexturePath_ = nullptr;
+                        pendingTextureUse_ = nullptr;
+                    });
+                }
+            }
             if (ImGui::IsItemHovered() && !path.empty()) {
                 ImGui::SetTooltip("%s", path.c_str());
+            } else if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Click to select texture");
             }
             ImGui::SameLine();
             
@@ -214,8 +256,20 @@ void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material) {
             
             ImGui::SameLine(ImGui::GetContentRegionAvail().x - 60);
             if (ImGui::Button("Load")) {
-                // TODO: Open texture file dialog
-                SE_LOG_INFO("MaterialEditor: Load texture for {}", label);
+                pendingTexturePath_ = &path;
+                pendingTextureUse_ = &useTexture;
+                if (auto* fdm = context.GetFileDialogs()) {
+                    fdm->ShowOpenTextureDialog([this, &material](const FileDialogResult& result) {
+                        if (result.confirmed && pendingTexturePath_ && pendingTextureUse_) {
+                            *pendingTexturePath_ = result.fullPath;
+                            *pendingTextureUse_ = true;
+                            material.isDirty = true;
+                            SE_LOG_INFO("MaterialEditor: Loaded texture: {}", result.fullPath);
+                        }
+                        pendingTexturePath_ = nullptr;
+                        pendingTextureUse_ = nullptr;
+                    });
+                }
             }
             ImGui::SameLine();
             if (ImGui::Button("X") && !path.empty()) {
@@ -245,28 +299,40 @@ void MaterialEditorPanel::RenderAdvancedParameters(EditorMaterialData& material)
         bool changed = false;
 
         // Clear Coat
-        ImGui::Text("Clear Coat");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Clear Coat");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Adds a transparent glossy layer on top.\nUsed for car paint, lacquered wood, etc.");
+        }
         changed |= ImGui::SliderFloat("Intensity##cc", &material.clearCoat, 0.0f, 1.0f, "%.2f");
         changed |= ImGui::SliderFloat("Roughness##cc", &material.clearCoatRoughness, 0.0f, 1.0f, "%.2f");
 
         ImGui::Separator();
 
         // Anisotropy
-        ImGui::Text("Anisotropy");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Anisotropy");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Stretches reflections in one direction.\nUsed for brushed metal, hair, vinyl records.");
+        }
         changed |= ImGui::SliderFloat("Amount", &material.anisotropy, -1.0f, 1.0f, "%.2f");
         changed |= ImGui::DragFloat3("Direction", &material.anisotropyDirection.x, 0.01f, -1.0f, 1.0f);
 
         ImGui::Separator();
 
         // Sheen
-        ImGui::Text("Sheen (Fabric)");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Sheen (Fabric)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Adds soft retroreflection at grazing angles.\nUsed for fabric, velvet, cloth materials.");
+        }
         changed |= ImGui::ColorEdit3("Sheen Color", &material.sheenColor.x);
         changed |= ImGui::SliderFloat("Sheen Roughness", &material.sheenRoughness, 0.0f, 1.0f, "%.2f");
 
         ImGui::Separator();
 
         // Subsurface
-        ImGui::Text("Subsurface");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Subsurface");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Light scattering inside the material.\nUsed for skin, wax, marble, jade.");
+        }
         changed |= ImGui::ColorEdit3("Sub Color", &material.subsurfaceColor.x);
         changed |= ImGui::SliderFloat("Power", &material.subsurfacePower, 0.0f, 10.0f, "%.2f");
         changed |= ImGui::SliderFloat("Thickness", &material.thickness, 0.0f, 1.0f, "%.2f");
@@ -274,9 +340,15 @@ void MaterialEditorPanel::RenderAdvancedParameters(EditorMaterialData& material)
         ImGui::Separator();
 
         // Transmission
-        ImGui::Text("Transmission (Glass)");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Transmission (Glass)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Light passing through the material.\nUsed for glass, water, crystals.");
+        }
         changed |= ImGui::SliderFloat("Transmission", &material.transmission, 0.0f, 1.0f, "%.2f");
         changed |= ImGui::DragFloat("IOR", &material.ior, 0.01f, 1.0f, 3.0f, "%.3f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Index of Refraction.\n1.0 = Air\n1.33 = Water\n1.45 = Plastic\n1.52 = Glass\n2.42 = Diamond");
+        }
 
         if (changed) {
             material.isDirty = true;

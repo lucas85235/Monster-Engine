@@ -140,6 +140,8 @@ struct NameComponent {
 };
 
 // ==================== Mesh Render Component ====================
+struct TextureMaterial;  // Forward declaration
+
 struct MeshRenderComponent {
     std::shared_ptr<VertexArray> vertex_array;
     std::shared_ptr<Material>    material;
@@ -158,6 +160,9 @@ struct MeshRenderComponent {
     float                        Reflectance = 0.5f;    // Dielectric reflectance (0.5 = 4% F0)
     float                        AO = 1.0f;             // Ambient occlusion multiplier
     bool                         UseCustomPBR = false;  // Use custom PBR instead of defaults
+    
+    // PBR Texture material (loaded textures from Material Editor)
+    std::shared_ptr<TextureMaterial> customTextureMaterial;
 
     MeshRenderComponent()                           = default;
     MeshRenderComponent(const MeshRenderComponent&) = default;

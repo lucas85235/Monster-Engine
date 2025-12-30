@@ -20,6 +20,7 @@ void MapEditorLayer::OnAttach() {
     SE_LOG_INFO("MapEditorLayer::OnAttach");
     
     context_ = CreateScope<EditorContext>();
+    context_->SetFileDialogManager(&fileDialogs_);
     
     viewportPanel_ = CreateScope<ViewportPanel>();
     statusBarPanel_ = CreateScope<StatusBarPanel>();

@@ -85,7 +85,8 @@ class SceneRenderer {
                        const std::shared_ptr<Material>& material,
                        const Matrix4& transform,
                        const PBRMaterialParams& pbrParams,
-                       bool castsShadows = true, bool receiveShadows = true);
+                       bool castsShadows = true, bool receiveShadows = true,
+                       const std::shared_ptr<TextureMaterial>& textureMaterial = nullptr);
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};

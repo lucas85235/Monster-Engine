@@ -268,7 +268,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             
             sceneRenderer.SubmitWithPBR(meshRender.vertex_array, meshRender.material, 
                                         transform.WorldMatrix, pbrParams,
-                                        meshRender.CastShadows, meshRender.ReceiveShadows);
+                                        meshRender.CastShadows, meshRender.ReceiveShadows,
+                                        meshRender.customTextureMaterial);
             continue;
         }
 

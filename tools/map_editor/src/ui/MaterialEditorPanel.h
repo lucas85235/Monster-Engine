@@ -37,7 +37,7 @@ class MaterialEditorPanel {
    private:
     void RenderMaterialLibrary(EditorContext& context);
     void RenderPBRParameters(EditorMaterialData& material);
-    void RenderTextureSlots(EditorMaterialData& material);
+    void RenderTextureSlots(EditorMaterialData& material, EditorContext& context);
     void RenderAdvancedParameters(EditorMaterialData& material);
     void RenderActions(EditorContext& context);
 
@@ -46,6 +46,10 @@ class MaterialEditorPanel {
     
     char searchBuffer_[256] = "";
     bool showAdvancedParams_ = false;
+    
+    // Pending texture load state (for file dialog callback)
+    std::string* pendingTexturePath_ = nullptr;
+    bool* pendingTextureUse_ = nullptr;
 };
 
 }  // namespace mst

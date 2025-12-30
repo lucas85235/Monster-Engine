@@ -4,6 +4,9 @@
 
 #include "core/EditorContext.h"
 #include "engine/ecs/SimpleComponents.h"
+#include "engine/renderer/TextureMaterial.h"
+#include "engine/resources/TextureManager.h"
+#include "engine/Log.h"
 
 namespace mst {
 
@@ -212,8 +215,39 @@ void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata,
                     meshRender.EmissiveColor = mat.emissiveColor;
                     meshRender.EmissiveFactor = mat.emissiveFactor;
                     
+                    // Load textures from paths and create TextureMaterial
+                    auto texMat = std::make_shared<se::TextureMaterial>();
+                    texMat->BaseColor = mat.baseColor;
+                    texMat->MetallicFactor = mat.metallic;
+                    texMat->RoughnessFactor = mat.roughness;
+                    
+                    // Load textures if paths are set
+                    if (mat.useAlbedoTexture && !mat.albedoTexturePath.empty()) {
+                        texMat->Albedo = se::TextureManager::Load(mat.albedoTexturePath);
+                    }
+                    if (mat.useNormalTexture && !mat.normalTexturePath.empty()) {
+                        texMat->Normal = se::TextureManager::Load(mat.normalTexturePath);
+                    }
+                    if (mat.useMetallicTexture && !mat.metallicTexturePath.empty()) {
+                        texMat->Metallic = se::TextureManager::Load(mat.metallicTexturePath);
+                    }
+                    if (mat.useRoughnessTexture && !mat.roughnessTexturePath.empty()) {
+                        texMat->Roughness = se::TextureManager::Load(mat.roughnessTexturePath);
+                    }
+                    if (mat.useAOTexture && !mat.aoTexturePath.empty()) {
+                        texMat->AO = se::TextureManager::Load(mat.aoTexturePath);
+                    }
+                    if (mat.useEmissiveTexture && !mat.emissiveTexturePath.empty()) {
+                        texMat->Emissive = se::TextureManager::Load(mat.emissiveTexturePath);
+                    }
+                    
+                    meshRender.customTextureMaterial = texMat;
+                    
                     // Quick preview of selected material
                     ImGui::TextDisabled("Metallic: %.2f  Roughness: %.2f", mat.metallic, mat.roughness);
+                    if (texMat->HasAlbedo()) {
+                        ImGui::TextDisabled("Albedo texture loaded");
+                    }
                 }
             }
         } else {

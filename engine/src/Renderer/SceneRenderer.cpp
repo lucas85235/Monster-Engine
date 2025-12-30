@@ -481,7 +481,8 @@ void SceneRenderer::SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArra
                                   const std::shared_ptr<Material>& material,
                                   const Matrix4& transform,
                                   const PBRMaterialParams& pbrParams,
-                                  bool castsShadows, bool receiveShadows) {
+                                  bool castsShadows, bool receiveShadows,
+                                  const std::shared_ptr<TextureMaterial>& textureMaterial) {
     Submission submission;
     submission.vertex_array    = vertexArray;
     submission.material        = material;
@@ -498,6 +499,9 @@ void SceneRenderer::SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArra
     submission.Roughness       = pbrParams.Roughness;
     submission.Reflectance     = pbrParams.Reflectance;
     submission.AO              = pbrParams.AO;
+    
+    // Texture material for PBR textures
+    submission.textureMaterial = textureMaterial;
 
     // Extract position from transform
     submission.Center = Vector3(transform[3]);
