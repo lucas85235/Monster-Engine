@@ -49,6 +49,44 @@ void main() {
     gl_Position = uLightSpaceMatrix * world_pos;
 }
 )";
+
+// Skinned shadow shader - includes bone matrix transforms
+// MUST match vertex attribute layout from skinned_model.vert:
+// location 5 = a_BoneIds, location 6 = a_BoneWeights
+constexpr int MAX_SHADOW_BONES = 128;
+constexpr const char* kSkinnedShadowVertexSource = R"(#version 330 core
+layout(location = 0) in vec3 a_Position;
+layout(location = 5) in ivec4 a_BoneIds;
+layout(location = 6) in vec4 a_BoneWeights;
+
+uniform mat4 uLightSpaceMatrix;
+uniform mat4 uModel;
+uniform mat4 uBoneMatrices[128];
+uniform int uHasBones;
+
+void main() {
+    vec4 localPos = vec4(a_Position, 1.0);
+    
+    if (uHasBones == 1) {
+        mat4 boneTransform = mat4(0.0);
+        for (int i = 0; i < 4; i++) {
+            int boneId = a_BoneIds[i];
+            float weight = a_BoneWeights[i];
+            if (boneId >= 0 && boneId < 128 && weight > 0.0) {
+                boneTransform += uBoneMatrices[boneId] * weight;
+            }
+        }
+        // Handle case where no weights were applied
+        if (boneTransform[0][0] == 0.0 && boneTransform[1][1] == 0.0 && 
+            boneTransform[2][2] == 0.0 && boneTransform[3][3] == 0.0) {
+            boneTransform = mat4(1.0);
+        }
+        localPos = boneTransform * localPos;
+    }
+    
+    gl_Position = uLightSpaceMatrix * uModel * localPos;
+}
+)";
 }  // namespace
 
 namespace se {
@@ -99,6 +137,10 @@ void SceneRenderer::Init() {
     ssgiPass_ = std::make_unique<SSGIPass>();
     SE_LOG_INFO("SSGI pass created (lazy init)");
     
+    // Initialize Cascaded Shadow Maps
+    csm_ = std::make_unique<CascadedShadowMap>();
+    csm_->Init(2048);  // 2048x2048 per cascade
+    
     initialized_ = true;
 }
 
@@ -143,8 +185,10 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     sceneData_.ProjectionMatrix       = projection;
     sceneData_.view_projection_matrix = projection * sceneData_.ViewMatrix;
     sceneData_.CameraPosition         = glm::inverse(sceneData_.ViewMatrix)[3];  // Extract camera world position
+    sceneData_.CurrentCamera          = &camera;  // Store for CSM
     sceneData_.Submissions.clear();
     instancedSubmissions_.clear();
+    skinnedSubmissions_.clear();
 
     // Prepare directional light data and shadow matrix
     if (!sceneData_.directional_light.Active) {
@@ -187,7 +231,8 @@ void SceneRenderer::EndScene() {
     
     if (sceneData_.ShadowsEnabled) { 
         SE_PROFILE_SCOPE("ShadowPass");
-        RenderShadowPass(); 
+        RenderShadowPass();
+        RenderCSMPass();  // Render cascaded shadow maps
     }
     
     // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
@@ -339,6 +384,13 @@ void SceneRenderer::EndScene() {
         RenderScenePass();
     }
     
+    // Step 3.5: Render skybox (after scene, uses depth test LEQUAL trick)
+    {
+        SE_PROFILE_SCOPE("Skybox");
+        InitSkybox();
+        RenderSkybox();
+    }
+    
     // Step 4: Render debug visualization for Sparse RC
     if (sparseRC_ && sparseRC_->IsEnabled()) {
         glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
@@ -403,6 +455,22 @@ void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instan
     instancedSubmissions_.emplace_back(std::move(submission));
 }
 
+void SceneRenderer::SubmitSkinnedForShadow(
+    uint32_t vaoId,
+    uint32_t indexCount,
+    const Matrix4& transform,
+    const std::vector<Matrix4>& boneMatrices,
+    bool hasBones) {
+    if (vaoId == 0 || indexCount == 0) return;
+    
+    SkinnedSubmission submission;
+    submission.vaoId = vaoId;
+    submission.indexCount = indexCount;
+    submission.transform = transform;
+    submission.boneMatrices = boneMatrices;
+    submission.hasBones = hasBones;
+    skinnedSubmissions_.emplace_back(std::move(submission));
+}
 
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
@@ -431,6 +499,18 @@ void SceneRenderer::ClearDirectionalLight() {
 
 SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() const {
     return sceneData_.directional_light;
+}
+
+uint32_t SceneRenderer::GetShadowDepthTexture() const {
+    return sceneData_.ShadowDepthTexture;
+}
+
+Matrix4 SceneRenderer::GetLightSpaceMatrix() const {
+    return sceneData_.LightSpaceMatrix;
+}
+
+bool SceneRenderer::IsShadowsEnabled() const {
+    return sceneData_.ShadowsEnabled;
 }
 
 void SceneRenderer::SetShadowMapSize(int width, int height) {
@@ -491,6 +571,15 @@ void SceneRenderer::InitializeShadowResources() {
         return;
     }
     SE_LOG_INFO("Created instanced shadow shader successfully");
+
+    // Create skinned shadow shader (includes bone matrix transforms)
+    sceneData_.SkinnedShadowShader =
+        std::make_shared<Shader>(kSkinnedShadowVertexSource, kShadowFragmentSource);
+    if (!sceneData_.SkinnedShadowShader || sceneData_.SkinnedShadowShader->getID() == 0) {
+        SE_LOG_ERROR("Failed to create skinned shadow shader");
+        return;
+    }
+    SE_LOG_INFO("Created skinned shadow shader successfully");
 
     glGenFramebuffers(1, &sceneData_.ShadowFramebuffer);
     if (sceneData_.ShadowFramebuffer == 0) {
@@ -792,13 +881,11 @@ void SceneRenderer::RenderScenePass() {
             shader->setVec4("uBaseColor", texMat->BaseColor);
             shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
             shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
-            shader->setFloat("uReflectance", 0.5f);  // Default 4% F0
+            shader->setFloat("uReflectance", 0.5f);
             shader->setFloat("uAOFactor", 1.0f);
             shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
             shader->setFloat("uEmissiveFactor", 1.0f);
             shader->setFloat("uNormalScale", 1.0f);
-            
-            // Legacy Blinn-Phong fallback
             shader->setFloat("uShininess", texMat->Shininess);
         } else {
             // Default values when no TextureMaterial
@@ -821,11 +908,78 @@ void SceneRenderer::RenderScenePass() {
             shader->setFloat("uShininess", 32.0f);
         }
         
+        // Apply global material override if set (for PBR testing)
+        if (globalMaterialOverride_) {
+            // Reset texture flags to force shader to use uniform values
+            shader->setInt("uHasAlbedo", 0);
+            shader->setInt("uHasNormal", 0);
+            shader->setInt("uHasMetallic", 0);
+            shader->setInt("uHasRoughness", 0);
+            shader->setInt("uHasAO", 0);
+            shader->setInt("uHasEmissive", 0);
+            shader->setInt("uHasMetallicRoughness", 0);
+            
+            // Apply override values
+            shader->setVec4("uBaseColor", globalMaterialOverride_->BaseColor);
+            shader->setFloat("uMetallicFactor", globalMaterialOverride_->Metallic);
+            shader->setFloat("uRoughnessFactor", globalMaterialOverride_->Roughness);
+            shader->setFloat("uReflectance", globalMaterialOverride_->Reflectance);
+            shader->setFloat("uAOFactor", globalMaterialOverride_->AO);
+            shader->setVec3("uEmissiveColor", globalMaterialOverride_->EmissiveColor);
+            shader->setFloat("uEmissiveFactor", globalMaterialOverride_->EmissiveFactor);
+            shader->setFloat("uNormalScale", globalMaterialOverride_->NormalScale);
+            // Advanced PBR
+            shader->setFloat("uClearCoat", globalMaterialOverride_->ClearCoat);
+            shader->setFloat("uClearCoatRoughness", globalMaterialOverride_->ClearCoatRoughness);
+            shader->setFloat("uAnisotropy", globalMaterialOverride_->Anisotropy);
+            shader->setVec3("uAnisotropyDirection", globalMaterialOverride_->AnisotropyDirection);
+            shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
+            shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
+            shader->setVec3("uSubsurfaceColor", globalMaterialOverride_->SubsurfaceColor);
+            shader->setFloat("uSubsurfacePower", globalMaterialOverride_->SubsurfacePower);
+            shader->setFloat("uThickness", globalMaterialOverride_->Thickness);
+            shader->setFloat("uTransmission", globalMaterialOverride_->Transmission);
+            shader->setFloat("uIOR", globalMaterialOverride_->IOR);
+        } else {
+            // Default advanced PBR values
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uAnisotropyDirection", glm::vec3(1.0f, 0.0f, 0.0f));
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
+            shader->setVec3("uSubsurfaceColor", glm::vec3(0.0f));
+            shader->setFloat("uSubsurfacePower", 0.0f);
+            shader->setFloat("uThickness", 0.0f);
+            shader->setFloat("uTransmission", 0.0f);
+            shader->setFloat("uIOR", 1.5f);
+        }
+        
         // Bind IBL/environment lighting data
         shader->setVec3Array("uSH", iblData_.SphericalHarmonics, 9);
         shader->setFloat("uIBLIntensity", iblData_.Intensity);
         shader->setVec3("uSkyColor", iblData_.SkyColor);
         shader->setVec3("uGroundColor", iblData_.GroundColor);
+        
+        // Bind HDR IBL cubemaps if available
+        if (iblData_.HasCubemaps()) {
+            shader->setInt("uHasIBLCubemaps", 1);
+            shader->setFloat("uMaxPrefilteredLod", static_cast<float>(iblData_.PrefilteredMipLevels - 1));
+            
+            glActiveTexture(GL_TEXTURE9);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.IrradianceCubemap);
+            shader->setInt("uIrradianceMap", 9);
+            
+            glActiveTexture(GL_TEXTURE10);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.PrefilteredCubemap);
+            shader->setInt("uPrefilteredMap", 10);
+            
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, iblData_.DfgLut);
+            shader->setInt("uDfgLut", 11);
+        } else {
+            shader->setInt("uHasIBLCubemaps", 0);
+        }
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
@@ -860,15 +1014,29 @@ void SceneRenderer::RenderScenePass() {
         shader->setInt("uHasGI", hasGI);
         shader->setFloat("uGIIntensity", giIntensity);
         
-        // Debug log first submission only to avoid spam
-        static int giLogCount = 0;
-        if (giLogCount++ < 10) {
-            bool isReady = ssgiPass_ ? ssgiPass_->IsReady() : false;
-            printf("[Model] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f, isReady=%d\n", 
-                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity, isReady);
+        // Bind Cascaded Shadow Maps if available
+        static int csmBindLogCount = 0;
+        if (csmEnabled_ && csm_ && csm_->IsInitialized()) {
+            shader->setInt("uUseCSM", 1);
+            shader->setInt("uCascadeCount", CASCADE_COUNT);
+            
+            glActiveTexture(GL_TEXTURE12);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, csm_->GetTextureArray());
+            shader->setInt("uShadowCascades", 12);
+            
+            // Cascade matrices and split depths
+            for (int i = 0; i < CASCADE_COUNT; i++) {
+                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
+                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
+                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
+                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+            }
+            
+            shader->setInt("uVisualizeCascades", visualizeCascades_ ? 1 : 0);
+        } else {
+            shader->setInt("uUseCSM", 0);
+            shader->setInt("uVisualizeCascades", 0);
         }
-
-
         
         // HDR exposure control
         shader->setFloat("uExposure", sceneData_.Exposure);
@@ -936,6 +1104,68 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        
+        // Apply global material override if set (for PBR testing)
+        if (globalMaterialOverride_) {
+            shader->setInt("uUseBaseColorOverride", 1);
+            shader->setVec4("uBaseColor", globalMaterialOverride_->BaseColor);
+            shader->setFloat("uMetallicFactor", globalMaterialOverride_->Metallic);
+            shader->setFloat("uRoughnessFactor", globalMaterialOverride_->Roughness);
+            shader->setFloat("uReflectance", globalMaterialOverride_->Reflectance);
+            shader->setFloat("uClearCoat", globalMaterialOverride_->ClearCoat);
+            shader->setFloat("uClearCoatRoughness", globalMaterialOverride_->ClearCoatRoughness);
+            shader->setFloat("uAnisotropy", globalMaterialOverride_->Anisotropy);
+            shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
+            shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
+        } else {
+            shader->setInt("uUseBaseColorOverride", 0);
+        }
+        
+        // IBL for instanced
+        shader->setVec3Array("uSH", iblData_.SphericalHarmonics, 9);
+        shader->setFloat("uIBLIntensity", iblData_.Intensity);
+        shader->setVec3("uSkyColor", iblData_.SkyColor);
+        shader->setVec3("uGroundColor", iblData_.GroundColor);
+        shader->setFloat("uExposure", sceneData_.Exposure);
+        
+        // Bind HDR IBL cubemaps if available
+        if (iblData_.HasCubemaps()) {
+            shader->setInt("uHasIBLCubemaps", 1);
+            shader->setFloat("uMaxPrefilteredLod", static_cast<float>(iblData_.PrefilteredMipLevels - 1));
+            
+            glActiveTexture(GL_TEXTURE9);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.IrradianceCubemap);
+            shader->setInt("uIrradianceMap", 9);
+            
+            glActiveTexture(GL_TEXTURE10);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.PrefilteredCubemap);
+            shader->setInt("uPrefilteredMap", 10);
+            
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, iblData_.DfgLut);
+            shader->setInt("uDfgLut", 11);
+        } else {
+            shader->setInt("uHasIBLCubemaps", 0);
+        }
+        
+        // Bind Cascaded Shadow Maps if available (instanced)
+        if (csmEnabled_ && csm_ && csm_->IsInitialized()) {
+            shader->setInt("uUseCSM", 1);
+            shader->setInt("uCascadeCount", CASCADE_COUNT);
+            
+            glActiveTexture(GL_TEXTURE12);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, csm_->GetTextureArray());
+            shader->setInt("uShadowCascades", 12);
+            
+            for (int i = 0; i < CASCADE_COUNT; i++) {
+                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
+                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
+                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
+                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+            }
+        } else {
+            shader->setInt("uUseCSM", 0);
+        }
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
@@ -1133,6 +1363,227 @@ const SSGIConfig& SceneRenderer::GetSSGIConfig() const {
         return ssgiPass_->GetConfig();
     }
     return fallback;
+}
+
+void SceneRenderer::InitSkybox() {
+    if (skyboxInitialized_) return;
+    
+    namespace fs = std::filesystem;
+    fs::path assetsPath = fs::current_path() / "assets";
+    fs::path vertPath = assetsPath / "shaders" / "skybox.vert";
+    fs::path fragPath = assetsPath / "shaders" / "skybox.frag";
+    
+    if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
+        SE_LOG_WARN("[Skybox] Shaders not found, skybox disabled");
+        return;
+    }
+    
+    skyboxShader_ = Shader::CreateFromFiles(vertPath, fragPath);
+    if (!skyboxShader_) {
+        SE_LOG_ERROR("[Skybox] Failed to create shader");
+        return;
+    }
+    
+    // Unit cube vertices
+    float vertices[] = {
+        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
+    };
+    
+    glGenVertexArrays(1, &skyboxVAO_);
+    glGenBuffers(1, &skyboxVBO_);
+    glBindVertexArray(skyboxVAO_);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glBindVertexArray(0);
+    
+    skyboxInitialized_ = true;
+    SE_LOG_INFO("[Skybox] Initialized successfully");
+}
+
+void SceneRenderer::RenderSkybox() {
+    if (!skyboxInitialized_ || !iblData_.HasCubemaps()) return;
+    
+    // Render skybox last with depth test but no depth write
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_FALSE);
+    
+    skyboxShader_->bind();
+    skyboxShader_->setMat4("uProjection", sceneData_.ProjectionMatrix);
+    skyboxShader_->setMat4("uView", sceneData_.ViewMatrix);
+    skyboxShader_->setFloat("uExposure", sceneData_.Exposure);
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.EnvironmentCubemap);  // Use original HDR env for skybox
+    skyboxShader_->setInt("uSkybox", 0);
+    
+    glBindVertexArray(skyboxVAO_);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+}
+
+void SceneRenderer::RenderCSMPass() {
+    static int csmLogCount = 0;
+    
+    if (!csm_ || !csm_->IsInitialized()) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: CSM not initialized\n");
+        return;
+    }
+    if (!csmEnabled_) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: CSM disabled\n");
+        return;
+    }
+    if (sceneData_.Submissions.empty() && instancedSubmissions_.empty() && skinnedSubmissions_.empty()) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: No submissions\n");
+        return;
+    }
+    
+    // Debug log for skinned submissions
+    static int skinnedShadowLogCount = 0;
+    if (!skinnedSubmissions_.empty() && skinnedShadowLogCount++ < 10) {
+        printf("[CSM] Skinned submissions: %zu\n", skinnedSubmissions_.size());
+    }
+    if (!sceneData_.directional_light.Active || !sceneData_.directional_light.CastShadows) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: Light inactive or no shadows (active=%d, castShadows=%d)\n", 
+            sceneData_.directional_light.Active, sceneData_.directional_light.CastShadows);
+        return;
+    }
+    if (!sceneData_.CurrentCamera) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: No camera\n");
+        return;  // Need camera for cascade calculation
+    }
+    
+    // Calculate cascade splits and matrices
+    // Light direction should be normalized and pointing FROM the light
+    float aspectRatio = (float)screenWidth_ / (float)screenHeight_;
+    glm::vec3 lightDir = glm::normalize(sceneData_.directional_light.Direction);
+    csm_->CalculateCascades(*sceneData_.CurrentCamera, lightDir, aspectRatio, 100.0f);
+    
+    // Save current state
+    GLint previousFramebuffer = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+    GLint previousViewport[4];
+    glGetIntegerv(GL_VIEWPORT, previousViewport);
+    
+    GLboolean wasCullEnabled = glIsEnabled(GL_CULL_FACE);
+    GLint previousCullFaceMode = GL_BACK;
+    if (wasCullEnabled) glGetIntegerv(GL_CULL_FACE_MODE, &previousCullFaceMode);
+    
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    
+    // Ensure depth testing and writing are enabled for shadow pass
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    
+    csm_->BeginShadowPass();
+    
+    // Render each cascade
+    for (int cascade = 0; cascade < CASCADE_COUNT; cascade++) {
+        csm_->BeginCascade(cascade);
+        
+        glm::mat4 lightSpaceMatrix = csm_->GetCascadeMatrix(cascade);
+        
+        // Render regular submissions
+        if (sceneData_.ShadowShader) {
+            sceneData_.ShadowShader->bind();
+            sceneData_.ShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& submission : sceneData_.Submissions) {
+                if (!submission.CastsShadows) continue;
+                if (!submission.vertex_array) continue;
+                
+                sceneData_.ShadowShader->setMat4("uModel", submission.Transform);
+                RenderCommand::DrawIndexed(submission.vertex_array.get());
+            }
+        }
+        
+        // Render instanced submissions
+        if (!instancedSubmissions_.empty() && sceneData_.InstancedShadowShader) {
+            sceneData_.InstancedShadowShader->bind();
+            sceneData_.InstancedShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& instanced : instancedSubmissions_) {
+                if (!instanced.castsShadows) continue;
+                if (!instanced.instancedMesh) continue;
+                
+                auto va = instanced.instancedMesh->GetVertexArray();
+                if (!va) continue;
+                
+                uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
+                if (instanceCount == 0) continue;
+                
+            RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
+            }
+        }
+        
+        // Render skinned model submissions
+        if (!skinnedSubmissions_.empty() && sceneData_.SkinnedShadowShader) {
+            sceneData_.SkinnedShadowShader->bind();
+            sceneData_.SkinnedShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& skinned : skinnedSubmissions_) {
+                if (skinned.vaoId == 0 || skinned.indexCount == 0) continue;
+                
+                static int skinnedDrawLog = 0;
+                if (skinnedDrawLog++ < 20) {
+                    printf("[CSM] Drawing skinned mesh: vao=%u, indices=%u, bones=%zu\n", 
+                        skinned.vaoId, skinned.indexCount, skinned.boneMatrices.size());
+                }
+                
+                sceneData_.SkinnedShadowShader->setMat4("uModel", skinned.transform);
+                sceneData_.SkinnedShadowShader->setInt("uHasBones", skinned.hasBones ? 1 : 0);
+                
+                if (skinned.hasBones && !skinned.boneMatrices.empty()) {
+                    for (size_t i = 0; i < skinned.boneMatrices.size() && i < 128; ++i) {
+                        char uniformName[64];
+                        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
+                        sceneData_.SkinnedShadowShader->setMat4(uniformName, skinned.boneMatrices[i]);
+                    }
+                }
+                
+                // Draw using raw GL since SkinnedMesh doesn't use VertexArray wrapper
+                glBindVertexArray(skinned.vaoId);
+                glDrawElements(GL_TRIANGLES, skinned.indexCount, GL_UNSIGNED_INT, nullptr);
+            }
+            glBindVertexArray(0);
+        }
+    }
+    
+    csm_->EndShadowPass();
+    
+    // Restore state
+    glCullFace(previousCullFaceMode);
+    if (!wasCullEnabled) glDisable(GL_CULL_FACE);
+    
+    // Restore depth state
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    
+    glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+    glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+}
+
+void SceneRenderer::SetCSMSplitLambda(float lambda) {
+    if (csm_) {
+        csm_->SetSplitLambda(lambda);
+    }
 }
 
 }  // namespace se

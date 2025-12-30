@@ -14,6 +14,9 @@
 #include "engine/Renderer.h"
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
+#include "engine/renderer/IBLProcessor.h"
+
+#include <filesystem>
 
 
 namespace FirstGame {
@@ -59,6 +62,39 @@ void MainGameLayer::OnAttach() {
     character_entity_.AddComponent<CameraController>();
     character_entity_.AddComponent<CharacterController>();
     character_entity_.AddComponent<CharacterRender>();
+    
+    // Set up HDR IBL environment lighting for skybox and reflections
+    auto& renderer = Application::Get().GetRenderer().GetSceneRenderer();
+    
+    se::IBLData ibl;
+    ibl.SetDefaultOutdoor();  // SH fallback
+    
+    // Try to load HDR environment map
+    std::filesystem::path hdrPath = "assets/textures/ibl/the_sky_is_on_fire_4k.hdr";
+    if (std::filesystem::exists(hdrPath)) {
+        auto iblResult = se::IBLProcessor::ProcessHDR(hdrPath, 2048);
+        if (iblResult.Valid) {
+            ibl.EnvironmentCubemap = iblResult.EnvironmentCubemap;
+            ibl.EnvironmentCubemapSize = iblResult.CubemapSize;
+            ibl.IrradianceCubemap = iblResult.IrradianceCubemap;
+            ibl.PrefilteredCubemap = iblResult.PrefilteredCubemap;
+            ibl.DfgLut = iblResult.DfgLut;
+            ibl.PrefilteredMipLevels = iblResult.PrefilteredMipLevels;
+            ibl.Intensity = 1.0f;
+            SE_LOG_INFO("[MainGameLayer] Loaded HDR IBL: {}", hdrPath.filename().string());
+        } else {
+            SE_LOG_WARN("[MainGameLayer] Failed to process HDR, using SH fallback");
+        }
+    } else {
+        SE_LOG_WARN("[MainGameLayer] HDR file not found: {}, using SH fallback", hdrPath.string());
+    }
+    renderer.SetEnvironmentLighting(ibl);
+    
+    // Enable Cascaded Shadow Maps for better shadow quality
+    renderer.SetCSMEnabled(true);
+    renderer.SetCSMSplitLambda(0.85f);
+    
+    SE_LOG_INFO("[MainGameLayer] Scene initialized with IBL and CSM");
 }
 
 void MainGameLayer::OnDetach() {

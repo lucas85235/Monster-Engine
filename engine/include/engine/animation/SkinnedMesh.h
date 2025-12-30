@@ -30,6 +30,7 @@ public:
     
     const std::string& GetName() const { return name_; }
     uint32_t GetIndexCount() const { return indexCount_; }
+    uint32_t GetVaoId() const { return vaoId_; }
     
 private:
     std::string name_;

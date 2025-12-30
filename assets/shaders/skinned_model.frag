@@ -1,16 +1,14 @@
 #version 330 core
 
 // =============================================================================
-// PBR Skinned Model Fragment Shader - Based on Google's Filament Standard Model
-// =============================================================================
-// Same as model.frag - fragment shading is identical for skinned meshes.
-// The vertex shader handles the skeletal animation.
+// PBR Skinned Model Fragment Shader - Based on Google Filament Standard Model
 // =============================================================================
 
-// Include PBR library files
+#include "pbr/pbr_types.glsl"
 #include "pbr/pbr_common.glsl"
-#include "pbr/pbr_lighting.glsl"
+#include "pbr/shading_standard.glsl"
 #include "pbr/pbr_ibl.glsl"
+#include "pbr/pbr_fog.glsl"
 
 // Inputs from Vertex Shader
 in vec3 v_FragPos;
@@ -58,7 +56,7 @@ uniform int uHasRoughness;
 uniform int uHasEmissive;
 uniform int uHasMetallicRoughness;
 
-// PBR Material Parameters
+// Core PBR Parameters
 uniform vec4 uBaseColor;
 uniform float uMetallicFactor;
 uniform float uRoughnessFactor;
@@ -69,6 +67,16 @@ uniform float uEmissiveFactor;
 uniform float uNormalScale;
 uniform float uShininess;
 
+// Advanced PBR Parameters
+uniform float uClearCoat;
+uniform float uClearCoatRoughness;
+uniform float uAnisotropy;
+uniform vec3 uSheenColor;
+uniform float uSheenRoughness;
+uniform vec3 uSubsurfaceColor;
+uniform float uSubsurfacePower;
+uniform float uThickness;
+
 // IBL Uniforms
 uniform vec3 uSH[9];
 uniform float uIBLIntensity;
@@ -78,7 +86,7 @@ uniform vec3 uGroundColor;
 // Camera/Post-processing Uniforms
 uniform float uExposure;
 
-// Shadow Calculation
+// Shadow Calculation (PCF 5x5)
 float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
     projCoords = projCoords * 0.5 + 0.5;
@@ -108,6 +116,56 @@ float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     return shadow * edgeFade;
 }
 
+// Build MaterialInputs from uniforms/textures (same as model.frag)
+MaterialInputs getMaterialInputs(vec3 normal) {
+    MaterialInputs m = initMaterialInputs();
+    
+    // Base Color
+    if (uHasAlbedo == 1) {
+        m.baseColor = texture(uAlbedoMap, v_TexCoord);
+        m.baseColor.rgb = pow(m.baseColor.rgb, vec3(2.2));
+    } else {
+        m.baseColor = uBaseColor;
+        if (length(m.baseColor.rgb) < 0.01) m.baseColor.rgb = vec3(0.5);
+    }
+    
+    // Metallic and Roughness
+    if (uHasMetallicRoughness == 1) {
+        vec4 mr = texture(uMetallicRoughnessMap, v_TexCoord);
+        m.metallic = mr.b * uMetallicFactor;
+        m.roughness = mr.g * uRoughnessFactor;
+    } else {
+        m.metallic = uHasMetallic == 1 ? texture(uMetallicMap, v_TexCoord).r * uMetallicFactor : uMetallicFactor;
+        m.roughness = uHasRoughness == 1 ? texture(uRoughnessMap, v_TexCoord).r * uRoughnessFactor : uRoughnessFactor;
+        if (uHasSpecular == 1 && m.roughness == 0.0) {
+            m.roughness = 1.0 - texture(uSpecularMap, v_TexCoord).r * 0.8;
+        }
+    }
+    m.metallic = saturate(m.metallic);
+    m.roughness = saturate(m.roughness);
+    
+    m.reflectance = uReflectance > 0.0 ? uReflectance : 0.5;
+    m.ambientOcclusion = uHasAO == 1 ? texture(uAOMap, v_TexCoord).r : 1.0;
+    m.ambientOcclusion = mix(1.0, m.ambientOcclusion, uAOFactor * uAOStrength);
+    
+    if (uHasEmissive == 1) {
+        m.emissive = vec4(pow(texture(uEmissiveMap, v_TexCoord).rgb, vec3(2.2)), 1.0);
+    }
+    m.emissive.rgb *= uEmissiveColor * uEmissiveFactor;
+    
+    m.normal = normal;
+    m.clearCoat = uClearCoat;
+    m.clearCoatRoughness = uClearCoatRoughness;
+    m.anisotropy = uAnisotropy;
+    m.sheenColor = uSheenColor;
+    m.sheenRoughness = uSheenRoughness;
+    m.subsurfaceColor = uSubsurfaceColor;
+    m.subsurfacePower = uSubsurfacePower;
+    m.thickness = uThickness;
+    
+    return m;
+}
+
 void main() {
     // Normal mapping
     vec3 normal;
@@ -119,106 +177,60 @@ void main() {
         normal = normalize(v_Normal);
     }
     
-    // Base Color
-    vec4 baseColor;
-    if (uHasAlbedo == 1) {
-        baseColor = texture(uAlbedoMap, v_TexCoord);
-        baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
-    } else {
-        baseColor = uBaseColor;
-        if (length(baseColor.rgb) < 0.01) baseColor.rgb = vec3(0.5);
+    // Build material and shading data
+    MaterialInputs material = getMaterialInputs(normal);
+    ShadingData shading = initShadingData(v_FragPos, normal, v_ViewPos);
+    
+    if (uHasNormal == 1) {
+        shading.tangent = normalize(v_TBN[0]);
+        shading.bitangent = normalize(v_TBN[1]);
     }
     
-    // Metallic and Roughness
-    float metallic, perceptualRoughness;
-    if (uHasMetallicRoughness == 1) {
-        vec4 mr = texture(uMetallicRoughnessMap, v_TexCoord);
-        metallic = mr.b * uMetallicFactor;
-        perceptualRoughness = mr.g * uRoughnessFactor;
-    } else {
-        metallic = uHasMetallic == 1 ? texture(uMetallicMap, v_TexCoord).r * uMetallicFactor : uMetallicFactor;
-        perceptualRoughness = uHasRoughness == 1 ? texture(uRoughnessMap, v_TexCoord).r * uRoughnessFactor : uRoughnessFactor;
-        if (uHasSpecular == 1 && perceptualRoughness == 0.0) {
-            float specValue = texture(uSpecularMap, v_TexCoord).r;
-            perceptualRoughness = 1.0 - specValue * 0.8;
-        }
-    }
+    PixelParams pixel = getPixelParams(material, shading);
     
-    metallic = saturate(metallic);
-    perceptualRoughness = saturate(perceptualRoughness);
+    // Create directional light
+    Light light = createDirectionalLight(uLightDirection, uLightColor, uLightIntensity);
+    light.NoL = saturate(dot(normal, light.l));
     
-    // AO and Emissive
-    float ao = uHasAO == 1 ? texture(uAOMap, v_TexCoord).r : 1.0;
-    ao = mix(1.0, ao, uAOFactor * uAOStrength);
-    
-    vec3 emissive = vec3(0.0);
-    if (uHasEmissive == 1) {
-        emissive = pow(texture(uEmissiveMap, v_TexCoord).rgb, vec3(2.2));
-    }
-    emissive = emissive * uEmissiveColor * uEmissiveFactor;
-    
-    // PBR Surface Data
-    float roughness = clampRoughness(perceptualRoughnessToRoughness(perceptualRoughness));
-    vec3 diffuseColor = computeDiffuseColor(baseColor.rgb, metallic);
-    float reflectance = uReflectance > 0.0 ? uReflectance : 0.5;
-    vec3 f0 = computeF0(baseColor.rgb, metallic, reflectance);
-    
-    SurfaceData surface;
-    surface.diffuseColor = diffuseColor;
-    surface.f0 = f0;
-    surface.roughness = roughness;
-    surface.f90 = 1.0;
-    
-    // Lighting
-    vec3 view = normalize(v_ViewPos - v_FragPos);
-    vec3 lightDir = normalize(uLightDirection);
-    
-    vec3 directLight = evaluateDirectionalLightSimple(lightDir, uLightColor, uLightIntensity, surface, normal, view);
-    
+    // Shadow
     float shadow = 0.0;
     if (uReceiveShadows > 0.5 && uShadowsEnabled > 0.5) {
-        shadow = CalculateShadow(v_LightSpacePos, normal, lightDir);
+        shadow = CalculateShadow(v_LightSpacePos, normal, light.l);
     }
-    directLight *= (1.0 - shadow * 0.65);
+    float visibility = 1.0 - shadow * 0.65;
+    visibility *= computeMicroShadowing(light.NoL, material.ambientOcclusion);
     
-    // Indirect Lighting
-    vec3 indirectLight;
+    // Direct lighting
+    vec3 directLight = surfaceShading(pixel, shading, light, visibility);
+    
+    // IBL
+    vec3 indirectLight = vec3(0.0);
     if (length(uSH[0]) > 0.001) {
         vec3 irradiance = irradianceSH(normal, uSH);
-        vec3 Fd = diffuseColor * irradiance * Fd_Lambert();
-        float NoV = abs(dot(normal, view)) + MIN_N_DOT_V;
-        vec2 dfg = prefilteredDFG_Karis(NoV, roughness);
-        vec3 Fr = irradiance * (f0 * dfg.x + vec3(surface.f90 * dfg.y)) * (1.0 - roughness * roughness * 0.5);
+        vec3 Fd = pixel.diffuseColor * irradiance * Fd_Lambert();
+        vec2 dfg = prefilteredDFG_Karis(shading.NoV, pixel.perceptualRoughness);
+        vec3 specularColor = pixel.f0 * dfg.x + vec3(pixel.f90 * dfg.y);
+        vec3 Fr = irradiance * specularColor * (1.0 - pixel.roughness * 0.5);
         indirectLight = (Fd + Fr) * uIBLIntensity;
     } else {
-        indirectLight = evaluateIBLSimple(surface, normal, view, uSkyColor, uGroundColor, uAmbientStrength);
+        vec3 ambientColor = mix(uGroundColor, uSkyColor, normal.y * 0.5 + 0.5);
+        indirectLight = pixel.diffuseColor * ambientColor * uAmbientStrength;
     }
     
-    // Apply multi-bounce AO to preserve color in shadowed areas
-    float NoV = abs(dot(normal, view)) + MIN_N_DOT_V;
-    vec3 aoColor = multiBounceAO(ao, diffuseColor);
-    float specAO = specularAO(NoV, ao, roughness);
+    // Apply AO
+    vec3 aoColor = multiBounceAO(material.ambientOcclusion, pixel.diffuseColor);
+    indirectLight *= aoColor;
     
-    // Separate diffuse and specular AO application
-    indirectLight = indirectLight * aoColor;
-    
-    // Omnidirectional ambient - constant light from all directions (ignores normal)
-    // This ensures surfaces facing away from sky still receive some light
-    vec3 omniAmbient = diffuseColor * uSH[0] * 0.15;  // 15% of L00 term as constant
-    
-    // Rim lighting - adds subtle edge definition when backlit
-    float rimFactor = 1.0 - saturate(dot(normal, view));
-    rimFactor = pow(rimFactor, 3.0) * 0.3;  // Soft rim, 30% intensity
-    vec3 rimLight = uSkyColor * rimFactor * (1.0 - metallic);
-    
-    // Add minimum ambient floor (8% of diffuse color)
-    vec3 minAmbient = diffuseColor * 0.08;
+    vec3 omniAmbient = pixel.diffuseColor * uSH[0] * 0.15;
+    float rimFactor = pow(1.0 - saturate(dot(normal, shading.view)), 3.0) * 0.3;
+    vec3 rimLight = uSkyColor * rimFactor * (1.0 - material.metallic);
+    vec3 minAmbient = pixel.diffuseColor * 0.08;
     indirectLight = max(indirectLight + omniAmbient + rimLight, minAmbient);
     
-    // HDR Pipeline: exposure, tone mapping, gamma
-    vec3 hdrColor = directLight + indirectLight + emissive;
+    // Combine and tone map with dithering
+    vec3 hdrColor = directLight + indirectLight + material.emissive.rgb;
     float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
+    vec3 ldrColor = finalColorOutputDithered(hdrColor, exposure, gl_FragCoord.xy);
     
-    FragColor = vec4(ldrColor, baseColor.a);
+    FragColor = vec4(ldrColor, material.baseColor.a);
 }

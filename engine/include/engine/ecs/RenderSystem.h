@@ -85,6 +85,7 @@ class RenderSystem {
     static constexpr size_t MAX_BONES = 256;
     static std::array<int, MAX_BONES> boneUniformLocations_;
     static bool                       boneLocationsInitialized_;
+    static uint32_t                   boneUniformShaderID_;  // Track which shader the locations are for
     static void                       InitBoneUniformLocations(Shader* shader);
     
     // Track instance counts from last frame for reserve() optimization

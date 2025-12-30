@@ -1,7 +1,7 @@
 #include "engine/ecs/RenderSystem.h"
 
 #include <filesystem>
-
+#include <glad/glad.h>
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/debug/FrameProfiler.h"
@@ -30,17 +30,25 @@ std::shared_ptr<Material>        RenderSystem::modelMaterial_        = nullptr;
 std::shared_ptr<Material>        RenderSystem::skinnedMaterial_      = nullptr;
 std::array<int, RenderSystem::MAX_BONES> RenderSystem::boneUniformLocations_ = {};
 bool                             RenderSystem::boneLocationsInitialized_ = false;
+uint32_t                         RenderSystem::boneUniformShaderID_ = 0;
 std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> RenderSystem::lastFrameInstanceCounts_;
 RenderSystem::BatchResourcesCache RenderSystem::batchResources_;
 
 void RenderSystem::InitBoneUniformLocations(Shader* shader) {
-    if (!shader || boneLocationsInitialized_) return;
+    if (!shader) return;
+    
+    // Re-initialize if shader changed (e.g., after resize/recreation)
+    uint32_t currentShaderID = shader->getID();
+    if (boneLocationsInitialized_ && currentShaderID == boneUniformShaderID_) {
+        return;
+    }
     
     char uniformName[64];
     for (size_t i = 0; i < MAX_BONES; ++i) {
         snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
         boneUniformLocations_[i] = shader->getUniformLocation(uniformName);
     }
+    boneUniformShaderID_ = currentShaderID;
     boneLocationsInitialized_ = true;
 }
 
@@ -179,9 +187,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
     SceneRenderer& sceneRenderer = ServiceLocator::Get().GetSceneRenderer();
 
-    // Configure lighting
-    sceneRenderer.ClearDirectionalLight();
-    SceneRenderer::DirectionalLightData lightData;
+    // Configure lighting from scene entities (only if entities exist)
     auto lightView = scene.GetAllEntitiesWith<TransformComponent, DirectionalLightComponent>();
     for (auto entity : lightView) {
         auto& transform = lightView.get<TransformComponent>(entity);
@@ -192,6 +198,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         glm::vec3 direction = -transform.GetForward();
         if (glm::length(direction) <= 0.0f) { direction = glm::vec3(0.0f, -1.0f, 0.0f); }
 
+        SceneRenderer::DirectionalLightData lightData;
         lightData.Direction   = glm::normalize(direction);
         lightData.Position    = transform.Position;
         lightData.Color       = light.Color;
@@ -199,7 +206,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         lightData.CastShadows = light.CastShadows;
         lightData.Active      = true;
         sceneRenderer.SetDirectionalLight(lightData);
-        break;
+        break;  // Only use first enabled light
     }
 
     // Begin scene rendering
@@ -436,19 +443,45 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         auto light = sceneRenderer.GetDirectionalLight();
         shader->setVec3("uLightDirection", -light.Direction);
         shader->setVec3("uLightColor", light.Color);
-        shader->setFloat("uLightIntensity", light.Intensity);
+        shader->setFloat("uLightIntensity", light.Active ? light.Intensity : 0.0f);
         shader->setFloat("uAmbientStrength", 0.3f);
-        shader->setFloat("uReceiveShadows", 0.0f);
-        shader->setFloat("uShadowsEnabled", 0.0f);
+        shader->setFloat("uReceiveShadows", skinnedComp.ReceiveShadows ? 1.0f : 0.0f);
+        shader->setFloat("uShadowsEnabled", sceneRenderer.IsShadowsEnabled() ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", 0.5f);
         shader->setFloat("uAORadius", 1.0f);
+        
+        // Bind shadow map texture (from previous frame for receive shadows)
+        shader->setMat4("uLightSpaceMatrix", sceneRenderer.GetLightSpaceMatrix());
+        shader->setInt("uShadowMap", 0);
+        glActiveTexture(GL_TEXTURE0);
+        uint32_t shadowTex = sceneRenderer.GetShadowDepthTexture();
+        if (shadowTex != 0) {
+            glBindTexture(GL_TEXTURE_2D, shadowTex);
+        }
+        
+        // Set IBL uniforms (get from SceneRenderer's IBL data)
+        const auto& iblData = sceneRenderer.GetEnvironmentLighting();
+        shader->setVec3Array("uSH", iblData.SphericalHarmonics, 9);
+        shader->setFloat("uIBLIntensity", iblData.Intensity);
+        shader->setVec3("uSkyColor", iblData.SkyColor);
+        shader->setVec3("uGroundColor", iblData.GroundColor);
+        shader->setFloat("uExposure", 1.0f);
 
         // Set default texture uniforms
         shader->setInt("uHasAlbedo", 0);
         shader->setInt("uHasNormal", 0);
         shader->setInt("uHasSpecular", 0);
         shader->setInt("uHasAO", 0);
+        shader->setInt("uHasMetallic", 0);
+        shader->setInt("uHasRoughness", 0);
+        shader->setInt("uHasEmissive", 0);
+        shader->setInt("uHasMetallicRoughness", 0);
         shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+        shader->setFloat("uMetallicFactor", 0.0f);
+        shader->setFloat("uRoughnessFactor", 0.5f);
+        shader->setFloat("uReflectance", 0.5f);
+        shader->setFloat("uAOFactor", 1.0f);
+        shader->setFloat("uNormalScale", 1.0f);
         shader->setFloat("uShininess", 32.0f);
 
         // Draw all meshes
@@ -514,6 +547,17 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             shader->setInt("uHasEmissive", hasEmissive);
             
             mesh.Draw();
+            
+            // Submit for shadow casting
+            if (skinnedComp.CastShadows) {
+                std::vector<glm::mat4> bones;
+                if (hasBones) {
+                    bones = animComp->GetBoneMatrices();
+                }
+                sceneRenderer.SubmitSkinnedForShadow(
+                    mesh.GetVaoId(), mesh.GetIndexCount(), 
+                    transform.WorldMatrix, bones, hasBones);
+            }
         }
         
         // Debug log

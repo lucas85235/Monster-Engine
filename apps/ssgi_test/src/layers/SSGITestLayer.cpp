@@ -8,7 +8,8 @@
 #include "engine/input/InputManager.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/SceneRenderer.h"
-#include "engine/renderer/SSGIPass.h"
+#include "engine/renderer/PBRMaterial.h"
+#include "engine/renderer/IBLProcessor.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
@@ -19,65 +20,102 @@
 
 namespace SSGITest {
 
-SSGITestLayer::~SSGITestLayer() = default;
+SSGITestLayer::~SSGITestLayer() {
+    auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
+    renderer.ClearGlobalMaterialOverride();
+}
 
 void SSGITestLayer::OnAttach() {
     Layer::OnAttach();
     
-    scene_ = se::CreateScope<se::Scene>("SSGI Test Scene", se::SceneSettings{.EnablePhysics = false});
+    scene_ = se::CreateScope<se::Scene>("PBR Test Scene", se::SceneSettings{.EnablePhysics = false});
     se::Application::Get().SetActiveScene(scene_.get());
     
-    // Create camera
     camera_ = std::make_unique<Camera>(glm::vec3(0.0f, 5.0f, 15.0f));
     scene_->SetActiveCamera(camera_.get());
     
-    // Create default material
     CreateMaterials();
-    
-    // Setup scene with primitives
     SetupScene();
     
-    // Configure scene renderer for SSGI
     auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
     renderer.SetRadianceCascadesEnabled(false);
     renderer.SetSparseRCEnabled(false);
     renderer.SetSSGIEnabled(false);
     
-    // Configure directional light
-    se::SceneRenderer::DirectionalLightData sunLight;
-    sunLight.Direction = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
-    sunLight.Color = glm::vec3(1.0f, 0.95f, 0.9f);
-    sunLight.Intensity = 1.5f;
-    sunLight.Active = true;
-    sunLight.CastShadows = true;
-    renderer.SetDirectionalLight(sunLight);
+    // Find existing DirectionalLightComponent entity from map, or create one
+    auto lightView = scene_->GetAllEntitiesWith<se::TransformComponent, se::DirectionalLightComponent>();
+    for (auto entity : lightView) {
+        lightEntity_ = se::Entity(entity, scene_.get());
+        SE_LOG_INFO("[PBRTest] Found existing directional light entity");
+        break;
+    }
     
-    SE_LOG_INFO("[SSGITest] Test layer initialized");
+    if (!lightEntity_.IsValid()) {
+        // Create directional light entity like ThirdPersonLayer
+        lightEntity_ = scene_->CreateEntity("Sun");
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition({10.0f, 20.0f, 10.0f});
+        transform.SetRotation({45.0f, 45.0f, 0.0f});
+        
+        auto& light = lightEntity_.AddComponent<se::DirectionalLightComponent>();
+        light.Color = {1.0f, 0.95f, 0.9f};
+        light.Intensity = 2.0f;
+        light.CastShadows = true;
+        light.Enabled = true;
+        SE_LOG_INFO("[PBRTest] Created new directional light entity");
+    }
+    
+    // Set up HDR IBL environment lighting from cubemap
+    se::IBLData ibl;
+    ibl.SetDefaultOutdoor();  // SH fallback
+    
+    // Try to load HDR environment map
+    std::filesystem::path hdrPath = "assets/textures/ibl/lilienstein_4k.hdr";
+    if (std::filesystem::exists(hdrPath)) {
+        auto iblResult = se::IBLProcessor::ProcessHDR(hdrPath, 2048);
+        if (iblResult.Valid) {
+            ibl.EnvironmentCubemap = iblResult.EnvironmentCubemap;
+            ibl.EnvironmentCubemapSize = iblResult.CubemapSize;
+            ibl.IrradianceCubemap = iblResult.IrradianceCubemap;
+            ibl.PrefilteredCubemap = iblResult.PrefilteredCubemap;
+            ibl.DfgLut = iblResult.DfgLut;
+            ibl.PrefilteredMipLevels = iblResult.PrefilteredMipLevels;
+            ibl.Intensity = 1.0f;
+            SE_LOG_INFO("[PBRTest] Loaded HDR IBL: {}", hdrPath.filename().string());
+        } else {
+            SE_LOG_WARN("[PBRTest] Failed to process HDR, using SH fallback");
+        }
+    } else {
+        SE_LOG_WARN("[PBRTest] HDR file not found: {}, using SH fallback", hdrPath.string());
+    }
+    renderer.SetEnvironmentLighting(ibl);
+    
+    SE_LOG_INFO("[PBRTest] Test layer initialized with Material Override system");
 }
 
 void SSGITestLayer::OnDetach() {
+    auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
+    renderer.ClearGlobalMaterialOverride();
     se::Application::Get().SetActiveScene(nullptr);
     Layer::OnDetach();
 }
 
 void SSGITestLayer::CreateMaterials() {
-    // Get default shader from MaterialManager
     defaultMaterial_ = se::MaterialManager::GetDefaultMaterial();
     
     if (!defaultMaterial_) {
-        SE_LOG_ERROR("[SSGITest] Failed to get default material!");
+        SE_LOG_ERROR("[PBRTest] Failed to get default material!");
     }
 }
 
 void SSGITestLayer::SetupScene() {
-    // Load the same map as third_person_game
     auto mapResult = se::MapLoader::Load(*scene_, "assets/maps/test.mstmap");
     if (!mapResult.success) {
-        SE_LOG_ERROR("[SSGITest] Failed to load map: {}", mapResult.entityCount);
+        SE_LOG_ERROR("[PBRTest] Failed to load map: {}", mapResult.entityCount);
         return;
     }
     
-    SE_LOG_INFO("[SSGITest] Loaded map with {} entities", scene_->GetEntityCount());
+    SE_LOG_INFO("[PBRTest] Loaded map with {} entities", scene_->GetEntityCount());
 }
 
 void SSGITestLayer::OnUpdate(float ts) {
@@ -85,7 +123,6 @@ void SSGITestLayer::OnUpdate(float ts) {
     
     auto& input = se::InputManager::Get();
     
-    // Camera rotation with right mouse button (1 = right button)
     if (input.IsMouseButtonDown(1)) {
         se::Vector2 delta = input.GetMouseDelta();
         cameraYaw_ += delta.x * 0.2f;
@@ -96,25 +133,23 @@ void SSGITestLayer::OnUpdate(float ts) {
         camera_->SetPitch(cameraPitch_);
     }
     
-    // WASD movement
-    float moveSpeed = 10.0f * ts;
     if (input.IsKeyDown(se::Key::W)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::FORWARD, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::FORWARD, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::S)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::BACKWARD, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::BACKWARD, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::A)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::LEFT, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::LEFT, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::D)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::RIGHT, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::RIGHT, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::Q)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::DOWN, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::DOWN, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::E)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::UP, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::UP, camera_speed_ * ts);
     }
     
     scene_->OnUpdate(ts);
@@ -135,67 +170,187 @@ void SSGITestLayer::RenderDebugPanel() {
     auto& window = app.GetWindow();
     auto& renderer = app.GetRenderer().GetSceneRenderer();
     
-    ImGui::Begin("SSGI Debug Panel");
+    ImGui::Begin("PBR Debug Panel");
     
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::Text("Resolution: %dx%d", window.GetWidth(), window.GetHeight());
     ImGui::Separator();
     
     ImGui::Text("Camera Controls:");
-    ImGui::BulletText("Right-Click + Mouse: Rotate camera");
-    ImGui::BulletText("WASD: Move camera");
-    ImGui::BulletText("Q/E: Move up/down");
+    ImGui::BulletText("Right-Click + Mouse: Rotate");
+    ImGui::BulletText("WASD/QE: Move");
     ImGui::Separator();
     
-    // SSGI controls
-    ImGui::Text("SSGI Controls:");
+    // Material Override Toggle
+    static bool overrideEnabled = false;
+    if (ImGui::Checkbox("Enable Material Override", &overrideEnabled)) {
+        if (overrideEnabled) {
+            renderer.SetGlobalMaterialOverride(&testMaterialParams_);
+            SE_LOG_INFO("[PBRTest] Material override ENABLED");
+        } else {
+            renderer.ClearGlobalMaterialOverride();
+            SE_LOG_INFO("[PBRTest] Material override DISABLED");
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(overrideEnabled ? ImVec4(0,1,0,1) : ImVec4(1,0.5f,0,1), 
+                       overrideEnabled ? "ACTIVE" : "INACTIVE");
     
-    bool ssgiEnabled = renderer.IsSSGIEnabled();
-    if (ImGui::Checkbox("Enable SSGI", &ssgiEnabled)) {
-        renderer.SetSSGIEnabled(ssgiEnabled);
+    if (!overrideEnabled) {
+        ImGui::TextWrapped("Enable override to edit material properties on all objects.");
     }
     
-    auto& config = renderer.GetSSGIConfig();
+    ImGui::Separator();
     
-    ImGui::SliderFloat("Intensity", &config.Intensity, 0.0f, 5.0f);
-    ImGui::SliderInt("Ray Count", &config.RayCount, 4, 128);
-    ImGui::SliderInt("Steps/Ray", &config.StepsPerRay, 4, 64);
-    ImGui::SliderFloat("Max Distance", &config.MaxDistance, 1.0f, 50.0f);
-    ImGui::SliderFloat("Resolution Scale", &config.ResolutionScale, 0.25f, 1.0f);
-    ImGui::SliderInt("Blur Radius", &config.BlurRadius, 0, 8);
+    // Core PBR Parameters
+    ImGui::Text("Core PBR:");
+    ImGui::ColorEdit4("Base Color", &testMaterialParams_.BaseColor.x);
+    ImGui::SliderFloat("Metallic", &testMaterialParams_.Metallic, 0.0f, 1.0f);
+    ImGui::SliderFloat("Roughness", &testMaterialParams_.Roughness, 0.0f, 1.0f);
+    ImGui::SliderFloat("Reflectance", &testMaterialParams_.Reflectance, 0.0f, 1.0f);
+    ImGui::SliderFloat("AO", &testMaterialParams_.AO, 0.0f, 1.0f);
     
-    const char* debugModes[] = {"Off", "SH Coefficients", "Raw Radiance", "Normals", "Depth"};
-    ImGui::Combo("Debug Mode", &config.DebugMode, debugModes, 5);
+    ImGui::Separator();
+    ImGui::Text("Clear Coat:");
+    ImGui::SliderFloat("Clear Coat", &testMaterialParams_.ClearCoat, 0.0f, 1.0f);
+    ImGui::SliderFloat("CC Roughness", &testMaterialParams_.ClearCoatRoughness, 0.0f, 1.0f);
     
-    if (auto* ssgiPass = renderer.GetSSGIPass()) {
-        ImGui::Text("Work Res: %dx%d", ssgiPass->GetWorkWidth(), ssgiPass->GetWorkHeight());
+    ImGui::Separator();
+    ImGui::Text("Anisotropy:");
+    ImGui::SliderFloat("Anisotropy", &testMaterialParams_.Anisotropy, -1.0f, 1.0f);
+    
+    ImGui::Separator();
+    ImGui::Text("Sheen (Fabric):");
+    ImGui::ColorEdit3("Sheen Color", &testMaterialParams_.SheenColor.x);
+    ImGui::SliderFloat("Sheen Roughness", &testMaterialParams_.SheenRoughness, 0.0f, 1.0f);
+    
+    ImGui::Separator();
+    ImGui::Text("Subsurface:");
+    ImGui::ColorEdit3("Subsurface Color", &testMaterialParams_.SubsurfaceColor.x);
+    ImGui::SliderFloat("Subsurface Power", &testMaterialParams_.SubsurfacePower, 0.0f, 10.0f);
+    ImGui::SliderFloat("Thickness", &testMaterialParams_.Thickness, 0.0f, 1.0f);
+    
+    ImGui::Separator();
+    ImGui::Text("Transmission:");
+    ImGui::SliderFloat("Transmission", &testMaterialParams_.Transmission, 0.0f, 1.0f);
+    ImGui::SliderFloat("IOR", &testMaterialParams_.IOR, 1.0f, 3.0f);
+    
+    ImGui::Separator();
+    ImGui::Text("Emissive:");
+    ImGui::ColorEdit3("Emissive Color", &testMaterialParams_.EmissiveColor.x);
+    ImGui::SliderFloat("Emissive Factor", &testMaterialParams_.EmissiveFactor, 0.0f, 10.0f);
+    
+    ImGui::Separator();
+    
+    // Lighting controls - modify the light entity's components
+    ImGui::Text("Directional Light:");
+    
+    // Initialize static values from the entity on first frame
+    static float lightAzimuth = 210.0f;
+    static float lightElevation = 45.0f;
+    static bool firstFrame = true;
+    
+    if (lightEntity_.IsValid() && lightEntity_.HasComponent<se::DirectionalLightComponent>()) {
+        auto& light = lightEntity_.GetComponent<se::DirectionalLightComponent>();
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
         
-        // Texture debug previews
-        ImGui::Separator();
-        ImGui::Text("Debug Textures (click to enlarge):");
-        
-        float previewSize = 150.0f;
-        
-        // Final radiance
-        ImGui::Text("Final Radiance (ID=%u):", ssgiPass->GetRadianceTexture());
-        if (ssgiPass->GetRadianceTexture() != 0) {
-            ImGui::Image((ImTextureID)(intptr_t)ssgiPass->GetRadianceTexture(), 
-                ImVec2(previewSize, previewSize * 0.5f), ImVec2(0,1), ImVec2(1,0));
-        } else {
-            ImGui::TextColored(ImVec4(1,0,0,1), "No texture!");
+        // On first frame, derive azimuth/elevation from entity's rotation
+        if (firstFrame) {
+            se::Vector3 rotation = transform.Rotation;
+            // rotation.x > 0 means light points down, so elevation = rotation.x
+            lightElevation = rotation.x;
+            lightAzimuth = rotation.y + 180.0f;
         }
         
-        // SH coefficient textures
-        ImGui::Text("SH Coefficients:");
-        for (int i = 0; i < 4; i++) {
-            uint32_t tex = ssgiPass->GetSHTexture(i);
-            ImGui::Text("SH%d (ID=%u):", i, tex);
-            if (tex != 0) {
-                ImGui::SameLine();
-                ImGui::Image((ImTextureID)(intptr_t)tex, 
-                    ImVec2(80, 45), ImVec2(0,1), ImVec2(1,0));
-            }
+        bool lightChanged = false;
+        lightChanged |= ImGui::SliderFloat("Azimuth", &lightAzimuth, 0.0f, 360.0f, "%.1f deg");
+        lightChanged |= ImGui::SliderFloat("Elevation", &lightElevation, 5.0f, 90.0f, "%.1f deg");
+        lightChanged |= ImGui::ColorEdit3("Light Color", &light.Color.x);
+        lightChanged |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.0f, 10.0f);
+        
+        if (lightChanged) {
+            // Positive elevation -> positive rotation.x tilts forward vector down
+            // RenderSystem uses -transform.GetForward() for direction FROM light TO scene
+            transform.SetRotation({lightElevation, lightAzimuth - 180.0f, 0.0f});
         }
+    } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "No light entity found!");
+    }
+    
+    ImGui::Separator();
+    
+    // CSM Debug Controls
+    ImGui::Text("Shadow Cascades (CSM):");
+    
+    static bool csmEnabled = true;
+    if (firstFrame) renderer.SetCSMEnabled(csmEnabled);
+    if (ImGui::Checkbox("Enable CSM", &csmEnabled)) {
+        renderer.SetCSMEnabled(csmEnabled);
+    }
+    
+    static bool visualizeCascades = false;  // Disabled by default for cleaner view
+    if (firstFrame) renderer.SetVisualizeCascades(visualizeCascades);
+    if (ImGui::Checkbox("Visualize Cascades", &visualizeCascades)) {
+        renderer.SetVisualizeCascades(visualizeCascades);
+    }
+    
+    static float splitLambda = 0.85f;
+    if (firstFrame) renderer.SetCSMSplitLambda(splitLambda);
+    if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.2f")) {
+        renderer.SetCSMSplitLambda(splitLambda);
+    }
+    ImGui::TextWrapped("0 = uniform splits, 1 = logarithmic (more detail near camera)");
+    
+    firstFrame = false;
+    
+    ImGui::Separator();
+    
+    // Presets
+    ImGui::Text("Material Presets:");
+    if (ImGui::Button("Gold")) {
+        testMaterialParams_.BaseColor = se::Vector4(1.0f, 0.765f, 0.336f, 1.0f);
+        testMaterialParams_.Metallic = 1.0f;
+        testMaterialParams_.Roughness = 0.3f;
+        testMaterialParams_.ClearCoat = 0.0f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Silver")) {
+        testMaterialParams_.BaseColor = se::Vector4(0.972f, 0.960f, 0.915f, 1.0f);
+        testMaterialParams_.Metallic = 1.0f;
+        testMaterialParams_.Roughness = 0.1f;
+        testMaterialParams_.ClearCoat = 0.0f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Car Paint")) {
+        testMaterialParams_.BaseColor = se::Vector4(0.8f, 0.1f, 0.1f, 1.0f);
+        testMaterialParams_.Metallic = 0.0f;
+        testMaterialParams_.Roughness = 0.5f;
+        testMaterialParams_.ClearCoat = 1.0f;
+        testMaterialParams_.ClearCoatRoughness = 0.1f;
+    }
+    
+    if (ImGui::Button("Fabric")) {
+        testMaterialParams_.BaseColor = se::Vector4(0.2f, 0.3f, 0.6f, 1.0f);
+        testMaterialParams_.Metallic = 0.0f;
+        testMaterialParams_.Roughness = 0.8f;
+        testMaterialParams_.SheenColor = se::Vector3(0.5f, 0.6f, 0.8f);
+        testMaterialParams_.SheenRoughness = 0.5f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Skin")) {
+        testMaterialParams_.BaseColor = se::Vector4(0.8f, 0.6f, 0.5f, 1.0f);
+        testMaterialParams_.Metallic = 0.0f;
+        testMaterialParams_.Roughness = 0.5f;
+        testMaterialParams_.SubsurfaceColor = se::Vector3(1.0f, 0.2f, 0.1f);
+        testMaterialParams_.SubsurfacePower = 2.0f;
+        testMaterialParams_.Thickness = 0.5f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Plastic")) {
+        testMaterialParams_.BaseColor = se::Vector4(0.1f, 0.3f, 0.8f, 1.0f);
+        testMaterialParams_.Metallic = 0.0f;
+        testMaterialParams_.Roughness = 0.4f;
+        testMaterialParams_.ClearCoat = 0.0f;
     }
     
     ImGui::Separator();

@@ -15,6 +15,7 @@
 #include "engine/renderer/SceneVoxelizer.h"
 #include "engine/renderer/SparseRadianceCascades.h"
 #include "engine/renderer/SSGIPass.h"
+#include "engine/renderer/CascadedShadowMap.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -71,6 +72,14 @@ class SceneRenderer {
                          bool receiveShadows = true,
                          const Vector3& emissiveColor = Vector3(0.0f), float emissiveFactor = 0.0f);
 
+    // Submit skinned model for shadow casting only (uses raw VAO since SkinnedMesh doesn't use VertexArray)
+    void SubmitSkinnedForShadow(
+        uint32_t vaoId,
+        uint32_t indexCount,
+        const Matrix4& transform,
+        const std::vector<Matrix4>& boneMatrices,
+        bool hasBones);
+
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -84,6 +93,11 @@ class SceneRenderer {
     void                 SetDirectionalLight(const DirectionalLightData& light);
     void                 ClearDirectionalLight();
     DirectionalLightData GetDirectionalLight() const;
+    
+    // Shadow map access (for external renderers like SkinnedModel)
+    uint32_t GetShadowDepthTexture() const;
+    Matrix4 GetLightSpaceMatrix() const;
+    bool IsShadowsEnabled() const;
 
     void SetShadowMapSize(int width, int height);
     void SetShadowDistance(float distance);
@@ -146,6 +160,24 @@ class SceneRenderer {
     void ResetStats() {
         stats_.Reset();
     }
+    
+    // Global PBR material override for testing
+    void SetGlobalMaterialOverride(PBRMaterialParams* params) {
+        globalMaterialOverride_ = params;
+    }
+    void ClearGlobalMaterialOverride() {
+        globalMaterialOverride_ = nullptr;
+    }
+    PBRMaterialParams* GetGlobalMaterialOverride() const {
+        return globalMaterialOverride_;
+    }
+    
+    // Cascaded Shadow Maps control
+    void SetCSMEnabled(bool enabled) { csmEnabled_ = enabled; }
+    bool IsCSMEnabled() const { return csmEnabled_; }
+    void SetVisualizeCascades(bool enabled) { visualizeCascades_ = enabled; }
+    bool IsVisualizeCascadesEnabled() const { return visualizeCascades_; }
+    void SetCSMSplitLambda(float lambda);
 
    private:
     struct Submission {
@@ -173,6 +205,7 @@ class SceneRenderer {
         unsigned int            ShadowDepthTexture = 0;
         std::shared_ptr<Shader> ShadowShader;
         std::shared_ptr<Shader> InstancedShadowShader;
+        std::shared_ptr<Shader> SkinnedShadowShader;
         float                   ShadowDistance  = 100.0f;
         float                   ShadowOrthoSize = 10.0f;
         float                   AmbientStrength = 0.2f;
@@ -181,6 +214,7 @@ class SceneRenderer {
         float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
         bool                    ShadowsEnabled  = true;
         Vector3                 CameraPosition{0.0f};    // For GI occlusion
+        const Camera*           CurrentCamera = nullptr; // For CSM
         std::vector<Submission> Submissions;
     };
     
@@ -197,6 +231,16 @@ class SceneRenderer {
     };
 
     std::vector<InstancedSubmission> instancedSubmissions_;
+
+    // Skinned model submission for shadow casting
+    struct SkinnedSubmission {
+        uint32_t                     vaoId = 0;
+        uint32_t                     indexCount = 0;
+        Matrix4                      transform{1.0f};
+        std::vector<Matrix4>         boneMatrices;
+        bool                         hasBones = false;
+    };
+    std::vector<SkinnedSubmission> skinnedSubmissions_;
 
     void InitializeShadowResources();
     void DestroyShadowResources();
@@ -230,6 +274,24 @@ class SceneRenderer {
     // Screen dimensions for RC initialization
     int screenWidth_ = 1280;
     int screenHeight_ = 720;
+    
+    // Global PBR material override for testing
+    PBRMaterialParams* globalMaterialOverride_ = nullptr;
+    
+    // Skybox rendering
+    std::shared_ptr<Shader> skyboxShader_;
+    uint32_t skyboxVAO_ = 0;
+    uint32_t skyboxVBO_ = 0;
+    bool skyboxInitialized_ = false;
+    
+    void InitSkybox();
+    void RenderSkybox();
+    
+    // Cascaded Shadow Maps
+    std::unique_ptr<CascadedShadowMap> csm_;
+    bool csmEnabled_ = true;
+    bool visualizeCascades_ = false;
+    void RenderCSMPass();
 };
 
 }  // namespace se
