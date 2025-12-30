@@ -35,13 +35,12 @@ std::shared_ptr<PBRMaterial> PBRMaterial::CreateFromTextureMaterial(
 }
 
 void PBRMaterial::BindPBR() const {
-    // First bind base material (shader)
     Bind();
     
     auto shader = GetShader();
     if (!shader) return;
     
-    // Set PBR material parameters
+    // Core parameters
     shader->setVec4("uBaseColor", params_.BaseColor);
     shader->setFloat("uMetallicFactor", params_.Metallic);
     shader->setFloat("uRoughnessFactor", params_.Roughness);
@@ -50,6 +49,27 @@ void PBRMaterial::BindPBR() const {
     shader->setVec3("uEmissiveColor", params_.EmissiveColor);
     shader->setFloat("uEmissiveFactor", params_.EmissiveFactor);
     shader->setFloat("uNormalScale", params_.NormalScale);
+    
+    // Clear Coat
+    shader->setFloat("uClearCoat", params_.ClearCoat);
+    shader->setFloat("uClearCoatRoughness", params_.ClearCoatRoughness);
+    
+    // Anisotropy
+    shader->setFloat("uAnisotropy", params_.Anisotropy);
+    shader->setVec3("uAnisotropyDirection", params_.AnisotropyDirection);
+    
+    // Sheen
+    shader->setVec3("uSheenColor", params_.SheenColor);
+    shader->setFloat("uSheenRoughness", params_.SheenRoughness);
+    
+    // Subsurface
+    shader->setVec3("uSubsurfaceColor", params_.SubsurfaceColor);
+    shader->setFloat("uSubsurfacePower", params_.SubsurfacePower);
+    shader->setFloat("uThickness", params_.Thickness);
+    
+    // Transmission
+    shader->setFloat("uTransmission", params_.Transmission);
+    shader->setFloat("uIOR", params_.IOR);
 }
 
 void PBRMaterial::BindIBL(const IBLData& ibl) const {

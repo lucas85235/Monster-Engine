@@ -47,9 +47,12 @@ float getDistanceAttenuation(float distanceSquare, float inverseRangeSquare) {
     return smoothFactor * smoothFactor / max(distanceSquare, 1e-4);
 }
 
-// Simple inverse square attenuation (physically correct but no range falloff)
-float getSquareFalloffAttenuation(float distanceSquare) {
-    return 1.0 / max(distanceSquare, 1e-4);
+// Square falloff attenuation - Filament
+// Smooth windowing function at light range boundary
+float getSquareFalloffAttenuation(float distanceSquare, float falloff) {
+    float factor = distanceSquare * falloff;
+    float smoothFactor = saturate(1.0 - factor * factor);
+    return smoothFactor * smoothFactor;
 }
 
 // Angular attenuation for spotlights
@@ -85,58 +88,55 @@ vec3 evaluateDirectionalLight(
     return brdf * light.color * illuminance;
 }
 
-// TODO: Evaluate point light contribution
-// vec3 evaluatePointLight(
-//     PointLight light,
-//     SurfaceData surface,
-//     vec3 worldPos,
-//     vec3 normal,
-//     vec3 view
-// ) {
-//     vec3 toLight = light.position - worldPos;
-//     float distanceSquare = dot(toLight, toLight);
-//     vec3 l = toLight * inversesqrt(distanceSquare);
-//     
-//     LightVectors lv = computeLightVectors(normal, view, l);
-//     if (lv.NoL <= 0.0) return vec3(0.0);
-//     
-//     vec3 brdf = surfaceShading(surface, lv);
-//     
-//     // Inverse range squared for attenuation
-//     float inverseRangeSquare = 1.0 / (light.range * light.range);
-//     float attenuation = getDistanceAttenuation(distanceSquare, inverseRangeSquare);
-//     
-//     // Point light illuminance: I / (4*PI*d^2) * NoL
-//     // We fold the 4*PI into the intensity parameter for simplicity
-//     float illuminance = light.intensity * attenuation * lv.NoL;
-//     return brdf * light.color * illuminance;
-// }
+// Evaluate point light contribution
+vec3 evaluatePointLight(
+    PointLight light,
+    SurfaceData surface,
+    vec3 worldPos,
+    vec3 normal,
+    vec3 view
+) {
+    vec3 toLight = light.position - worldPos;
+    float distanceSquare = dot(toLight, toLight);
+    vec3 l = toLight * inversesqrt(distanceSquare);
+    
+    LightVectors lv = computeLightVectors(normal, view, l);
+    if (lv.NoL <= 0.0) return vec3(0.0);
+    
+    vec3 brdf = surfaceShading(surface, lv);
+    
+    float inverseRangeSquare = 1.0 / (light.range * light.range);
+    float attenuation = getDistanceAttenuation(distanceSquare, inverseRangeSquare);
+    
+    float illuminance = light.intensity * attenuation * lv.NoL;
+    return brdf * light.color * illuminance;
+}
 
-// TODO: Evaluate spot light contribution
-// vec3 evaluateSpotLight(
-//     SpotLight light,
-//     SurfaceData surface,
-//     vec3 worldPos,
-//     vec3 normal,
-//     vec3 view
-// ) {
-//     vec3 toLight = light.position - worldPos;
-//     float distanceSquare = dot(toLight, toLight);
-//     vec3 l = toLight * inversesqrt(distanceSquare);
-//     
-//     LightVectors lv = computeLightVectors(normal, view, l);
-//     if (lv.NoL <= 0.0) return vec3(0.0);
-//     
-//     vec3 brdf = surfaceShading(surface, lv);
-//     
-//     float inverseRangeSquare = 1.0 / (light.range * light.range);
-//     float distanceAtt = getDistanceAttenuation(distanceSquare, inverseRangeSquare);
-//     float angleAtt = getAngleAttenuation(-l, light.direction, light.innerAngle, light.outerAngle);
-//     float attenuation = distanceAtt * angleAtt;
-//     
-//     float illuminance = light.intensity * attenuation * lv.NoL;
-//     return brdf * light.color * illuminance;
-// }
+// Evaluate spot light contribution
+vec3 evaluateSpotLight(
+    SpotLight light,
+    SurfaceData surface,
+    vec3 worldPos,
+    vec3 normal,
+    vec3 view
+) {
+    vec3 toLight = light.position - worldPos;
+    float distanceSquare = dot(toLight, toLight);
+    vec3 l = toLight * inversesqrt(distanceSquare);
+    
+    LightVectors lv = computeLightVectors(normal, view, l);
+    if (lv.NoL <= 0.0) return vec3(0.0);
+    
+    vec3 brdf = surfaceShading(surface, lv);
+    
+    float inverseRangeSquare = 1.0 / (light.range * light.range);
+    float distanceAtt = getDistanceAttenuation(distanceSquare, inverseRangeSquare);
+    float angleAtt = getAngleAttenuation(-l, light.direction, light.innerAngle, light.outerAngle);
+    float attenuation = distanceAtt * angleAtt;
+    
+    float illuminance = light.intensity * attenuation * lv.NoL;
+    return brdf * light.color * illuminance;
+}
 
 // -----------------------------------------------------------------------------
 // Convenience Function for Single Directional Light (most common case)

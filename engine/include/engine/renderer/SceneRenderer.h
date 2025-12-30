@@ -146,6 +146,17 @@ class SceneRenderer {
     void ResetStats() {
         stats_.Reset();
     }
+    
+    // Global PBR material override for testing
+    void SetGlobalMaterialOverride(PBRMaterialParams* params) {
+        globalMaterialOverride_ = params;
+    }
+    void ClearGlobalMaterialOverride() {
+        globalMaterialOverride_ = nullptr;
+    }
+    PBRMaterialParams* GetGlobalMaterialOverride() const {
+        return globalMaterialOverride_;
+    }
 
    private:
     struct Submission {
@@ -230,6 +241,18 @@ class SceneRenderer {
     // Screen dimensions for RC initialization
     int screenWidth_ = 1280;
     int screenHeight_ = 720;
+    
+    // Global PBR material override for testing
+    PBRMaterialParams* globalMaterialOverride_ = nullptr;
+    
+    // Skybox rendering
+    std::shared_ptr<Shader> skyboxShader_;
+    uint32_t skyboxVAO_ = 0;
+    uint32_t skyboxVBO_ = 0;
+    bool skyboxInitialized_ = false;
+    
+    void InitSkybox();
+    void RenderSkybox();
 };
 
 }  // namespace se

@@ -339,6 +339,13 @@ void SceneRenderer::EndScene() {
         RenderScenePass();
     }
     
+    // Step 3.5: Render skybox (after scene, uses depth test LEQUAL trick)
+    {
+        SE_PROFILE_SCOPE("Skybox");
+        InitSkybox();
+        RenderSkybox();
+    }
+    
     // Step 4: Render debug visualization for Sparse RC
     if (sparseRC_ && sparseRC_->IsEnabled()) {
         glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
@@ -792,13 +799,11 @@ void SceneRenderer::RenderScenePass() {
             shader->setVec4("uBaseColor", texMat->BaseColor);
             shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
             shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
-            shader->setFloat("uReflectance", 0.5f);  // Default 4% F0
+            shader->setFloat("uReflectance", 0.5f);
             shader->setFloat("uAOFactor", 1.0f);
             shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
             shader->setFloat("uEmissiveFactor", 1.0f);
             shader->setFloat("uNormalScale", 1.0f);
-            
-            // Legacy Blinn-Phong fallback
             shader->setFloat("uShininess", texMat->Shininess);
         } else {
             // Default values when no TextureMaterial
@@ -821,11 +826,78 @@ void SceneRenderer::RenderScenePass() {
             shader->setFloat("uShininess", 32.0f);
         }
         
+        // Apply global material override if set (for PBR testing)
+        if (globalMaterialOverride_) {
+            // Reset texture flags to force shader to use uniform values
+            shader->setInt("uHasAlbedo", 0);
+            shader->setInt("uHasNormal", 0);
+            shader->setInt("uHasMetallic", 0);
+            shader->setInt("uHasRoughness", 0);
+            shader->setInt("uHasAO", 0);
+            shader->setInt("uHasEmissive", 0);
+            shader->setInt("uHasMetallicRoughness", 0);
+            
+            // Apply override values
+            shader->setVec4("uBaseColor", globalMaterialOverride_->BaseColor);
+            shader->setFloat("uMetallicFactor", globalMaterialOverride_->Metallic);
+            shader->setFloat("uRoughnessFactor", globalMaterialOverride_->Roughness);
+            shader->setFloat("uReflectance", globalMaterialOverride_->Reflectance);
+            shader->setFloat("uAOFactor", globalMaterialOverride_->AO);
+            shader->setVec3("uEmissiveColor", globalMaterialOverride_->EmissiveColor);
+            shader->setFloat("uEmissiveFactor", globalMaterialOverride_->EmissiveFactor);
+            shader->setFloat("uNormalScale", globalMaterialOverride_->NormalScale);
+            // Advanced PBR
+            shader->setFloat("uClearCoat", globalMaterialOverride_->ClearCoat);
+            shader->setFloat("uClearCoatRoughness", globalMaterialOverride_->ClearCoatRoughness);
+            shader->setFloat("uAnisotropy", globalMaterialOverride_->Anisotropy);
+            shader->setVec3("uAnisotropyDirection", globalMaterialOverride_->AnisotropyDirection);
+            shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
+            shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
+            shader->setVec3("uSubsurfaceColor", globalMaterialOverride_->SubsurfaceColor);
+            shader->setFloat("uSubsurfacePower", globalMaterialOverride_->SubsurfacePower);
+            shader->setFloat("uThickness", globalMaterialOverride_->Thickness);
+            shader->setFloat("uTransmission", globalMaterialOverride_->Transmission);
+            shader->setFloat("uIOR", globalMaterialOverride_->IOR);
+        } else {
+            // Default advanced PBR values
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uAnisotropyDirection", glm::vec3(1.0f, 0.0f, 0.0f));
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
+            shader->setVec3("uSubsurfaceColor", glm::vec3(0.0f));
+            shader->setFloat("uSubsurfacePower", 0.0f);
+            shader->setFloat("uThickness", 0.0f);
+            shader->setFloat("uTransmission", 0.0f);
+            shader->setFloat("uIOR", 1.5f);
+        }
+        
         // Bind IBL/environment lighting data
         shader->setVec3Array("uSH", iblData_.SphericalHarmonics, 9);
         shader->setFloat("uIBLIntensity", iblData_.Intensity);
         shader->setVec3("uSkyColor", iblData_.SkyColor);
         shader->setVec3("uGroundColor", iblData_.GroundColor);
+        
+        // Bind HDR IBL cubemaps if available
+        if (iblData_.HasCubemaps()) {
+            shader->setInt("uHasIBLCubemaps", 1);
+            shader->setFloat("uMaxPrefilteredLod", static_cast<float>(iblData_.PrefilteredMipLevels - 1));
+            
+            glActiveTexture(GL_TEXTURE9);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.IrradianceCubemap);
+            shader->setInt("uIrradianceMap", 9);
+            
+            glActiveTexture(GL_TEXTURE10);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.PrefilteredCubemap);
+            shader->setInt("uPrefilteredMap", 10);
+            
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, iblData_.DfgLut);
+            shader->setInt("uDfgLut", 11);
+        } else {
+            shader->setInt("uHasIBLCubemaps", 0);
+        }
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
@@ -936,6 +1008,49 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        
+        // Apply global material override if set (for PBR testing)
+        if (globalMaterialOverride_) {
+            shader->setInt("uUseBaseColorOverride", 1);
+            shader->setVec4("uBaseColor", globalMaterialOverride_->BaseColor);
+            shader->setFloat("uMetallicFactor", globalMaterialOverride_->Metallic);
+            shader->setFloat("uRoughnessFactor", globalMaterialOverride_->Roughness);
+            shader->setFloat("uReflectance", globalMaterialOverride_->Reflectance);
+            shader->setFloat("uClearCoat", globalMaterialOverride_->ClearCoat);
+            shader->setFloat("uClearCoatRoughness", globalMaterialOverride_->ClearCoatRoughness);
+            shader->setFloat("uAnisotropy", globalMaterialOverride_->Anisotropy);
+            shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
+            shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
+        } else {
+            shader->setInt("uUseBaseColorOverride", 0);
+        }
+        
+        // IBL for instanced
+        shader->setVec3Array("uSH", iblData_.SphericalHarmonics, 9);
+        shader->setFloat("uIBLIntensity", iblData_.Intensity);
+        shader->setVec3("uSkyColor", iblData_.SkyColor);
+        shader->setVec3("uGroundColor", iblData_.GroundColor);
+        shader->setFloat("uExposure", sceneData_.Exposure);
+        
+        // Bind HDR IBL cubemaps if available
+        if (iblData_.HasCubemaps()) {
+            shader->setInt("uHasIBLCubemaps", 1);
+            shader->setFloat("uMaxPrefilteredLod", static_cast<float>(iblData_.PrefilteredMipLevels - 1));
+            
+            glActiveTexture(GL_TEXTURE9);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.IrradianceCubemap);
+            shader->setInt("uIrradianceMap", 9);
+            
+            glActiveTexture(GL_TEXTURE10);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.PrefilteredCubemap);
+            shader->setInt("uPrefilteredMap", 10);
+            
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, iblData_.DfgLut);
+            shader->setInt("uDfgLut", 11);
+        } else {
+            shader->setInt("uHasIBLCubemaps", 0);
+        }
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
@@ -1135,4 +1250,77 @@ const SSGIConfig& SceneRenderer::GetSSGIConfig() const {
     return fallback;
 }
 
+void SceneRenderer::InitSkybox() {
+    if (skyboxInitialized_) return;
+    
+    namespace fs = std::filesystem;
+    fs::path assetsPath = fs::current_path() / "assets";
+    fs::path vertPath = assetsPath / "shaders" / "skybox.vert";
+    fs::path fragPath = assetsPath / "shaders" / "skybox.frag";
+    
+    if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
+        SE_LOG_WARN("[Skybox] Shaders not found, skybox disabled");
+        return;
+    }
+    
+    skyboxShader_ = Shader::CreateFromFiles(vertPath, fragPath);
+    if (!skyboxShader_) {
+        SE_LOG_ERROR("[Skybox] Failed to create shader");
+        return;
+    }
+    
+    // Unit cube vertices
+    float vertices[] = {
+        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
+    };
+    
+    glGenVertexArrays(1, &skyboxVAO_);
+    glGenBuffers(1, &skyboxVBO_);
+    glBindVertexArray(skyboxVAO_);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glBindVertexArray(0);
+    
+    skyboxInitialized_ = true;
+    SE_LOG_INFO("[Skybox] Initialized successfully");
+}
+
+void SceneRenderer::RenderSkybox() {
+    if (!skyboxInitialized_ || !iblData_.HasCubemaps()) return;
+    
+    // Render skybox last with depth test but no depth write
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_FALSE);
+    
+    skyboxShader_->bind();
+    skyboxShader_->setMat4("uProjection", sceneData_.ProjectionMatrix);
+    skyboxShader_->setMat4("uView", sceneData_.ViewMatrix);
+    skyboxShader_->setFloat("uExposure", sceneData_.Exposure);
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, iblData_.EnvironmentCubemap);  // Use original HDR env for skybox
+    skyboxShader_->setInt("uSkybox", 0);
+    
+    glBindVertexArray(skyboxVAO_);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+}
+
 }  // namespace se
+

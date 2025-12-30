@@ -121,14 +121,16 @@ vec3 computeDiffuseColor(vec3 baseColor, float metallic) {
     return baseColor * (1.0 - metallic);
 }
 
+// Computes dielectric F0 from reflectance parameter
+// reflectance = 0.5 gives 4% F0 (most common dielectrics)
+float computeDielectricF0(float reflectance) {
+    return 0.16 * reflectance * reflectance;
+}
+
 // Computes F0 (specular reflectance at normal incidence)
-// For dielectrics: f0 = 0.16 * reflectance^2 (default reflectance=0.5 gives 4% F0)
-// For metals: f0 = baseColor
+// Dielectrics use reflectance param, metals use baseColor
 vec3 computeF0(vec3 baseColor, float metallic, float reflectance) {
-    // Dielectric F0 from reflectance parameter
-    float dielectricF0 = 0.16 * reflectance * reflectance;
-    // Blend between dielectric and metallic F0
-    return mix(vec3(dielectricF0), baseColor, metallic);
+    return mix(vec3(computeDielectricF0(reflectance)), baseColor, metallic);
 }
 
 // -----------------------------------------------------------------------------
@@ -143,15 +145,30 @@ float D_GGX(float NoH, float roughness) {
     return k * k * (1.0 / PI);
 }
 
-// TODO: Optimized version for half-precision (mobile)
-// Uses Lagrange's identity to avoid precision issues when NoH ≈ 1
-// float D_GGX_FP16(float roughness, float NoH, vec3 n, vec3 h) {
-//     vec3 NxH = cross(n, h);
-//     float a = NoH * roughness;
-//     float k = roughness / (dot(NxH, NxH) + a * a);
-//     float d = k * k * (1.0 / PI);
-//     return min(d, 65504.0); // Clamp to FP16 max
-// }
+// GGX with Lagrange identity for better precision (Filament)
+float D_GGX_Precise(float roughness, float NoH, vec3 n, vec3 h) {
+    vec3 NxH = cross(n, h);
+    float a = NoH * roughness;
+    float k = roughness / (dot(NxH, NxH) + a * a);
+    return k * k * (1.0 / PI);
+}
+
+// Anisotropic GGX NDF - Burley 2012
+float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
+    float a2 = at * ab;
+    highp vec3 d = vec3(ab * ToH, at * BoH, a2 * NoH);
+    highp float d2 = dot(d, d);
+    float b2 = a2 / d2;
+    return a2 * b2 * b2 * (1.0 / PI);
+}
+
+// Charlie NDF for sheen/cloth - Estevez and Kulla 2017
+float D_Charlie(float roughness, float NoH) {
+    float invAlpha = 1.0 / roughness;
+    float cos2h = NoH * NoH;
+    float sin2h = max(1.0 - cos2h, 0.0078125);
+    return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
+}
 
 // -----------------------------------------------------------------------------
 // Specular V - Smith-GGX Height-Correlated Visibility Function
@@ -166,13 +183,27 @@ float V_SmithGGXCorrelated(float NoV, float NoL, float roughness) {
     return 0.5 / (GGXV + GGXL);
 }
 
-// TODO: Fast approximation for mobile (avoids square roots)
-// float V_SmithGGXCorrelatedFast(float NoV, float NoL, float roughness) {
-//     float a = roughness;
-//     float GGXV = NoL * (NoV * (1.0 - a) + a);
-//     float GGXL = NoV * (NoL * (1.0 - a) + a);
-//     return 0.5 / (GGXV + GGXL);
-// }
+// Fast approximation - Hammon 2017
+float V_SmithGGXCorrelated_Fast(float NoV, float NoL, float roughness) {
+    return 0.5 / mix(2.0 * NoL * NoV, NoL + NoV, roughness);
+}
+
+// Kelemen visibility for clear coat - Kelemen 2001
+float V_Kelemen(float LoH) {
+    return 0.25 / (LoH * LoH);
+}
+
+// Neubelt visibility for cloth - Neubelt and Pettineo 2013
+float V_Neubelt(float NoV, float NoL) {
+    return 1.0 / (4.0 * (NoL + NoV - NoL * NoV));
+}
+
+// Anisotropic Smith visibility
+float V_SmithGGXCorrelated_Anisotropic(float at, float ab, float ToV, float BoV, float ToL, float BoL, float NoV, float NoL) {
+    float lambdaV = NoL * length(vec3(at * ToV, ab * BoV, NoV));
+    float lambdaL = NoV * length(vec3(at * ToL, ab * BoL, NoL));
+    return 0.5 / (lambdaV + lambdaL);
+}
 
 // -----------------------------------------------------------------------------
 // Specular F - Schlick Fresnel Approximation
@@ -208,14 +239,14 @@ float Fd_Lambert() {
     return 1.0 / PI;
 }
 
-// TODO: Disney/Burley diffuse for roughness-dependent retro-reflection
-// More accurate but more expensive
-// float Fd_Burley(float NoV, float NoL, float LoH, float roughness) {
-//     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
-//     float lightScatter = F_Schlick(NoL, 1.0, f90);
-//     float viewScatter = F_Schlick(NoV, 1.0, f90);
-//     return lightScatter * viewScatter * (1.0 / PI);
-// }
+// Disney/Burley diffuse - Burley 2012
+// More accurate retro-reflection for rough surfaces
+float Fd_Burley(float NoV, float NoL, float LoH, float roughness) {
+    float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
+    float lightScatter = F_Schlick(NoL, 1.0, f90);
+    float viewScatter = F_Schlick(NoV, 1.0, f90);
+    return lightScatter * viewScatter * (1.0 / PI);
+}
 
 // -----------------------------------------------------------------------------
 // Combined BRDF Evaluation for Direct Lighting
@@ -296,6 +327,14 @@ vec3 multiBounceAO(float visibility, vec3 albedo) {
 // Based on "Practical Realtime Strategies for Accurate Indirect Occlusion"
 float specularAO(float NoV, float visibility, float roughness) {
     return saturate(pow(NoV + visibility, exp2(-16.0 * roughness - 1.0)) - 1.0 + visibility);
+}
+
+// Micro-shadowing - Chan 2018, "Material Advances in Call of Duty: WWII"
+// Darkens direct lighting in occluded areas based on AO
+float computeMicroShadowing(float NoL, float visibility) {
+    float aperture = inversesqrt(1.0 - min(visibility, 0.9999));
+    float microShadow = saturate(NoL * aperture);
+    return microShadow * microShadow;
 }
 
 // Curvature-based ambient occlusion (screen-space estimation)

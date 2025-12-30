@@ -3,6 +3,7 @@
 #include "engine/Layer.h"
 #include "engine/ecs/Scene.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/PBRMaterial.h"
 
 #include <memory>
 #include <glm.hpp>
@@ -30,6 +31,9 @@ private:
     se::Scope<se::Scene> scene_;
     std::unique_ptr<Camera> camera_;
     se::Ref<se::Material> defaultMaterial_;
+    
+    // PBR material parameters for override testing
+    se::PBRMaterialParams testMaterialParams_;
     
     // Camera controls (EditorCamera-style)
     float cameraYaw_ = -90.0f;
