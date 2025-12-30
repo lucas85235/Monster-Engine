@@ -172,8 +172,8 @@ float CalculateCascadedShadow(vec3 worldPos, float viewDepth, vec3 normal, vec3 
     if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
     
     float ndotl = max(dot(normal, lightDir), 0.0);
-    float baseBias = 0.0005 * (1.0 + float(cascade) * 0.5);
-    float bias = max(baseBias * (1.0 - ndotl), baseBias * 0.1);
+    float baseBias = 0.0001 * (1.0 + float(cascade) * 0.3);
+    float bias = max(baseBias * (1.0 - ndotl), baseBias * 0.05);
     
     // PCF 3x3
     float shadow = 0.0;
@@ -293,15 +293,15 @@ void main() {
     PixelParams pixel = getPixelParams(material, shading);
     
     // 5. Create directional light
-    Light light = createDirectionalLight(-uLightDirection, uLightColor, uLightIntensity);
+    Light light = createDirectionalLight(uLightDirection, uLightColor, uLightIntensity);
     light.NoL = saturate(dot(normal, light.l));
     
     // 6. Calculate shadow
     float shadow = 0.0;
     if (uReceiveShadows > 0.5 && uShadowsEnabled > 0.5) {
         if (uUseCSM == 1) {
-            float viewDepth = abs((uView * vec4(v_WorldPos, 1.0)).z);
-            shadow = CalculateCascadedShadow(v_WorldPos, viewDepth, normal, light.l);
+            float viewDepth = abs((uView * vec4(v_FragPos, 1.0)).z);
+            shadow = CalculateCascadedShadow(v_FragPos, viewDepth, normal, light.l);
         } else {
             shadow = CalculateShadow(v_LightSpacePos, normal, light.l);
         }

@@ -42,14 +42,28 @@ void SSGITestLayer::OnAttach() {
     renderer.SetSparseRCEnabled(false);
     renderer.SetSSGIEnabled(false);
     
-    // Set up directional light
-    se::SceneRenderer::DirectionalLightData sunLight;
-    sunLight.Direction = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
-    sunLight.Color = glm::vec3(1.0f, 0.95f, 0.9f);
-    sunLight.Intensity = 2.0f;
-    sunLight.Active = true;
-    sunLight.CastShadows = true;
-    renderer.SetDirectionalLight(sunLight);
+    // Find existing DirectionalLightComponent entity from map, or create one
+    auto lightView = scene_->GetAllEntitiesWith<se::TransformComponent, se::DirectionalLightComponent>();
+    for (auto entity : lightView) {
+        lightEntity_ = se::Entity(entity, scene_.get());
+        SE_LOG_INFO("[PBRTest] Found existing directional light entity");
+        break;
+    }
+    
+    if (!lightEntity_.IsValid()) {
+        // Create directional light entity like ThirdPersonLayer
+        lightEntity_ = scene_->CreateEntity("Sun");
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition({10.0f, 20.0f, 10.0f});
+        transform.SetRotation({45.0f, 45.0f, 0.0f});
+        
+        auto& light = lightEntity_.AddComponent<se::DirectionalLightComponent>();
+        light.Color = {1.0f, 0.95f, 0.9f};
+        light.Intensity = 2.0f;
+        light.CastShadows = true;
+        light.Enabled = true;
+        SE_LOG_INFO("[PBRTest] Created new directional light entity");
+    }
     
     // Set up HDR IBL environment lighting from cubemap
     se::IBLData ibl;
@@ -228,38 +242,39 @@ void SSGITestLayer::RenderDebugPanel() {
     
     ImGui::Separator();
     
-    // Lighting controls
+    // Lighting controls - modify the light entity's components
     ImGui::Text("Directional Light:");
     
-    static float lightAzimuth = 210.0f;  // Degrees around Y axis
-    static float lightElevation = 45.0f; // Degrees above horizon
-    static se::Vector3 lightColor(1.0f, 0.95f, 0.9f);
-    static float lightIntensity = 2.0f;
+    // Initialize static values from the entity on first frame
+    static float lightAzimuth = 210.0f;
+    static float lightElevation = 45.0f;
     static bool firstFrame = true;
     
-    bool lightChanged = firstFrame;
-    lightChanged |= ImGui::SliderFloat("Azimuth", &lightAzimuth, 0.0f, 360.0f, "%.1f deg");
-    lightChanged |= ImGui::SliderFloat("Elevation", &lightElevation, 5.0f, 90.0f, "%.1f deg");
-    lightChanged |= ImGui::ColorEdit3("Light Color", &lightColor.x);
-    lightChanged |= ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 10.0f);
-    
-    if (lightChanged) {
-        // Convert spherical to cartesian: direction FROM light TO scene
-        float azimuthRad = glm::radians(lightAzimuth);
-        float elevationRad = glm::radians(lightElevation);
-        se::Vector3 lightDir;
-        lightDir.x = cos(elevationRad) * sin(azimuthRad);
-        lightDir.y = -sin(elevationRad);  // Negative because pointing down
-        lightDir.z = cos(elevationRad) * cos(azimuthRad);
-        lightDir = glm::normalize(lightDir);
+    if (lightEntity_.IsValid() && lightEntity_.HasComponent<se::DirectionalLightComponent>()) {
+        auto& light = lightEntity_.GetComponent<se::DirectionalLightComponent>();
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
         
-        se::SceneRenderer::DirectionalLightData sunLight;
-        sunLight.Direction = lightDir;
-        sunLight.Color = lightColor;
-        sunLight.Intensity = lightIntensity;
-        sunLight.Active = true;
-        sunLight.CastShadows = true;
-        renderer.SetDirectionalLight(sunLight);
+        // On first frame, derive azimuth/elevation from entity's rotation
+        if (firstFrame) {
+            se::Vector3 rotation = transform.Rotation;
+            // rotation.x > 0 means light points down, so elevation = rotation.x
+            lightElevation = rotation.x;
+            lightAzimuth = rotation.y + 180.0f;
+        }
+        
+        bool lightChanged = false;
+        lightChanged |= ImGui::SliderFloat("Azimuth", &lightAzimuth, 0.0f, 360.0f, "%.1f deg");
+        lightChanged |= ImGui::SliderFloat("Elevation", &lightElevation, 5.0f, 90.0f, "%.1f deg");
+        lightChanged |= ImGui::ColorEdit3("Light Color", &light.Color.x);
+        lightChanged |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.0f, 10.0f);
+        
+        if (lightChanged) {
+            // Positive elevation -> positive rotation.x tilts forward vector down
+            // RenderSystem uses -transform.GetForward() for direction FROM light TO scene
+            transform.SetRotation({lightElevation, lightAzimuth - 180.0f, 0.0f});
+        }
+    } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "No light entity found!");
     }
     
     ImGui::Separator();

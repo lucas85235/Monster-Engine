@@ -189,7 +189,7 @@ void main() {
     PixelParams pixel = getPixelParams(material, shading);
     
     // Create directional light
-    Light light = createDirectionalLight(-uLightDirection, uLightColor, uLightIntensity);
+    Light light = createDirectionalLight(uLightDirection, uLightColor, uLightIntensity);
     light.NoL = saturate(dot(normal, light.l));
     
     // Shadow

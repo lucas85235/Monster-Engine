@@ -154,10 +154,11 @@ vec3 sheenLobe(PixelParams pixel, float NoV, float NoL, float NoH) {
 vec3 surfaceShading(PixelParams pixel, ShadingData shading, Light light, float occlusion) {
     vec3 h = normalize(shading.view + light.l);
     
-    float NoV = shading.NoV;
+    // Ensure minimum values to prevent NaN in BRDF calculations
+    float NoV = max(shading.NoV, MIN_N_DOT_V);
     float NoL = saturate(light.NoL);
     float NoH = saturate(dot(shading.normal, h));
-    float LoH = saturate(dot(light.l, h));
+    float LoH = max(saturate(dot(light.l, h)), MIN_N_DOT_V);
     
     if (NoL <= 0.0) {
         return vec3(0.0);
@@ -187,19 +188,23 @@ vec3 surfaceShading(PixelParams pixel, ShadingData shading, Light light, float o
         color += clearCoat;
     }
     
-    // Final light contribution
-    return (color * light.colorIntensity.rgb) *
+    // Final light contribution - guard against NaN
+    vec3 result = (color * light.colorIntensity.rgb) *
            (light.colorIntensity.w * light.attenuation * NoL * occlusion);
+    
+    // Clamp result to prevent NaN propagation (black pixels)
+    return clamp(result, vec3(0.0), vec3(100.0));
 }
 
 // Simplified surface shading without optional layers
 vec3 surfaceShadingSimple(PixelParams pixel, ShadingData shading, Light light, float occlusion) {
     vec3 h = normalize(shading.view + light.l);
     
-    float NoV = shading.NoV;
+    // Ensure minimum values to prevent NaN in BRDF calculations
+    float NoV = max(shading.NoV, MIN_N_DOT_V);
     float NoL = saturate(light.NoL);
     float NoH = saturate(dot(shading.normal, h));
-    float LoH = saturate(dot(light.l, h));
+    float LoH = max(saturate(dot(light.l, h)), MIN_N_DOT_V);
     
     if (NoL <= 0.0) {
         return vec3(0.0);
@@ -209,8 +214,10 @@ vec3 surfaceShadingSimple(PixelParams pixel, ShadingData shading, Light light, f
     vec3 Fd = diffuseLobe_Lambert(pixel);
     vec3 color = Fd + Fr;
     
-    return (color * light.colorIntensity.rgb) *
+    vec3 result = (color * light.colorIntensity.rgb) *
            (light.colorIntensity.w * light.attenuation * NoL * occlusion);
+    
+    return clamp(result, vec3(0.0), vec3(100.0));
 }
 
 #endif // PBR_SHADING_STANDARD_GLSL

@@ -30,17 +30,25 @@ std::shared_ptr<Material>        RenderSystem::modelMaterial_        = nullptr;
 std::shared_ptr<Material>        RenderSystem::skinnedMaterial_      = nullptr;
 std::array<int, RenderSystem::MAX_BONES> RenderSystem::boneUniformLocations_ = {};
 bool                             RenderSystem::boneLocationsInitialized_ = false;
+uint32_t                         RenderSystem::boneUniformShaderID_ = 0;
 std::unordered_map<InstanceBatchKey, size_t, InstanceBatchKeyHash> RenderSystem::lastFrameInstanceCounts_;
 RenderSystem::BatchResourcesCache RenderSystem::batchResources_;
 
 void RenderSystem::InitBoneUniformLocations(Shader* shader) {
-    if (!shader || boneLocationsInitialized_) return;
+    if (!shader) return;
+    
+    // Re-initialize if shader changed (e.g., after resize/recreation)
+    uint32_t currentShaderID = shader->getID();
+    if (boneLocationsInitialized_ && currentShaderID == boneUniformShaderID_) {
+        return;
+    }
     
     char uniformName[64];
     for (size_t i = 0; i < MAX_BONES; ++i) {
         snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
         boneUniformLocations_[i] = shader->getUniformLocation(uniformName);
     }
+    boneUniformShaderID_ = currentShaderID;
     boneLocationsInitialized_ = true;
 }
 
@@ -435,19 +443,36 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         auto light = sceneRenderer.GetDirectionalLight();
         shader->setVec3("uLightDirection", -light.Direction);
         shader->setVec3("uLightColor", light.Color);
-        shader->setFloat("uLightIntensity", light.Intensity);
+        shader->setFloat("uLightIntensity", light.Active ? light.Intensity : 0.0f);
         shader->setFloat("uAmbientStrength", 0.3f);
-        shader->setFloat("uReceiveShadows", 0.0f);
-        shader->setFloat("uShadowsEnabled", 0.0f);
+        shader->setFloat("uReceiveShadows", 1.0f);
+        shader->setFloat("uShadowsEnabled", light.Active && light.CastShadows ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", 0.5f);
         shader->setFloat("uAORadius", 1.0f);
+        
+        // Set IBL uniforms (get from SceneRenderer's IBL data)
+        const auto& iblData = sceneRenderer.GetEnvironmentLighting();
+        shader->setVec3Array("uSH", iblData.SphericalHarmonics, 9);
+        shader->setFloat("uIBLIntensity", iblData.Intensity);
+        shader->setVec3("uSkyColor", iblData.SkyColor);
+        shader->setVec3("uGroundColor", iblData.GroundColor);
+        shader->setFloat("uExposure", 1.0f);
 
         // Set default texture uniforms
         shader->setInt("uHasAlbedo", 0);
         shader->setInt("uHasNormal", 0);
         shader->setInt("uHasSpecular", 0);
         shader->setInt("uHasAO", 0);
+        shader->setInt("uHasMetallic", 0);
+        shader->setInt("uHasRoughness", 0);
+        shader->setInt("uHasEmissive", 0);
+        shader->setInt("uHasMetallicRoughness", 0);
         shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+        shader->setFloat("uMetallicFactor", 0.0f);
+        shader->setFloat("uRoughnessFactor", 0.5f);
+        shader->setFloat("uReflectance", 0.5f);
+        shader->setFloat("uAOFactor", 1.0f);
+        shader->setFloat("uNormalScale", 1.0f);
         shader->setFloat("uShininess", 32.0f);
 
         // Draw all meshes

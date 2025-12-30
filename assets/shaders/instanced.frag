@@ -128,8 +128,8 @@ float CalculateCascadedShadow(vec3 worldPos, float viewDepth, vec3 normal, vec3 
     if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
     
     float ndotl = max(dot(normal, lightDir), 0.0);
-    float baseBias = 0.0005 * (1.0 + float(cascade) * 0.5);
-    float bias = max(baseBias * (1.0 - ndotl), baseBias * 0.1);
+    float baseBias = 0.0001 * (1.0 + float(cascade) * 0.3);
+    float bias = max(baseBias * (1.0 - ndotl), baseBias * 0.05);
     
     // PCF 3x3
     float shadow = 0.0;
@@ -175,7 +175,7 @@ void main() {
     PixelParams pixel = getPixelParams(material, shading);
     
     // Create directional light
-    Light light = createDirectionalLight(-uLightDirection, uLightColor, uLightIntensity);
+    Light light = createDirectionalLight(uLightDirection, uLightColor, uLightIntensity);
     light.NoL = saturate(dot(normal, light.l));
     
     // 6. Calculate shadow

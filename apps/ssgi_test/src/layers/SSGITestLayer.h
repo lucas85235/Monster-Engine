@@ -2,6 +2,7 @@
 
 #include "engine/Layer.h"
 #include "engine/ecs/Scene.h"
+#include "engine/ecs/Entity.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/PBRMaterial.h"
 
@@ -39,6 +40,8 @@ private:
     float cameraYaw_ = -90.0f;
     float cameraPitch_ = -15.0f;
     float camera_speed_ = 5.0f;
+    
+    se::Entity lightEntity_;
 };
 
 } // namespace SSGITest

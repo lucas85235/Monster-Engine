@@ -141,7 +141,8 @@ vec3 computeF0(vec3 baseColor, float metallic, float reflectance) {
 
 float D_GGX(float NoH, float roughness) {
     float a = NoH * roughness;
-    float k = roughness / (1.0 - NoH * NoH + a * a);
+    float denom = max(1.0 - NoH * NoH + a * a, 1e-6);
+    float k = roughness / denom;
     return k * k * (1.0 / PI);
 }
 
@@ -157,7 +158,7 @@ float D_GGX_Precise(float roughness, float NoH, vec3 n, vec3 h) {
 float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
     float a2 = at * ab;
     highp vec3 d = vec3(ab * ToH, at * BoH, a2 * NoH);
-    highp float d2 = dot(d, d);
+    highp float d2 = max(dot(d, d), 1e-6);
     float b2 = a2 / d2;
     return a2 * b2 * b2 * (1.0 / PI);
 }
@@ -180,7 +181,7 @@ float V_SmithGGXCorrelated(float NoV, float NoL, float roughness) {
     float a2 = roughness * roughness;
     float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
     float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
-    return 0.5 / (GGXV + GGXL);
+    return 0.5 / max(GGXV + GGXL, 1e-6);
 }
 
 // Fast approximation - Hammon 2017
@@ -190,19 +191,19 @@ float V_SmithGGXCorrelated_Fast(float NoV, float NoL, float roughness) {
 
 // Kelemen visibility for clear coat - Kelemen 2001
 float V_Kelemen(float LoH) {
-    return 0.25 / (LoH * LoH);
+    return 0.25 / max(LoH * LoH, 1e-6);
 }
 
 // Neubelt visibility for cloth - Neubelt and Pettineo 2013
 float V_Neubelt(float NoV, float NoL) {
-    return 1.0 / (4.0 * (NoL + NoV - NoL * NoV));
+    return 1.0 / max(4.0 * (NoL + NoV - NoL * NoV), 1e-6);
 }
 
 // Anisotropic Smith visibility
 float V_SmithGGXCorrelated_Anisotropic(float at, float ab, float ToV, float BoV, float ToL, float BoL, float NoV, float NoL) {
     float lambdaV = NoL * length(vec3(at * ToV, ab * BoV, NoV));
     float lambdaL = NoV * length(vec3(at * ToL, ab * BoL, NoL));
-    return 0.5 / (lambdaV + lambdaL);
+    return 0.5 / max(lambdaV + lambdaL, 1e-6);
 }
 
 // -----------------------------------------------------------------------------
