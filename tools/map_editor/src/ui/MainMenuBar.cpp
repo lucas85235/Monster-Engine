@@ -89,6 +89,26 @@ void MainMenuBar::RenderCreateMenu(MenuBarActions& actions) {
 
 void MainMenuBar::RenderViewMenu(MenuBarActions& actions) {
     if (ImGui::BeginMenu("View")) {
+        ImGui::Text("Panels");
+        ImGui::Separator();
+        
+        if (panelVisibility_.viewport) {
+            ImGui::MenuItem("Viewport", nullptr, panelVisibility_.viewport);
+        }
+        if (panelVisibility_.hierarchy) {
+            ImGui::MenuItem("Hierarchy", nullptr, panelVisibility_.hierarchy);
+        }
+        if (panelVisibility_.properties) {
+            ImGui::MenuItem("Properties", nullptr, panelVisibility_.properties);
+        }
+        if (panelVisibility_.statusBar) {
+            ImGui::MenuItem("Status Bar", nullptr, panelVisibility_.statusBar);
+        }
+        
+        ImGui::Separator();
+        ImGui::Text("Display");
+        ImGui::Separator();
+        
         if (ImGui::MenuItem("Toggle Grid", "G")) {
             actions.toggleGrid = true;
         }

@@ -105,11 +105,45 @@ jobs:
           GAME_NAME="ThirdPersonGame"
           DIST_DIR="dist/$GAME_NAME"
           
-          # Create distribution directory
-          mkdir -p "$DIST_DIR"
+          # Create distribution directories
+          mkdir -p "$DIST_DIR/lib"
           
           # Copy executable
           cp build/apps/third_person_game/third_person_game "$DIST_DIR/"
+          
+          # Copy all required shared libraries using ldd
+          echo "Copying shared libraries..."
+          ldd build/apps/third_person_game/third_person_game | grep "=>" | awk '{print $3}' | while read lib; do
+            if [ -f "$lib" ]; then
+              # Copy libc++, libunwind, and other non-system libraries
+              case "$lib" in
+                */libc++*|*/libunwind*|*/libgcc_s*|*/libstdc++*)
+                  echo "  Copying: $lib"
+                  cp "$lib" "$DIST_DIR/lib/" 2>/dev/null || true
+                  ;;
+              esac
+            fi
+          done
+          
+          # Also copy these explicitly in case ldd misses them
+          for lib in libc++.so.1 libc++abi.so.1 libunwind.so.1; do
+            if [ -f "/usr/lib/x86_64-linux-gnu/$lib" ]; then
+              cp "/usr/lib/x86_64-linux-gnu/$lib" "$DIST_DIR/lib/" 2>/dev/null || true
+            fi
+          done
+          
+          # Create launcher script
+          cat > "$DIST_DIR/run.sh" << 'LAUNCHER'
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
+          exec "$SCRIPT_DIR/third_person_game" "$@"
+          LAUNCHER
+          chmod +x "$DIST_DIR/run.sh"
+          
+          # List bundled libraries
+          echo "Bundled libraries:"
+          ls -la "$DIST_DIR/lib/"
           
           # Copy assets
           if [ -d "assets" ]; then

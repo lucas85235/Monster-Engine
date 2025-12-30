@@ -62,10 +62,24 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
         float ny     = normals[i][1];
         float nz     = normals[i][2];
         float length = std::sqrt(nx * nx + ny * ny + nz * nz);
-        if (length > 0.f) {
+        if (length > 1e-6f) { // Use epsilon
             nx /= length;
             ny /= length;
             nz /= length;
+        } else {
+            // Fallback: Use processed vertex position as normal (works for centered Sphere/Capsule)
+            // Or just Up vector. Position is safer for rounded objects.
+             float px = newVerts[newVerts.size() - 6];
+             float py = newVerts[newVerts.size() - 5];
+             float pz = newVerts[newVerts.size() - 4];
+             float pl = std::sqrt(px*px + py*py + pz*pz);
+             if (pl > 1e-6f) {
+                 nx = px / pl;
+                 ny = py / pl;
+                 nz = pz / pl;
+             } else {
+                 nx = 0.0f; ny = 1.0f; nz = 0.0f; // Default Up
+             }
         }
         newVerts.push_back(nx);
         newVerts.push_back(ny);
@@ -73,6 +87,14 @@ static void addNormals(std::vector<float>& vertices, const std::vector<unsigned 
     }
 
     vertices.swap(newVerts);
+
+    // DEBUG: Verify normals
+    if (vertexCount > 0) {
+        float nx = vertices[6];
+        float ny = vertices[7];
+        float nz = vertices[8];
+        printf("[MeshFactory] Generated normals for mesh. First normal: (%.2f, %.2f, %.2f)\n", nx, ny, nz);
+    }
 }
 }  // namespace
 

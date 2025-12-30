@@ -1,5 +1,6 @@
 #include "engine/renderer/SceneRenderer.h"
 
+#include <cstdio>
 #include <glad/glad.h>
 
 #include <gtc/matrix_transform.hpp>
@@ -13,6 +14,7 @@
 #include "engine/renderer/RenderCommand.h"
 #include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/Texture.h"
+#include "engine/renderer/SSGIPass.h"
 
 namespace {
 constexpr const char* kShadowVertexSource = R"(#version 330 core
@@ -93,6 +95,10 @@ void SceneRenderer::Init() {
     // TODO(GI): Re-enable Radiance Cascades initialization when feature is ready
     // radianceCascades_ = std::make_unique<RadianceCascadesPass>();
     
+    // Initialize SSGI pass (will be initialized on first frame with dimensions)
+    ssgiPass_ = std::make_unique<SSGIPass>();
+    SE_LOG_INFO("SSGI pass created (lazy init)");
+    
     initialized_ = true;
 }
 
@@ -119,6 +125,11 @@ void SceneRenderer::Shutdown() {
     if (voxelizer_) {
         voxelizer_->Shutdown();
         voxelizer_.reset();
+    }
+    
+    if (ssgiPass_) {
+        ssgiPass_->Shutdown();
+        ssgiPass_.reset();
     }
     
     gbufferShader_.reset();
@@ -189,16 +200,35 @@ void SceneRenderer::EndScene() {
         screenWidth_ = width;
         screenHeight_ = height;
         
-        if (gbuffer_ && !gbuffer_->IsInitialized()) {
-            gbuffer_->Init(width, height);
-        } else if (gbuffer_ && gbuffer_->IsInitialized()) {
+        // Resize existing resources
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
             gbuffer_->Resize(width, height);
         }
+        
+        // Resize SSGI if already initialized
+        if (ssgiPass_ && ssgiPass_->IsInitialized()) {
+            ssgiPass_->Resize(width, height);
+        }
+    }
+    
+    // Always initialize GBuffer if needed but not yet initialized (independent of size change)
+    if (width > 0 && height > 0 && gbuffer_ && !gbuffer_->IsInitialized()) {
+        gbuffer_->Init(width, height);
+        screenWidth_ = width;
+        screenHeight_ = height;
+        printf("[GBuffer] Lazy init: %dx%d\n", width, height);
+    }
+    
+    // Always initialize SSGI if enabled but not yet initialized (independent of size change)
+    if (width > 0 && height > 0 && ssgiPass_ && ssgiPass_->IsEnabled() && !ssgiPass_->IsInitialized()) {
+        ssgiPass_->Init(width, height);
+        printf("[SSGI] Lazy init: %dx%d\n", width, height);
     }
     
     // Step 1: Render scene to G-Buffer (for emissive data)
     bool needGBuffer = (radianceCascades_ && radianceCascades_->IsEnabled()) ||
-                       (sparseRC_ && sparseRC_->IsEnabled());
+                       (sparseRC_ && sparseRC_->IsEnabled()) ||
+                       (ssgiPass_ && ssgiPass_->IsReady());
     
     if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
         SE_PROFILE_SCOPE("GBufferPass");
@@ -212,6 +242,39 @@ void SceneRenderer::EndScene() {
                 gbuffer_->GetAlbedoTexture(),
                 gbuffer_->GetEmissiveTexture(),
                 screenWidth_, screenHeight_);
+        }
+        
+        // Execute SSGI if enabled
+        if (ssgiPass_ && ssgiPass_->IsReady()) {
+            SE_PROFILE_SCOPE("SSGI");
+            
+            // Ensure G-Buffer textures are fully written before compute shader reads them
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
+            
+            // Ensure proper resolution for SSGI (in case resolution scale changed)
+            ssgiPass_->Resize(screenWidth_, screenHeight_);
+            
+            // Update light data for sun contribution
+            if (sceneData_.directional_light.Active) {
+                ssgiPass_->SetLightData(
+                    -sceneData_.directional_light.Direction,
+                    sceneData_.directional_light.Color,
+                    sceneData_.directional_light.Intensity
+                );
+            }
+            
+            ssgiPass_->Execute(
+                gbuffer_->GetPositionTexture(),
+                gbuffer_->GetNormalTexture(),
+                gbuffer_->GetAlbedoTexture(),
+                gbuffer_->GetEmissiveTexture(),
+                gbuffer_->GetDepthTexture(),
+                sceneData_.ProjectionMatrix,
+                sceneData_.ViewMatrix,
+                glm::inverse(sceneData_.ProjectionMatrix),
+                glm::inverse(sceneData_.ViewMatrix),
+                sceneData_.CameraPosition
+            );
         }
     }
     
@@ -766,6 +829,7 @@ void SceneRenderer::RenderScenePass() {
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
+        float giIntensity = 1.0f;
         if (radianceCascades_ && radianceCascades_->IsEnabled()) {
             uint32_t giTex = radianceCascades_->GetRadianceTexture();
             if (giTex != 0) {
@@ -781,16 +845,27 @@ void SceneRenderer::RenderScenePass() {
                 glBindTexture(GL_TEXTURE_2D, giTex);
                 shader->setInt("uGIMap", 8);
                 hasGI = 1;
+                giIntensity = sparseRC_->GetConfig().GIIntensity;
+            }
+        } else if (ssgiPass_ && ssgiPass_->IsReady()) {
+            uint32_t giTex = ssgiPass_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+                giIntensity = ssgiPass_->GetConfig().Intensity;
             }
         }
         shader->setInt("uHasGI", hasGI);
-        float giIntensity = sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f;
         shader->setFloat("uGIIntensity", giIntensity);
         
         // Debug log first submission only to avoid spam
         static int giLogCount = 0;
-        if (hasGI && giLogCount++ < 10) {
-            SE_LOG_INFO("GI Binding: hasGI={}, giIntensity={}", hasGI, giIntensity);
+        if (giLogCount++ < 10) {
+            bool isReady = ssgiPass_ ? ssgiPass_->IsReady() : false;
+            printf("[Model] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f, isReady=%d\n", 
+                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity, isReady);
         }
 
 
@@ -864,6 +939,7 @@ void SceneRenderer::RenderScenePass() {
         
         // Bind Radiance Cascades GI texture if available
         int hasGI = 0;
+        float giIntensity = 1.0f;
         if (radianceCascades_ && radianceCascades_->IsEnabled()) {
             uint32_t giTex = radianceCascades_->GetRadianceTexture();
             if (giTex != 0) {
@@ -879,12 +955,27 @@ void SceneRenderer::RenderScenePass() {
                 glBindTexture(GL_TEXTURE_2D, giTex);
                 shader->setInt("uGIMap", 8);
                 hasGI = 1;
+                giIntensity = sparseRC_->GetConfig().GIIntensity;
+            }
+        } else if (ssgiPass_ && ssgiPass_->IsReady()) {
+            uint32_t giTex = ssgiPass_->GetRadianceTexture();
+            if (giTex != 0) {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, giTex);
+                shader->setInt("uGIMap", 8);
+                hasGI = 1;
+                giIntensity = ssgiPass_->GetConfig().Intensity;
             }
         }
         shader->setInt("uHasGI", hasGI);
-        shader->setFloat("uGIIntensity", sparseRC_ && sparseRC_->IsEnabled() ? sparseRC_->GetConfig().GIIntensity : 1.0f);
+        shader->setFloat("uGIIntensity", giIntensity);
 
-
+        // Debug log for instanced path
+        static int instGiLogCount = 0;
+        if (instGiLogCount++ < 10) {
+            printf("[Instanced] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f\n", 
+                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity);
+        }
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
 
@@ -1007,6 +1098,39 @@ SparseRCConfig& SceneRenderer::GetSparseRCConfig() {
     static SparseRCConfig fallback;
     if (sparseRC_) {
         return const_cast<SparseRCConfig&>(sparseRC_->GetConfig());
+    }
+    return fallback;
+}
+
+// SSGI (Screen Space Global Illumination) - HBIL
+void SceneRenderer::SetSSGIEnabled(bool enabled) {
+    if (ssgiPass_) {
+        ssgiPass_->SetEnabled(enabled);
+        // When enabling SSGI, disable old RC systems
+        if (enabled) {
+            if (radianceCascades_) radianceCascades_->SetEnabled(false);
+            if (sparseRC_) sparseRC_->SetEnabled(false);
+        }
+        SE_LOG_INFO("SSGI {}", enabled ? "enabled" : "disabled");
+    }
+}
+
+bool SceneRenderer::IsSSGIEnabled() const {
+    return ssgiPass_ && ssgiPass_->IsEnabled();
+}
+
+SSGIConfig& SceneRenderer::GetSSGIConfig() {
+    static SSGIConfig fallback;
+    if (ssgiPass_) {
+        return ssgiPass_->GetConfig();
+    }
+    return fallback;
+}
+
+const SSGIConfig& SceneRenderer::GetSSGIConfig() const {
+    static SSGIConfig fallback;
+    if (ssgiPass_) {
+        return ssgiPass_->GetConfig();
     }
     return fallback;
 }

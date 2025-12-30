@@ -3,6 +3,7 @@
 #include <ImGuizmo.h>
 #include <glad/glad.h>
 
+#include "../commands/EntityCommands.h"
 #include "../core/EditorContext.h"
 #include "engine/Log.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -56,13 +57,32 @@ void ViewportPanel::RenderGizmo(EditorContext& ctx) {
     if (!entity.IsValid() || !entity.HasComponent<se::TransformComponent>()) return;
     
     auto& transform = entity.GetComponent<se::TransformComponent>();
+    auto& gizmo = ctx.GetGizmo();
     float aspectRatio = renderer_->GetAspectRatio();
     
-    bool manipulated = ctx.GetGizmo().Manipulate(
+    // Store original transform before manipulation starts
+    if (ImGuizmo::IsOver() && ImGui::IsMouseClicked(0)) {
+        gizmo.BeginManipulation(entity, transform);
+    }
+    
+    bool manipulated = gizmo.Manipulate(
         ctx.GetCamera().GetCamera(), aspectRatio, transform);
     
     if (manipulated) {
         ctx.GetDocument().MarkDirty();
+    }
+    
+    // Create undo command when manipulation ends
+    if (gizmo.EndedManipulation()) {
+        auto manipulatedEntity = gizmo.GetManipulatedEntity();
+        if (manipulatedEntity.IsValid()) {
+            ctx.GetCommandSystem().Execute(
+                std::make_unique<TransformEntityCommand>(
+                    ctx, manipulatedEntity,
+                    gizmo.GetOriginalTransform(),
+                    transform));
+        }
+        gizmo.ClearEndedFlag();
     }
 }
 

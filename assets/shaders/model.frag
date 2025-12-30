@@ -285,8 +285,15 @@ void main() {
         vec2 screenUV = gl_FragCoord.xy / vec2(texSize);
         // Ensure UV is clamped
         screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
-        vec3 giContribution = texture(uGIMap, screenUV).rgb * uGIIntensity;
-        indirectLight += giContribution * mix(diffuseColor, vec3(0.04), metallic);
+        vec3 giContribution = texture(uGIMap, screenUV).rgb;
+        
+        // DEBUG: If intensity > 4, output raw GI only
+        if (uGIIntensity > 4.0) {
+            fragColor = vec4(giContribution, 1.0);
+            return;
+        }
+        
+        indirectLight += giContribution * uGIIntensity * mix(diffuseColor, vec3(0.04), metallic);
     }
 
 

@@ -23,10 +23,11 @@ void main() {
     vec4 worldPos = a_InstanceTransform * vec4(a_Position, 1.0);
     v_WorldPos = worldPos.xyz;
     
+    // Proper normal transformation for instanced geometry
     mat3 normalMatrix = transpose(inverse(mat3(a_InstanceTransform)));
     v_Normal = normalize(normalMatrix * a_Normal);
     
-    // Use instance color (xyz component of vec4)
+    // Use instance color
     v_Color = a_InstanceColor.rgb;
     
     gl_Position = uProj * uView * worldPos;

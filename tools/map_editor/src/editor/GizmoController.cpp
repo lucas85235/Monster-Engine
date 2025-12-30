@@ -36,6 +36,14 @@ void GizmoController::CycleOperation() {
     SE_LOG_INFO("GizmoController: Operation cycled to {}", GetOperationName());
 }
 
+void GizmoController::BeginManipulation(se::Entity entity, const se::TransformComponent& transform) {
+    if (!hasOriginal_) {
+        manipulatedEntity_ = entity;
+        originalTransform_ = transform;
+        hasOriginal_ = true;
+    }
+}
+
 bool GizmoController::Manipulate(const Camera& camera, float aspectRatio,
                                   se::TransformComponent& transform) {
     ImGuizmo::OPERATION imguizmoOp = ImGuizmo::TRANSLATE;
@@ -53,7 +61,6 @@ bool GizmoController::Manipulate(const Camera& camera, float aspectRatio,
     Matrix4 model      = transform.GetTransform();
 
     ImGuizmo::SetOrthographic(false);
-    // Note: SetDrawlist and SetRect are called in MapEditorLayer::RenderViewport
 
     float deltaMatrix[16];
     float snapValues[3] = {0.0f, 0.0f, 0.0f};
@@ -62,7 +69,15 @@ bool GizmoController::Manipulate(const Camera& camera, float aspectRatio,
                                              imguizmoOp, imguizmoMode, glm::value_ptr(model),
                                              deltaMatrix, nullptr);
 
+    wasUsing_ = isUsing_;
     isUsing_ = ImGuizmo::IsUsing();
+    
+    // Detect when manipulation ends
+    if (wasUsing_ && !isUsing_ && hasOriginal_) {
+        justEnded_ = true;
+        hasOriginal_ = false;
+        SE_LOG_INFO("GizmoController: Manipulation ended");
+    }
 
     if (manipulated && isUsing_) {
         Vector3 position, rotation, scale;

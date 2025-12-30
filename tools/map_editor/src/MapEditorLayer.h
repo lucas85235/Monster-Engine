@@ -54,6 +54,12 @@ private:
     // Input state
     float lastMouseX_ = 0.0f;
     float lastMouseY_ = 0.0f;
+    
+    // Panel visibility (for View menu)
+    bool viewportVisible_ = true;
+    bool hierarchyVisible_ = true;
+    bool propertiesVisible_ = true;
+    bool statusBarVisible_ = true;
 };
 
 }  // namespace mst
