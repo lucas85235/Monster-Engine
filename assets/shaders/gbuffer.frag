@@ -14,9 +14,7 @@ uniform float uEmissiveFactor;
 
 void main() {
     gPosition = vec4(v_WorldPos, 1.0);
-    gNormal = vec4(normalize(v_Normal), 0.0);
+    gNormal = vec4(normalize(v_Normal), 1.0);
     gAlbedo = vec4(v_Color, 1.0);
-    
-    // Use emissive color from uniform (default 0 = no emission)
     gEmissive = vec4(uEmissiveColor * uEmissiveFactor, 1.0);
 }

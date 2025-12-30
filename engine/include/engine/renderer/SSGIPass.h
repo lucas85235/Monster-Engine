@@ -64,6 +64,11 @@ public:
     // Output texture
     uint32_t GetRadianceTexture() const { return finalRadianceTex_; }
     
+    // Debug textures
+    uint32_t GetSHTexture(int index) const { 
+        return (index >= 0 && index < 4) ? shCoeffTex_[index] : 0; 
+    }
+    
     // Debug info
     bool IsInitialized() const { return initialized_; }
     int GetWorkWidth() const { return workWidth_; }
@@ -114,6 +119,19 @@ private:
     glm::mat4 invProjection_;
     glm::mat4 invView_;
     glm::vec3 cameraPos_;
+    
+    // Light data for sun contribution in GI
+    glm::vec3 lightDirection_ = glm::vec3(0.3f, 1.0f, 0.2f);
+    glm::vec3 lightColor_     = glm::vec3(1.0f, 0.95f, 0.9f);
+    float lightIntensity_     = 1.0f;
+
+public:
+    // Set light data for sun contribution in GI calculation
+    void SetLightData(const glm::vec3& direction, const glm::vec3& color, float intensity) {
+        lightDirection_ = direction;
+        lightColor_ = color;
+        lightIntensity_ = intensity;
+    }
 };
 
 } // namespace se

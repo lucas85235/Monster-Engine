@@ -41,6 +41,11 @@ uniform float uMaxDistance;
 uniform float uFalloffExponent;
 uniform float uIntensity;
 
+// Light uniforms for proper sun contribution
+uniform vec3 uLightDirection;
+uniform vec3 uLightColor;
+uniform float uLightIntensity;
+
 const float PI = 3.14159265359;
 const float TWO_PI = 6.28318530718;
 
@@ -62,18 +67,32 @@ vec2 projectToScreen(vec3 worldPos) {
 }
 
 // Sample scene radiance at screen UV with LOD
+// Includes direct lighting contribution for proper indirect illumination
 vec3 sampleRadiance(vec2 uv, float lod) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
         return vec3(0.0);
     }
     
-    // Sample albedo and emissive
+    // Sample surface data
     vec3 albedo = textureLod(uAlbedoTex, uv, lod).rgb;
     vec3 emissive = textureLod(uEmissiveTex, uv, lod).rgb;
+    vec3 sampleNormal = textureLod(uNormalTex, uv, lod).xyz;
     
-    // Use emissive directly, add some ambient from albedo
-    return emissive + albedo * 0.1;
+    // Skip invalid samples
+    if (length(sampleNormal) < 0.01) {
+        return vec3(0.0);
+    }
+    sampleNormal = normalize(sampleNormal);
+    
+    // Use actual scene light direction and color
+    vec3 lightDir = normalize(uLightDirection);
+    float NdotL = max(dot(sampleNormal, lightDir), 0.0);
+    vec3 directLight = albedo * uLightColor * NdotL * uLightIntensity * 0.3;
+    
+    // Combine: emissive + direct light + ambient from albedo
+    return emissive + directLight + albedo * 0.1;
 }
+
 
 void main() {
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -83,13 +102,18 @@ void main() {
     
     vec2 uv = (vec2(pixelCoord) + 0.5) / uResolution;
     
-    // Get surface data
+    // Get surface data from G-Buffer
     vec3 worldPos = texture(uPositionTex, uv).xyz;
-    vec3 normal = normalize(texture(uNormalTex, uv).xyz);
-    float depth = texture(uDepthTex, uv).r;
+    vec4 normalData = texture(uNormalTex, uv);
+    vec3 albedo = texture(uAlbedoTex, uv).rgb;
     
-    // Skip sky pixels
-    if (depth >= 1.0) {
+    vec3 normal = normalize(normalData.xyz);
+
+    // Use position to detect sky instead of depth (depth texture has issues)
+    // If position is at origin or normal is invalid, this is sky/empty
+    bool isSky = length(worldPos) < 0.01 || length(normalData.xyz) < 0.01;
+    
+    if (isSky) {
         imageStore(uSH0, pixelCoord, vec4(0.0));
         imageStore(uSH1, pixelCoord, vec4(0.0));
         imageStore(uSH2, pixelCoord, vec4(0.0));
@@ -97,7 +121,6 @@ void main() {
         return;
     }
     
-    // Accumulate SH coefficients
     vec3 sh0 = vec3(0.0);
     vec3 sh1 = vec3(0.0);
     vec3 sh2 = vec3(0.0);
@@ -140,7 +163,8 @@ void main() {
             float stepT = float(step) / float(uStepsPerRay);
             float dist = stepT * uMaxDistance;
             
-            vec3 samplePos = worldPos + rayDir * dist + normal * 0.1;
+            // Offset along normal to avoid self-intersection at origin
+            vec3 samplePos = worldPos + rayDir * dist + normal * 0.05;
             vec2 sampleUV = projectToScreen(samplePos);
             
             // Check valid screen bounds
@@ -148,20 +172,41 @@ void main() {
                 continue;
             }
             
-            // Check depth against scene
+            // Get scene data at sample position
             vec3 scenePosAtSample = texture(uPositionTex, sampleUV).xyz;
-            float distToScene = length(scenePosAtSample - samplePos);
             
-            // If close to a surface, sample its radiance
-            if (distToScene < 0.5) {
+            // Skip invalid surface (sky/cleared buffer)
+            if (length(scenePosAtSample) < 0.01) continue;
+
+            vec3 sceneNormal = normalize(texture(uNormalTex, sampleUV).xyz);
+            
+            // Depth/Distance test
+            float rayDist = length(samplePos - uCameraPos);
+            float surfDist = length(scenePosAtSample - uCameraPos);
+            
+            // Adaptive thickness based on step size to prevent stepping over thin objects
+            float stepSize = uMaxDistance / float(uStepsPerRay);
+            float thickness = max(0.5, stepSize * 1.5);
+            
+            // Front face check: Ray should hit front of surface (opposing normal)
+            float rayDotNormal = dot(rayDir, sceneNormal);
+            bool isFrontFace = rayDotNormal < 0.1;
+            
+            // Hit condition: Ray is behind visible surface, within thickness, and hitting front face
+            if (rayDist > surfDist && rayDist < surfDist + thickness && isFrontFace) {
                 float distFalloff = pow(1.0 - stepT, uFalloffExponent);
-                float lod = stepT * 4.0;  // Use higher mip for distant samples
+                float lod = stepT * 4.0;
                 vec3 radiance = sampleRadiance(sampleUV, lod);
+                
+                // Clamp radiance to prevent SH ringing/rainbow artifacts from strong highlights
+                radiance = clamp(radiance, vec3(0.0), vec3(10.0));
+                
                 accumulatedRadiance += radiance * distFalloff;
                 rayWeight += distFalloff;
-                break;  // Hit something, stop marching
+                break;
             }
         }
+
         
         if (rayWeight > 0.0) {
             accumulatedRadiance /= rayWeight;
@@ -210,9 +255,10 @@ layout(binding = 1) uniform sampler2D uSH1;
 layout(binding = 2) uniform sampler2D uSH2;
 layout(binding = 3) uniform sampler2D uSH3;
 
-// Full-res normal and depth for bilateral weighting
+// Full-res G-Buffer for bilateral weighting and debug
 layout(binding = 4) uniform sampler2D uNormalTex;
 layout(binding = 5) uniform sampler2D uDepthTex;
+layout(binding = 6) uniform sampler2D uPositionTex;
 
 uniform vec2 uOutputResolution;
 uniform vec2 uWorkResolution;
@@ -220,6 +266,8 @@ uniform int uBlurRadius;
 uniform float uDepthThreshold;
 uniform float uNormalThreshold;
 uniform int uDebugMode;
+uniform vec3 uCameraPos;
+
 
 // SH basis functions (L1)
 vec4 shBasis(vec3 dir) {
@@ -251,20 +299,34 @@ void main() {
     vec2 uv = (vec2(pixelCoord) + 0.5) / uOutputResolution;
     
     // Get full-res surface data
-    vec3 normal = normalize(texture(uNormalTex, uv).xyz);
-    float depth = texture(uDepthTex, uv).r;
+    vec4 normalData = texture(uNormalTex, uv);
+    vec3 normal = normalize(normalData.xyz);
+    
+    // Use normal to detect sky instead of depth (depth texture has issues)
+    bool isSky = length(normalData.xyz) < 0.01;
     
     // Debug modes
     if (uDebugMode == 3) {
-        imageStore(uOutputTex, pixelCoord, vec4(normal * 0.5 + 0.5, 1.0));
+        // Raw normal texture (without normalize, just abs to see)
+        imageStore(uOutputTex, pixelCoord, vec4(abs(normalData.xyz), 1.0));
+        return;
+    }
+    
+    if (uDebugMode == 4) {
+        // Depth visualization using position distance from camera
+        vec3 worldPos = texture(uPositionTex, uv).xyz;
+        float depth = length(worldPos - uCameraPos);
+        float normalizedDepth = clamp(depth / 50.0, 0.0, 1.0);  // Normalize to 0-50 units
+        imageStore(uOutputTex, pixelCoord, vec4(vec3(normalizedDepth), 1.0));
         return;
     }
     
     // Skip sky
-    if (depth >= 1.0) {
+    if (isSky) {
         imageStore(uOutputTex, pixelCoord, vec4(0.0, 0.0, 0.0, 1.0));
         return;
     }
+
     
     // Bilateral upscale
     vec3 totalSH0 = vec3(0.0);
@@ -284,17 +346,16 @@ void main() {
                 continue;
             }
             
-            // Sample neighbor normal and depth (at full res for accuracy)
+            // Sample neighbor normal (at full res for accuracy)
             vec2 fullResSampleUV = sampleUV;
-            vec3 sampleNormal = normalize(texture(uNormalTex, fullResSampleUV).xyz);
-            float sampleDepth = texture(uDepthTex, fullResSampleUV).r;
+            vec4 sampleNormalData = texture(uNormalTex, fullResSampleUV);
+            vec3 sampleNormal = normalize(sampleNormalData.xyz);
             
-            // Bilateral weights
+            // Bilateral weights (normal-based only since depth texture has issues)
             float normalWeight = pow(max(0.0, dot(normal, sampleNormal)), 32.0);
-            float depthWeight = exp(-abs(depth - sampleDepth) / uDepthThreshold);
             float spatialWeight = exp(-float(dx*dx + dy*dy) / float(uBlurRadius * uBlurRadius + 1));
             
-            float weight = normalWeight * depthWeight * spatialWeight;
+            float weight = normalWeight * spatialWeight;
             
             if (weight < 0.001) continue;
             
@@ -357,15 +418,19 @@ bool SSGIPass::Init(int width, int height) {
     // Create compute shaders
     raymarchShader_ = std::make_shared<ComputeShader>();
     if (!raymarchShader_->LoadFromSource(kRaymarchShaderSource)) {
+        printf("[SSGI] ERROR: Failed to compile raymarch shader!\n");
         SE_LOG_ERROR("[SSGI] Failed to compile raymarch shader");
         return false;
     }
+    printf("[SSGI] Raymarch shader compiled successfully, valid=%d\n", raymarchShader_->IsValid());
     
     resolveShader_ = std::make_shared<ComputeShader>();
     if (!resolveShader_->LoadFromSource(kResolveShaderSource)) {
+        printf("[SSGI] ERROR: Failed to compile resolve shader!\n");
         SE_LOG_ERROR("[SSGI] Failed to compile resolve shader");
         return false;
     }
+    printf("[SSGI] Resolve shader compiled successfully, valid=%d\n", resolveShader_->IsValid());
     
     CreateTextures();
     
@@ -388,12 +453,16 @@ void SSGIPass::Shutdown() {
 }
 
 void SSGIPass::Resize(int width, int height) {
-    if (screenWidth_ == width && screenHeight_ == height) return;
+    int newWorkW = static_cast<int>(width * config_.ResolutionScale);
+    int newWorkH = static_cast<int>(height * config_.ResolutionScale);
+    
+    if (screenWidth_ == width && screenHeight_ == height && 
+        workWidth_ == newWorkW && workHeight_ == newWorkH && finalRadianceTex_ != 0) return;
     
     screenWidth_ = width;
     screenHeight_ = height;
-    workWidth_ = static_cast<int>(width * config_.ResolutionScale);
-    workHeight_ = static_cast<int>(height * config_.ResolutionScale);
+    workWidth_ = newWorkW;
+    workHeight_ = newWorkH;
     
     SE_LOG_INFO("[SSGI] Resizing to {}x{} (work: {}x{})", 
                 width, height, workWidth_, workHeight_);
@@ -412,6 +481,7 @@ void SSGIPass::CreateTextures() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        printf("[SSGI] Created SH%d texture: ID=%u, size=%dx%d\n", i, shCoeffTex_[i], workWidth_, workHeight_);
     }
     
     // Final radiance texture at full resolution
@@ -422,6 +492,7 @@ void SSGIPass::CreateTextures() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    printf("[SSGI] Created final radiance texture: ID=%u, size=%dx%d\n", finalRadianceTex_, screenWidth_, screenHeight_);
     
     glBindTexture(GL_TEXTURE_2D, 0);
     
@@ -506,6 +577,13 @@ void SSGIPass::RaymarchAndEncode() {
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, lastDepthTex_);
     
+    // Explicitly bind samplers (some drivers ignore layout(binding=X) in compute shaders)
+    raymarchShader_->SetInt("uPositionTex", 0);
+    raymarchShader_->SetInt("uNormalTex", 1);
+    raymarchShader_->SetInt("uAlbedoTex", 2);
+    raymarchShader_->SetInt("uEmissiveTex", 3);
+    raymarchShader_->SetInt("uDepthTex", 4);
+    
     // Set uniforms
     raymarchShader_->SetMat4("uProjection", projection_);
     raymarchShader_->SetMat4("uView", view_);
@@ -518,6 +596,12 @@ void SSGIPass::RaymarchAndEncode() {
     raymarchShader_->SetFloat("uMaxDistance", config_.MaxDistance);
     raymarchShader_->SetFloat("uFalloffExponent", config_.FalloffExponent);
     raymarchShader_->SetFloat("uIntensity", config_.Intensity);
+    
+    // Light uniforms for direct light contribution in GI
+    raymarchShader_->SetVec3("uLightDirection", lightDirection_);
+    raymarchShader_->SetVec3("uLightColor", lightColor_);
+    raymarchShader_->SetFloat("uLightIntensity", lightIntensity_);
+
     
     uint32_t groupsX = (workWidth_ + 7) / 8;
     uint32_t groupsY = (workHeight_ + 7) / 8;
@@ -547,6 +631,17 @@ void SSGIPass::BilateralResolve() {
     glBindTexture(GL_TEXTURE_2D, lastNormalTex_);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, lastDepthTex_);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, lastPositionTex_);
+    
+    // Explicitly bind samplers
+    resolveShader_->SetInt("uSH0", 0);
+    resolveShader_->SetInt("uSH1", 1);
+    resolveShader_->SetInt("uSH2", 2);
+    resolveShader_->SetInt("uSH3", 3);
+    resolveShader_->SetInt("uNormalTex", 4);
+    resolveShader_->SetInt("uDepthTex", 5);
+    resolveShader_->SetInt("uPositionTex", 6);
     
     // Set uniforms
     resolveShader_->SetVec2("uOutputResolution", glm::vec2(screenWidth_, screenHeight_));
@@ -555,6 +650,8 @@ void SSGIPass::BilateralResolve() {
     resolveShader_->SetFloat("uDepthThreshold", config_.DepthThreshold);
     resolveShader_->SetFloat("uNormalThreshold", config_.NormalThreshold);
     resolveShader_->SetInt("uDebugMode", config_.DebugMode);
+    resolveShader_->SetVec3("uCameraPos", cameraPos_);
+
     
     uint32_t groupsX = (screenWidth_ + 7) / 8;
     uint32_t groupsY = (screenHeight_ + 7) / 8;

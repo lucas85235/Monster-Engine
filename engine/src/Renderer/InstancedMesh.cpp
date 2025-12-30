@@ -17,15 +17,17 @@ InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_
     instancedVA_ = std::make_shared<VertexArray>();
 
     // Copy vertex buffers from base VA
-    for (const auto& vb : baseVA->GetVertexBuffers()) { instancedVA_->AddVertexBuffer(vb); }
+    for (const auto& vb : baseVA->GetVertexBuffers()) { 
+        instancedVA_->AddVertexBuffer(vb); 
+    }
 
     // Set index buffer from base VA
-    if (baseVA->GetIndexBuffer()) { instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer()); }
+    if (baseVA->GetIndexBuffer()) { 
+        instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer()); 
+    }
 
     // Add instance buffer with layout
     instancedVA_->AddInstanceBuffer(instanceBuffer_, InstanceData::GetLayout());
-
-    SE_LOG_INFO("Created InstancedMesh with maxInstances={}", maxInstances);
 }
 
 void InstancedMesh::SetInstances(const std::vector<InstanceData>& instances) {

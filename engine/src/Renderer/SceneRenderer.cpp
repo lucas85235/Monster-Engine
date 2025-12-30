@@ -200,18 +200,29 @@ void SceneRenderer::EndScene() {
         screenWidth_ = width;
         screenHeight_ = height;
         
-        if (gbuffer_ && !gbuffer_->IsInitialized()) {
-            gbuffer_->Init(width, height);
-        } else if (gbuffer_ && gbuffer_->IsInitialized()) {
+        // Resize existing resources
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
             gbuffer_->Resize(width, height);
         }
         
-        // Initialize/resize SSGI
-        if (ssgiPass_ && !ssgiPass_->IsInitialized()) {
-            ssgiPass_->Init(width, height);
-        } else if (ssgiPass_ && ssgiPass_->IsInitialized()) {
+        // Resize SSGI if already initialized
+        if (ssgiPass_ && ssgiPass_->IsInitialized()) {
             ssgiPass_->Resize(width, height);
         }
+    }
+    
+    // Always initialize GBuffer if needed but not yet initialized (independent of size change)
+    if (width > 0 && height > 0 && gbuffer_ && !gbuffer_->IsInitialized()) {
+        gbuffer_->Init(width, height);
+        screenWidth_ = width;
+        screenHeight_ = height;
+        printf("[GBuffer] Lazy init: %dx%d\n", width, height);
+    }
+    
+    // Always initialize SSGI if enabled but not yet initialized (independent of size change)
+    if (width > 0 && height > 0 && ssgiPass_ && ssgiPass_->IsEnabled() && !ssgiPass_->IsInitialized()) {
+        ssgiPass_->Init(width, height);
+        printf("[SSGI] Lazy init: %dx%d\n", width, height);
     }
     
     // Step 1: Render scene to G-Buffer (for emissive data)
@@ -236,6 +247,22 @@ void SceneRenderer::EndScene() {
         // Execute SSGI if enabled
         if (ssgiPass_ && ssgiPass_->IsReady()) {
             SE_PROFILE_SCOPE("SSGI");
+            
+            // Ensure G-Buffer textures are fully written before compute shader reads them
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
+            
+            // Ensure proper resolution for SSGI (in case resolution scale changed)
+            ssgiPass_->Resize(screenWidth_, screenHeight_);
+            
+            // Update light data for sun contribution
+            if (sceneData_.directional_light.Active) {
+                ssgiPass_->SetLightData(
+                    -sceneData_.directional_light.Direction,
+                    sceneData_.directional_light.Color,
+                    sceneData_.directional_light.Intensity
+                );
+            }
+            
             ssgiPass_->Execute(
                 gbuffer_->GetPositionTexture(),
                 gbuffer_->GetNormalTexture(),
@@ -836,8 +863,9 @@ void SceneRenderer::RenderScenePass() {
         // Debug log first submission only to avoid spam
         static int giLogCount = 0;
         if (giLogCount++ < 10) {
-            printf("[Model] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f\n", 
-                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity);
+            bool isReady = ssgiPass_ ? ssgiPass_->IsReady() : false;
+            printf("[Model] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f, isReady=%d\n", 
+                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity, isReady);
         }
 
 

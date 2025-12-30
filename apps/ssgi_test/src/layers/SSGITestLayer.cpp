@@ -11,6 +11,7 @@
 #include "engine/renderer/SSGIPass.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
+#include "engine/resources/MapLoader.h"
 
 #include <imgui.h>
 #include <glm.hpp>
@@ -69,82 +70,14 @@ void SSGITestLayer::CreateMaterials() {
 }
 
 void SSGITestLayer::SetupScene() {
-    auto cubeMesh = se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Cube);
-    
-    if (!cubeMesh) {
-        SE_LOG_ERROR("[SSGITest] Failed to get cube primitive!");
+    // Load the same map as third_person_game
+    auto mapResult = se::MapLoader::Load(*scene_, "assets/maps/test.mstmap");
+    if (!mapResult.success) {
+        SE_LOG_ERROR("[SSGITest] Failed to load map: {}", mapResult.entityCount);
         return;
     }
     
-    // Create ground plane (large box)
-    {
-        auto ground = scene_->CreateEntity("Ground");
-        auto& transform = ground.GetComponent<se::TransformComponent>();
-        transform.SetPosition({0.0f, -0.5f, 0.0f});
-        transform.SetScale({20.0f, 1.0f, 20.0f});
-        
-        auto& mesh = ground.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(0.9f, 0.9f, 0.9f, 1.0f);
-    }
-    
-    // Back wall
-    {
-        auto wall = scene_->CreateEntity("BackWall");
-        auto& transform = wall.GetComponent<se::TransformComponent>();
-        transform.SetPosition({0.0f, 5.0f, -10.0f});
-        transform.SetScale({20.0f, 10.0f, 1.0f});
-        
-        auto& mesh = wall.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(0.9f, 0.9f, 0.9f, 1.0f);
-    }
-    
-    // Left wall (red for color bleeding)
-    {
-        auto wall = scene_->CreateEntity("LeftWall");
-        auto& transform = wall.GetComponent<se::TransformComponent>();
-        transform.SetPosition({-10.0f, 5.0f, 0.0f});
-        transform.SetScale({1.0f, 10.0f, 20.0f});
-        
-        auto& mesh = wall.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(0.9f, 0.2f, 0.2f, 1.0f);
-    }
-    
-    // Right wall (green for color bleeding)
-    {
-        auto wall = scene_->CreateEntity("RightWall");
-        auto& transform = wall.GetComponent<se::TransformComponent>();
-        transform.SetPosition({10.0f, 5.0f, 0.0f});
-        transform.SetScale({1.0f, 10.0f, 20.0f});
-        
-        auto& mesh = wall.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(0.2f, 0.9f, 0.2f, 1.0f);
-    }
-    
-    // Emissive cube (light source)
-    {
-        auto emissiveCube = scene_->CreateEntity("EmissiveCube");
-        auto& transform = emissiveCube.GetComponent<se::TransformComponent>();
-        transform.SetPosition({0.0f, 3.0f, -5.0f});
-        transform.SetScale({2.0f, 2.0f, 2.0f});
-        
-        auto& mesh = emissiveCube.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        mesh.EmissiveColor = glm::vec3(2.0f, 1.8f, 0.8f);
-        mesh.EmissiveFactor = 5.0f;
-    }
-    
-    // Central pillar
-    {
-        auto pillar = scene_->CreateEntity("Pillar");
-        auto& transform = pillar.GetComponent<se::TransformComponent>();
-        transform.SetPosition({0.0f, 2.0f, 3.0f});
-        transform.SetScale({1.5f, 4.0f, 1.5f});
-        
-        auto& mesh = pillar.AddComponent<se::MeshRenderComponent>(cubeMesh, se::CreateRef<se::Material>(*defaultMaterial_));
-        mesh.Color = se::Vector4(0.9f, 0.9f, 0.9f, 1.0f);
-    }
-    
-    SE_LOG_INFO("[SSGITest] Scene setup complete with {} entities", scene_->GetEntityCount());
+    SE_LOG_INFO("[SSGITest] Loaded map with {} entities", scene_->GetEntityCount());
 }
 
 void SSGITestLayer::OnUpdate(float ts) {
@@ -225,17 +158,44 @@ void SSGITestLayer::RenderDebugPanel() {
     auto& config = renderer.GetSSGIConfig();
     
     ImGui::SliderFloat("Intensity", &config.Intensity, 0.0f, 5.0f);
-    ImGui::SliderInt("Ray Count", &config.RayCount, 4, 32);
-    ImGui::SliderInt("Steps/Ray", &config.StepsPerRay, 4, 32);
+    ImGui::SliderInt("Ray Count", &config.RayCount, 4, 128);
+    ImGui::SliderInt("Steps/Ray", &config.StepsPerRay, 4, 64);
     ImGui::SliderFloat("Max Distance", &config.MaxDistance, 1.0f, 50.0f);
     ImGui::SliderFloat("Resolution Scale", &config.ResolutionScale, 0.25f, 1.0f);
     ImGui::SliderInt("Blur Radius", &config.BlurRadius, 0, 8);
     
-    const char* debugModes[] = {"Off", "SH Coefficients", "Raw Radiance", "Normals"};
-    ImGui::Combo("Debug Mode", &config.DebugMode, debugModes, 4);
+    const char* debugModes[] = {"Off", "SH Coefficients", "Raw Radiance", "Normals", "Depth"};
+    ImGui::Combo("Debug Mode", &config.DebugMode, debugModes, 5);
     
     if (auto* ssgiPass = renderer.GetSSGIPass()) {
         ImGui::Text("Work Res: %dx%d", ssgiPass->GetWorkWidth(), ssgiPass->GetWorkHeight());
+        
+        // Texture debug previews
+        ImGui::Separator();
+        ImGui::Text("Debug Textures (click to enlarge):");
+        
+        float previewSize = 150.0f;
+        
+        // Final radiance
+        ImGui::Text("Final Radiance (ID=%u):", ssgiPass->GetRadianceTexture());
+        if (ssgiPass->GetRadianceTexture() != 0) {
+            ImGui::Image((ImTextureID)(intptr_t)ssgiPass->GetRadianceTexture(), 
+                ImVec2(previewSize, previewSize * 0.5f), ImVec2(0,1), ImVec2(1,0));
+        } else {
+            ImGui::TextColored(ImVec4(1,0,0,1), "No texture!");
+        }
+        
+        // SH coefficient textures
+        ImGui::Text("SH Coefficients:");
+        for (int i = 0; i < 4; i++) {
+            uint32_t tex = ssgiPass->GetSHTexture(i);
+            ImGui::Text("SH%d (ID=%u):", i, tex);
+            if (tex != 0) {
+                ImGui::SameLine();
+                ImGui::Image((ImTextureID)(intptr_t)tex, 
+                    ImVec2(80, 45), ImVec2(0,1), ImVec2(1,0));
+            }
+        }
     }
     
     ImGui::Separator();

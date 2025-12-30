@@ -71,7 +71,6 @@ void VertexArray::AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& inst
     instanceBuffer->Bind();
 
     for (const auto& element : layout) {
-        // Mat4 requires 4 separate vec4 attribute slots
         if (element.Type == ShaderDataType::Mat4) {
             for (int i = 0; i < 4; i++) {
                 glEnableVertexAttribArray(vertexBufferIndex_);
@@ -82,7 +81,6 @@ void VertexArray::AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& inst
                 vertexBufferIndex_++;
             }
         }
-        // Mat3 requires 3 separate vec3 attribute slots
         else if (element.Type == ShaderDataType::Mat3) {
             for (int i = 0; i < 3; i++) {
                 glEnableVertexAttribArray(vertexBufferIndex_);
@@ -104,7 +102,6 @@ void VertexArray::AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& inst
     }
 
     instanceBuffer_ = instanceBuffer;
-    SE_LOG_INFO("Added instance buffer to VAO (attrib index now at {})", vertexBufferIndex_);
 }
 
 void VertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer) {
