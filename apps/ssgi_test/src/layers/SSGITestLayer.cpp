@@ -41,7 +41,7 @@ void SSGITestLayer::OnAttach() {
     auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
     renderer.SetRadianceCascadesEnabled(false);
     renderer.SetSparseRCEnabled(false);
-    renderer.SetSSGIEnabled(true);
+    renderer.SetSSGIEnabled(false);
     
     // Configure directional light
     se::SceneRenderer::DirectionalLightData sunLight;

@@ -10,7 +10,7 @@ class ComputeShader;
 
 // Configuration for SSGI pass
 struct SSGIConfig {
-    bool  Enabled          = true;
+    bool  Enabled          = false;
     float ResolutionScale  = 0.5f;   // Half-res by default
     int   RayCount         = 8;      // Rays per pixel
     int   StepsPerRay      = 16;     // Raymarch steps per ray
