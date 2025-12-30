@@ -501,6 +501,18 @@ SceneRenderer::DirectionalLightData SceneRenderer::GetDirectionalLight() const {
     return sceneData_.directional_light;
 }
 
+uint32_t SceneRenderer::GetShadowDepthTexture() const {
+    return sceneData_.ShadowDepthTexture;
+}
+
+Matrix4 SceneRenderer::GetLightSpaceMatrix() const {
+    return sceneData_.LightSpaceMatrix;
+}
+
+bool SceneRenderer::IsShadowsEnabled() const {
+    return sceneData_.ShadowsEnabled;
+}
+
 void SceneRenderer::SetShadowMapSize(int width, int height) {
     if (width <= 0 || height <= 0) {
         SE_LOG_WARN("Invalid shadow map size: {}x{}, using default 1024x1024", width, height);

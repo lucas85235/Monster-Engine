@@ -93,6 +93,11 @@ class SceneRenderer {
     void                 SetDirectionalLight(const DirectionalLightData& light);
     void                 ClearDirectionalLight();
     DirectionalLightData GetDirectionalLight() const;
+    
+    // Shadow map access (for external renderers like SkinnedModel)
+    uint32_t GetShadowDepthTexture() const;
+    Matrix4 GetLightSpaceMatrix() const;
+    bool IsShadowsEnabled() const;
 
     void SetShadowMapSize(int width, int height);
     void SetShadowDistance(float distance);

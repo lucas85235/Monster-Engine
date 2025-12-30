@@ -1,7 +1,7 @@
 #include "engine/ecs/RenderSystem.h"
 
 #include <filesystem>
-
+#include <glad/glad.h>
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/debug/FrameProfiler.h"
@@ -445,10 +445,19 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         shader->setVec3("uLightColor", light.Color);
         shader->setFloat("uLightIntensity", light.Active ? light.Intensity : 0.0f);
         shader->setFloat("uAmbientStrength", 0.3f);
-        shader->setFloat("uReceiveShadows", 1.0f);
-        shader->setFloat("uShadowsEnabled", light.Active && light.CastShadows ? 1.0f : 0.0f);
+        shader->setFloat("uReceiveShadows", skinnedComp.ReceiveShadows ? 1.0f : 0.0f);
+        shader->setFloat("uShadowsEnabled", sceneRenderer.IsShadowsEnabled() ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", 0.5f);
         shader->setFloat("uAORadius", 1.0f);
+        
+        // Bind shadow map texture (from previous frame for receive shadows)
+        shader->setMat4("uLightSpaceMatrix", sceneRenderer.GetLightSpaceMatrix());
+        shader->setInt("uShadowMap", 0);
+        glActiveTexture(GL_TEXTURE0);
+        uint32_t shadowTex = sceneRenderer.GetShadowDepthTexture();
+        if (shadowTex != 0) {
+            glBindTexture(GL_TEXTURE_2D, shadowTex);
+        }
         
         // Set IBL uniforms (get from SceneRenderer's IBL data)
         const auto& iblData = sceneRenderer.GetEnvironmentLighting();
