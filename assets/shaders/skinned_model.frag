@@ -227,10 +227,10 @@ void main() {
     vec3 minAmbient = pixel.diffuseColor * 0.08;
     indirectLight = max(indirectLight + omniAmbient + rimLight, minAmbient);
     
-    // Combine and tone map
+    // Combine and tone map with dithering
     vec3 hdrColor = directLight + indirectLight + material.emissive.rgb;
     float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
+    vec3 ldrColor = finalColorOutputDithered(hdrColor, exposure, gl_FragCoord.xy);
     
     FragColor = vec4(ldrColor, material.baseColor.a);
 }

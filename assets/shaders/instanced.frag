@@ -9,6 +9,7 @@
 #include "pbr/shading_standard.glsl"
 #include "pbr/pbr_ibl.glsl"
 #include "pbr/pbr_fog.glsl"
+#include "pbr/pbr_contact_shadows.glsl"
 
 layout(location = 0) out vec4 color;
 
@@ -77,6 +78,14 @@ uniform int uVisualizeCascades;
 
 // Camera/Post-processing
 uniform float uExposure;
+uniform mat4 uProjection;
+
+// Contact Shadows
+uniform sampler2D uDepthBuffer;
+uniform int uContactShadowsEnabled;
+uniform int uContactShadowSteps;
+uniform float uContactShadowMaxDistance;
+uniform vec2 uScreenSize;
 
 // Shadow Calculation (PCF 5x5)
 float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
@@ -190,6 +199,17 @@ void main() {
     }
     float visibility = 1.0 - shadow * 0.65;
     
+    // Apply contact shadows (screen-space detail shadows)
+    if (uContactShadowsEnabled == 1 && visibility > 0.0 && light.NoL > 0.0) {
+        int steps = uContactShadowSteps > 0 ? uContactShadowSteps : 16;
+        float maxDist = uContactShadowMaxDistance > 0.0 ? uContactShadowMaxDistance : 0.5;
+        float contactShadow = contactShadowDirectional(
+            uDepthBuffer, v_FragPos, light.l, uView, uProjection,
+            uScreenSize, steps, maxDist
+        );
+        visibility *= (1.0 - contactShadow * 0.5);
+    }
+    
     // Apply micro-shadowing
     float ao = proceduralAO(normal, v_FragPos, uAORadius, uAOStrength);
     visibility *= computeMicroShadowing(light.NoL, ao);
@@ -254,10 +274,10 @@ void main() {
         indirectLight += giContribution * uGIIntensity * mix(pixel.diffuseColor, vec3(0.04), material.metallic);
     }
     
-    // Combine and tone map
+    // Combine and tone map with dithering
     vec3 hdrColor = directLight + indirectLight + material.emissive.rgb;
     float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
+    vec3 ldrColor = finalColorOutputDithered(hdrColor, exposure, gl_FragCoord.xy);
     
     vec4 finalResult = vec4(ldrColor, 1.0);
     

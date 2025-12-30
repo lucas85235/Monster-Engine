@@ -70,7 +70,7 @@ void SSGITestLayer::OnAttach() {
     ibl.SetDefaultOutdoor();  // SH fallback
     
     // Try to load HDR environment map
-    std::filesystem::path hdrPath = "assets/textures/ibl/the_sky_is_on_fire_4k.hdr";
+    std::filesystem::path hdrPath = "assets/textures/ibl/lilienstein_4k.hdr";
     if (std::filesystem::exists(hdrPath)) {
         auto iblResult = se::IBLProcessor::ProcessHDR(hdrPath, 2048);
         if (iblResult.Valid) {

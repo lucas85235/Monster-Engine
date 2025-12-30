@@ -10,6 +10,7 @@
 #include "pbr/shading_standard.glsl"
 #include "pbr/pbr_ibl.glsl"
 #include "pbr/pbr_fog.glsl"
+#include "pbr/pbr_contact_shadows.glsl"
 
 // -----------------------------------------------------------------------------
 // Inputs from Vertex Shader
@@ -118,6 +119,14 @@ uniform int uVisualizeCascades;
 
 // Camera/Post-processing
 uniform float uExposure;
+uniform mat4 uProjection;
+
+// Contact Shadows
+uniform sampler2D uDepthBuffer;
+uniform int uContactShadowsEnabled;
+uniform int uContactShadowSteps;
+uniform float uContactShadowMaxDistance;
+uniform vec2 uScreenSize;
 
 // -----------------------------------------------------------------------------
 // Shadow Calculation (PCF 5x5)
@@ -308,6 +317,17 @@ void main() {
     }
     float visibility = 1.0 - shadow * 0.65;
     
+    // Apply contact shadows (screen-space detail shadows)
+    if (uContactShadowsEnabled == 1 && visibility > 0.0 && light.NoL > 0.0) {
+        int steps = uContactShadowSteps > 0 ? uContactShadowSteps : 16;
+        float maxDist = uContactShadowMaxDistance > 0.0 ? uContactShadowMaxDistance : 0.5;
+        float contactShadow = contactShadowDirectional(
+            uDepthBuffer, v_FragPos, light.l, uView, uProjection,
+            uScreenSize, steps, maxDist
+        );
+        visibility *= (1.0 - contactShadow * 0.5);
+    }
+    
     // Apply micro-shadowing from AO
     visibility *= computeMicroShadowing(light.NoL, material.ambientOcclusion);
     
@@ -385,9 +405,9 @@ void main() {
     // 11. Combine all lighting
     vec3 hdrColor = directLight + indirectLight + material.emissive.rgb;
     
-    // 12. Tone mapping and gamma correction
+    // 12. Tone mapping, gamma correction, and dithering
     float exposure = uExposure > 0.0 ? uExposure : 1.0;
-    vec3 ldrColor = finalColorOutput(hdrColor, exposure);
+    vec3 ldrColor = finalColorOutputDithered(hdrColor, exposure, gl_FragCoord.xy);
     
     vec4 color = vec4(ldrColor, material.baseColor.a);
 

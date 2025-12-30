@@ -56,6 +56,6 @@
 - [x] model.frag + instanced.frag CSM integration
 
 ### Remaining:
-- [ ] Contact Shadows
-- [ ] Dithering
+- [x] Contact Shadows
+- [x] Dithering
 

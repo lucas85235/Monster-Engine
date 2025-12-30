@@ -93,12 +93,52 @@ vec3 linearToSRGBAccurate(vec3 linear) {
     return mix(higher, lower, lessThanEqual(linear, vec3(0.0031308)));
 }
 
+// -----------------------------------------------------------------------------
+// Dithering Functions (Banding Reduction)
+// -----------------------------------------------------------------------------
+
+// Interleaved Gradient Noise - Jimenez 2014
+// High quality, good spatial distribution, fast computation
+float interleavedGradientNoise(vec2 screenPos) {
+    vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(magic.z * fract(dot(screenPos, magic.xy)));
+}
+
+// Triangular-distribution dithering (better than uniform for color)
+// Maps [0,1] noise to [-0.5, 0.5] with triangular distribution
+float triangularDither(float noise) {
+    float n = noise * 2.0 - 1.0;
+    return sign(n) * (1.0 - sqrt(1.0 - abs(n))) * 0.5;
+}
+
+// Apply dithering to color to reduce 8-bit banding
+// The dither magnitude is 1/255 (one LDR step)
+vec3 ditherOutput(vec3 color, vec2 screenPos) {
+    float noise = interleavedGradientNoise(screenPos);
+    float dither = triangularDither(noise);
+    return color + vec3(dither / 255.0);
+}
+
+// -----------------------------------------------------------------------------
+// Final Color Output Pipeline
+// -----------------------------------------------------------------------------
+
 // Complete HDR to LDR pipeline: exposure -> tone mapping -> gamma
+// Legacy version without dithering (for compatibility)
 vec3 finalColorOutput(vec3 hdrColor, float exposure) {
     vec3 exposed = applyExposure(hdrColor, exposure);
     vec3 tonemapped = toneMapACES(exposed);
     vec3 gammaCorrected = linearToSRGB(tonemapped);
     return gammaCorrected;
+}
+
+// Complete HDR to LDR pipeline with dithering: exposure -> tone mapping -> gamma -> dither
+vec3 finalColorOutputDithered(vec3 hdrColor, float exposure, vec2 screenPos) {
+    vec3 exposed = applyExposure(hdrColor, exposure);
+    vec3 tonemapped = toneMapACES(exposed);
+    vec3 gammaCorrected = linearToSRGB(tonemapped);
+    vec3 dithered = ditherOutput(gammaCorrected, screenPos);
+    return dithered;
 }
 
 // Compute the squared perceptual roughness (alpha) from perceptual roughness
