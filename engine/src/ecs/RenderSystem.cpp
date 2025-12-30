@@ -538,6 +538,17 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             shader->setInt("uHasEmissive", hasEmissive);
             
             mesh.Draw();
+            
+            // Submit for shadow casting
+            if (skinnedComp.CastShadows) {
+                std::vector<glm::mat4> bones;
+                if (hasBones) {
+                    bones = animComp->GetBoneMatrices();
+                }
+                sceneRenderer.SubmitSkinnedForShadow(
+                    mesh.GetVaoId(), mesh.GetIndexCount(), 
+                    transform.WorldMatrix, bones, hasBones);
+            }
         }
         
         // Debug log

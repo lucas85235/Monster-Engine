@@ -49,6 +49,44 @@ void main() {
     gl_Position = uLightSpaceMatrix * world_pos;
 }
 )";
+
+// Skinned shadow shader - includes bone matrix transforms
+// MUST match vertex attribute layout from skinned_model.vert:
+// location 5 = a_BoneIds, location 6 = a_BoneWeights
+constexpr int MAX_SHADOW_BONES = 128;
+constexpr const char* kSkinnedShadowVertexSource = R"(#version 330 core
+layout(location = 0) in vec3 a_Position;
+layout(location = 5) in ivec4 a_BoneIds;
+layout(location = 6) in vec4 a_BoneWeights;
+
+uniform mat4 uLightSpaceMatrix;
+uniform mat4 uModel;
+uniform mat4 uBoneMatrices[128];
+uniform int uHasBones;
+
+void main() {
+    vec4 localPos = vec4(a_Position, 1.0);
+    
+    if (uHasBones == 1) {
+        mat4 boneTransform = mat4(0.0);
+        for (int i = 0; i < 4; i++) {
+            int boneId = a_BoneIds[i];
+            float weight = a_BoneWeights[i];
+            if (boneId >= 0 && boneId < 128 && weight > 0.0) {
+                boneTransform += uBoneMatrices[boneId] * weight;
+            }
+        }
+        // Handle case where no weights were applied
+        if (boneTransform[0][0] == 0.0 && boneTransform[1][1] == 0.0 && 
+            boneTransform[2][2] == 0.0 && boneTransform[3][3] == 0.0) {
+            boneTransform = mat4(1.0);
+        }
+        localPos = boneTransform * localPos;
+    }
+    
+    gl_Position = uLightSpaceMatrix * uModel * localPos;
+}
+)";
 }  // namespace
 
 namespace se {
@@ -150,6 +188,7 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     sceneData_.CurrentCamera          = &camera;  // Store for CSM
     sceneData_.Submissions.clear();
     instancedSubmissions_.clear();
+    skinnedSubmissions_.clear();
 
     // Prepare directional light data and shadow matrix
     if (!sceneData_.directional_light.Active) {
@@ -416,6 +455,22 @@ void SceneRenderer::SubmitInstanced(const std::shared_ptr<InstancedMesh>& instan
     instancedSubmissions_.emplace_back(std::move(submission));
 }
 
+void SceneRenderer::SubmitSkinnedForShadow(
+    uint32_t vaoId,
+    uint32_t indexCount,
+    const Matrix4& transform,
+    const std::vector<Matrix4>& boneMatrices,
+    bool hasBones) {
+    if (vaoId == 0 || indexCount == 0) return;
+    
+    SkinnedSubmission submission;
+    submission.vaoId = vaoId;
+    submission.indexCount = indexCount;
+    submission.transform = transform;
+    submission.boneMatrices = boneMatrices;
+    submission.hasBones = hasBones;
+    skinnedSubmissions_.emplace_back(std::move(submission));
+}
 
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
@@ -504,6 +559,15 @@ void SceneRenderer::InitializeShadowResources() {
         return;
     }
     SE_LOG_INFO("Created instanced shadow shader successfully");
+
+    // Create skinned shadow shader (includes bone matrix transforms)
+    sceneData_.SkinnedShadowShader =
+        std::make_shared<Shader>(kSkinnedShadowVertexSource, kShadowFragmentSource);
+    if (!sceneData_.SkinnedShadowShader || sceneData_.SkinnedShadowShader->getID() == 0) {
+        SE_LOG_ERROR("Failed to create skinned shadow shader");
+        return;
+    }
+    SE_LOG_INFO("Created skinned shadow shader successfully");
 
     glGenFramebuffers(1, &sceneData_.ShadowFramebuffer);
     if (sceneData_.ShadowFramebuffer == 0) {
@@ -1372,9 +1436,15 @@ void SceneRenderer::RenderCSMPass() {
         if (csmLogCount++ < 5) printf("[CSM] Skipped: CSM disabled\n");
         return;
     }
-    if (sceneData_.Submissions.empty() && instancedSubmissions_.empty()) {
+    if (sceneData_.Submissions.empty() && instancedSubmissions_.empty() && skinnedSubmissions_.empty()) {
         if (csmLogCount++ < 5) printf("[CSM] Skipped: No submissions\n");
         return;
+    }
+    
+    // Debug log for skinned submissions
+    static int skinnedShadowLogCount = 0;
+    if (!skinnedSubmissions_.empty() && skinnedShadowLogCount++ < 10) {
+        printf("[CSM] Skinned submissions: %zu\n", skinnedSubmissions_.size());
     }
     if (!sceneData_.directional_light.Active || !sceneData_.directional_light.CastShadows) {
         if (csmLogCount++ < 5) printf("[CSM] Skipped: Light inactive or no shadows (active=%d, castShadows=%d)\n", 
@@ -1447,8 +1517,40 @@ void SceneRenderer::RenderCSMPass() {
                 uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
                 if (instanceCount == 0) continue;
                 
-                RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
+            RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
             }
+        }
+        
+        // Render skinned model submissions
+        if (!skinnedSubmissions_.empty() && sceneData_.SkinnedShadowShader) {
+            sceneData_.SkinnedShadowShader->bind();
+            sceneData_.SkinnedShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& skinned : skinnedSubmissions_) {
+                if (skinned.vaoId == 0 || skinned.indexCount == 0) continue;
+                
+                static int skinnedDrawLog = 0;
+                if (skinnedDrawLog++ < 20) {
+                    printf("[CSM] Drawing skinned mesh: vao=%u, indices=%u, bones=%zu\n", 
+                        skinned.vaoId, skinned.indexCount, skinned.boneMatrices.size());
+                }
+                
+                sceneData_.SkinnedShadowShader->setMat4("uModel", skinned.transform);
+                sceneData_.SkinnedShadowShader->setInt("uHasBones", skinned.hasBones ? 1 : 0);
+                
+                if (skinned.hasBones && !skinned.boneMatrices.empty()) {
+                    for (size_t i = 0; i < skinned.boneMatrices.size() && i < 128; ++i) {
+                        char uniformName[64];
+                        snprintf(uniformName, sizeof(uniformName), "uBoneMatrices[%zu]", i);
+                        sceneData_.SkinnedShadowShader->setMat4(uniformName, skinned.boneMatrices[i]);
+                    }
+                }
+                
+                // Draw using raw GL since SkinnedMesh doesn't use VertexArray wrapper
+                glBindVertexArray(skinned.vaoId);
+                glDrawElements(GL_TRIANGLES, skinned.indexCount, GL_UNSIGNED_INT, nullptr);
+            }
+            glBindVertexArray(0);
         }
     }
     

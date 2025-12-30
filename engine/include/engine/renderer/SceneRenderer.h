@@ -72,6 +72,14 @@ class SceneRenderer {
                          bool receiveShadows = true,
                          const Vector3& emissiveColor = Vector3(0.0f), float emissiveFactor = 0.0f);
 
+    // Submit skinned model for shadow casting only (uses raw VAO since SkinnedMesh doesn't use VertexArray)
+    void SubmitSkinnedForShadow(
+        uint32_t vaoId,
+        uint32_t indexCount,
+        const Matrix4& transform,
+        const std::vector<Matrix4>& boneMatrices,
+        bool hasBones);
+
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -192,6 +200,7 @@ class SceneRenderer {
         unsigned int            ShadowDepthTexture = 0;
         std::shared_ptr<Shader> ShadowShader;
         std::shared_ptr<Shader> InstancedShadowShader;
+        std::shared_ptr<Shader> SkinnedShadowShader;
         float                   ShadowDistance  = 100.0f;
         float                   ShadowOrthoSize = 10.0f;
         float                   AmbientStrength = 0.2f;
@@ -217,6 +226,16 @@ class SceneRenderer {
     };
 
     std::vector<InstancedSubmission> instancedSubmissions_;
+
+    // Skinned model submission for shadow casting
+    struct SkinnedSubmission {
+        uint32_t                     vaoId = 0;
+        uint32_t                     indexCount = 0;
+        Matrix4                      transform{1.0f};
+        std::vector<Matrix4>         boneMatrices;
+        bool                         hasBones = false;
+    };
+    std::vector<SkinnedSubmission> skinnedSubmissions_;
 
     void InitializeShadowResources();
     void DestroyShadowResources();
