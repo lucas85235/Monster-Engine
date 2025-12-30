@@ -34,6 +34,7 @@ uniform float uAmbientStrength;
 // Shadow Uniforms
 uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
+uniform mat4 uView;
 uniform float uReceiveShadows;
 uniform float uShadowsEnabled;
 
@@ -107,6 +108,14 @@ uniform sampler2D uGIMap;
 uniform int uHasGI;
 uniform float uGIIntensity;
 
+// CSM (Cascaded Shadow Maps) Uniforms
+uniform int uUseCSM;
+uniform sampler2DArray uShadowCascades;
+uniform mat4 uCascadeMatrices[4];
+uniform float uCascadeSplits[4];
+uniform int uCascadeCount;
+uniform int uVisualizeCascades;
+
 // Camera/Post-processing
 uniform float uExposure;
 
@@ -136,6 +145,50 @@ float CalculateShadow(vec4 lightSpacePos, vec3 normal, vec3 lightDir) {
     
     // Edge fade
     float fadeStart = 0.9;
+    vec2 absCoord = abs(projCoords.xy * 2.0 - 1.0);
+    float maxCoord = max(absCoord.x, absCoord.y);
+    float edgeFade = maxCoord > fadeStart ? 1.0 - smoothstep(fadeStart, 1.0, maxCoord) : 1.0;
+    
+    return shadow * edgeFade;
+}
+
+// -----------------------------------------------------------------------------
+// CSM Shadow Calculation
+// -----------------------------------------------------------------------------
+int getCascadeIndex(float viewDepth) {
+    for (int i = 0; i < 4; i++) {
+        if (viewDepth < uCascadeSplits[i]) return i;
+    }
+    return 3;
+}
+
+float CalculateCascadedShadow(vec3 worldPos, float viewDepth, vec3 normal, vec3 lightDir) {
+    int cascade = getCascadeIndex(viewDepth);
+    vec4 shadowCoord = uCascadeMatrices[cascade] * vec4(worldPos, 1.0);
+    vec3 projCoords = shadowCoord.xyz / shadowCoord.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    if (projCoords.z > 1.0 || projCoords.z < 0.0) return 0.0;
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
+    
+    float ndotl = max(dot(normal, lightDir), 0.0);
+    float baseBias = 0.0005 * (1.0 + float(cascade) * 0.5);
+    float bias = max(baseBias * (1.0 - ndotl), baseBias * 0.1);
+    
+    // PCF 3x3
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / vec2(textureSize(uShadowCascades, 0).xy);
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            vec3 sampleCoord = vec3(projCoords.xy + vec2(x, y) * texelSize, float(cascade));
+            float pcfDepth = texture(uShadowCascades, sampleCoord).r;
+            shadow += projCoords.z - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9.0;
+    
+    // Edge fade
+    float fadeStart = 0.85;
     vec2 absCoord = abs(projCoords.xy * 2.0 - 1.0);
     float maxCoord = max(absCoord.x, absCoord.y);
     float edgeFade = maxCoord > fadeStart ? 1.0 - smoothstep(fadeStart, 1.0, maxCoord) : 1.0;
@@ -246,7 +299,12 @@ void main() {
     // 6. Calculate shadow
     float shadow = 0.0;
     if (uReceiveShadows > 0.5 && uShadowsEnabled > 0.5) {
-        shadow = CalculateShadow(v_LightSpacePos, normal, light.l);
+        if (uUseCSM == 1) {
+            float viewDepth = abs((uView * vec4(v_WorldPos, 1.0)).z);
+            shadow = CalculateCascadedShadow(v_WorldPos, viewDepth, normal, light.l);
+        } else {
+            shadow = CalculateShadow(v_LightSpacePos, normal, light.l);
+        }
     }
     float visibility = 1.0 - shadow * 0.65;
     
@@ -331,5 +389,19 @@ void main() {
     float exposure = uExposure > 0.0 ? uExposure : 1.0;
     vec3 ldrColor = finalColorOutput(hdrColor, exposure);
     
-    FragColor = vec4(ldrColor, material.baseColor.a);
+    vec4 color = vec4(ldrColor, material.baseColor.a);
+
+    // Debug visualization: tint by cascade
+    if (uVisualizeCascades == 1) {
+        float viewDepth = abs((uView * vec4(v_FragPos, 1.0)).z);
+        int cascade = getCascadeIndex(viewDepth);
+        vec3 tint = vec3(1.0);
+        if (cascade == 0) tint = vec3(1.0, 0.4, 0.4); // Reddish
+        if (cascade == 1) tint = vec3(0.4, 1.0, 0.4); // Greenish
+        if (cascade == 2) tint = vec3(0.4, 0.4, 1.0); // Blueish
+        if (cascade == 3) tint = vec3(1.0, 1.0, 0.4); // Yellowish
+        color.rgb = mix(color.rgb, tint, 0.35);
+    }
+    
+    FragColor = color;
 }

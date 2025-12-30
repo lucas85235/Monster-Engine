@@ -120,22 +120,22 @@ void SSGITestLayer::OnUpdate(float ts) {
     }
     
     if (input.IsKeyDown(se::Key::W)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::FORWARD, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::FORWARD, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::S)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::BACKWARD, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::BACKWARD, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::A)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::LEFT, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::LEFT, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::D)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::RIGHT, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::RIGHT, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::Q)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::DOWN, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::DOWN, camera_speed_ * ts);
     }
     if (input.IsKeyDown(se::Key::E)) {
-        camera_->ProcessKeyboard(Camera::CameraMovement::UP, ts);
+        camera_->ProcessKeyboard(Camera::CameraMovement::UP, camera_speed_ * ts);
     }
     
     scene_->OnUpdate(ts);
@@ -231,17 +231,28 @@ void SSGITestLayer::RenderDebugPanel() {
     // Lighting controls
     ImGui::Text("Directional Light:");
     
-    static se::Vector3 lightDir = glm::normalize(se::Vector3(-0.5f, -1.0f, -0.3f));
+    static float lightAzimuth = 210.0f;  // Degrees around Y axis
+    static float lightElevation = 45.0f; // Degrees above horizon
     static se::Vector3 lightColor(1.0f, 0.95f, 0.9f);
     static float lightIntensity = 2.0f;
+    static bool firstFrame = true;
     
-    bool lightChanged = false;
-    lightChanged |= ImGui::SliderFloat3("Direction", &lightDir.x, -1.0f, 1.0f);
+    bool lightChanged = firstFrame;
+    lightChanged |= ImGui::SliderFloat("Azimuth", &lightAzimuth, 0.0f, 360.0f, "%.1f deg");
+    lightChanged |= ImGui::SliderFloat("Elevation", &lightElevation, 5.0f, 90.0f, "%.1f deg");
     lightChanged |= ImGui::ColorEdit3("Light Color", &lightColor.x);
     lightChanged |= ImGui::SliderFloat("Intensity", &lightIntensity, 0.0f, 10.0f);
     
     if (lightChanged) {
+        // Convert spherical to cartesian: direction FROM light TO scene
+        float azimuthRad = glm::radians(lightAzimuth);
+        float elevationRad = glm::radians(lightElevation);
+        se::Vector3 lightDir;
+        lightDir.x = cos(elevationRad) * sin(azimuthRad);
+        lightDir.y = -sin(elevationRad);  // Negative because pointing down
+        lightDir.z = cos(elevationRad) * cos(azimuthRad);
         lightDir = glm::normalize(lightDir);
+        
         se::SceneRenderer::DirectionalLightData sunLight;
         sunLight.Direction = lightDir;
         sunLight.Color = lightColor;
@@ -250,6 +261,32 @@ void SSGITestLayer::RenderDebugPanel() {
         sunLight.CastShadows = true;
         renderer.SetDirectionalLight(sunLight);
     }
+    
+    ImGui::Separator();
+    
+    // CSM Debug Controls
+    ImGui::Text("Shadow Cascades (CSM):");
+    
+    static bool csmEnabled = true;
+    if (firstFrame) renderer.SetCSMEnabled(csmEnabled);
+    if (ImGui::Checkbox("Enable CSM", &csmEnabled)) {
+        renderer.SetCSMEnabled(csmEnabled);
+    }
+    
+    static bool visualizeCascades = false;  // Disabled by default for cleaner view
+    if (firstFrame) renderer.SetVisualizeCascades(visualizeCascades);
+    if (ImGui::Checkbox("Visualize Cascades", &visualizeCascades)) {
+        renderer.SetVisualizeCascades(visualizeCascades);
+    }
+    
+    static float splitLambda = 0.85f;
+    if (firstFrame) renderer.SetCSMSplitLambda(splitLambda);
+    if (ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0f, 1.0f, "%.2f")) {
+        renderer.SetCSMSplitLambda(splitLambda);
+    }
+    ImGui::TextWrapped("0 = uniform splits, 1 = logarithmic (more detail near camera)");
+    
+    firstFrame = false;
     
     ImGui::Separator();
     

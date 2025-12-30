@@ -44,9 +44,18 @@
 
 ---
 
-### Remaining/Optional:
-- [ ] Shadow Cascades (CSM)
-- [ ] HDR IBL from cubemaps (HDR files available in assets/textures/ibl)
-- [ ] DFG LUT texture
+### HDR IBL + DFG LUT ✅
+- [x] `IBLProcessor` - HDR→cubemap, irradiance, prefiltered, DFG LUT
+- [x] `evaluateIBL_Cubemap()` in model.frag and instanced.frag
+- [x] Skybox rendering with ACES tone mapping
+
+### Shadow Cascades (CSM) ✅
+- [x] `CascadedShadowMap.h/cpp` - 4 cascades @ 2048x2048
+- [x] `RenderCSMPass()` - Renders to texture array
+- [x] SceneRenderer binding (slot 12, matrices, splits)
+- [x] model.frag + instanced.frag CSM integration
+
+### Remaining:
 - [ ] Contact Shadows
 - [ ] Dithering
+

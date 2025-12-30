@@ -38,6 +38,7 @@ private:
     // Camera controls (EditorCamera-style)
     float cameraYaw_ = -90.0f;
     float cameraPitch_ = -15.0f;
+    float camera_speed_ = 5.0f;
 };
 
 } // namespace SSGITest

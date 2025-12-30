@@ -179,9 +179,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
     SceneRenderer& sceneRenderer = ServiceLocator::Get().GetSceneRenderer();
 
-    // Configure lighting
-    sceneRenderer.ClearDirectionalLight();
-    SceneRenderer::DirectionalLightData lightData;
+    // Configure lighting from scene entities (only if entities exist)
     auto lightView = scene.GetAllEntitiesWith<TransformComponent, DirectionalLightComponent>();
     for (auto entity : lightView) {
         auto& transform = lightView.get<TransformComponent>(entity);
@@ -192,6 +190,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         glm::vec3 direction = -transform.GetForward();
         if (glm::length(direction) <= 0.0f) { direction = glm::vec3(0.0f, -1.0f, 0.0f); }
 
+        SceneRenderer::DirectionalLightData lightData;
         lightData.Direction   = glm::normalize(direction);
         lightData.Position    = transform.Position;
         lightData.Color       = light.Color;
@@ -199,7 +198,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         lightData.CastShadows = light.CastShadows;
         lightData.Active      = true;
         sceneRenderer.SetDirectionalLight(lightData);
-        break;
+        break;  // Only use first enabled light
     }
 
     // Begin scene rendering

@@ -99,6 +99,10 @@ void SceneRenderer::Init() {
     ssgiPass_ = std::make_unique<SSGIPass>();
     SE_LOG_INFO("SSGI pass created (lazy init)");
     
+    // Initialize Cascaded Shadow Maps
+    csm_ = std::make_unique<CascadedShadowMap>();
+    csm_->Init(2048);  // 2048x2048 per cascade
+    
     initialized_ = true;
 }
 
@@ -143,6 +147,7 @@ void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) 
     sceneData_.ProjectionMatrix       = projection;
     sceneData_.view_projection_matrix = projection * sceneData_.ViewMatrix;
     sceneData_.CameraPosition         = glm::inverse(sceneData_.ViewMatrix)[3];  // Extract camera world position
+    sceneData_.CurrentCamera          = &camera;  // Store for CSM
     sceneData_.Submissions.clear();
     instancedSubmissions_.clear();
 
@@ -187,7 +192,8 @@ void SceneRenderer::EndScene() {
     
     if (sceneData_.ShadowsEnabled) { 
         SE_PROFILE_SCOPE("ShadowPass");
-        RenderShadowPass(); 
+        RenderShadowPass();
+        RenderCSMPass();  // Render cascaded shadow maps
     }
     
     // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
@@ -932,15 +938,29 @@ void SceneRenderer::RenderScenePass() {
         shader->setInt("uHasGI", hasGI);
         shader->setFloat("uGIIntensity", giIntensity);
         
-        // Debug log first submission only to avoid spam
-        static int giLogCount = 0;
-        if (giLogCount++ < 10) {
-            bool isReady = ssgiPass_ ? ssgiPass_->IsReady() : false;
-            printf("[Model] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f, isReady=%d\n", 
-                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity, isReady);
+        // Bind Cascaded Shadow Maps if available
+        static int csmBindLogCount = 0;
+        if (csmEnabled_ && csm_ && csm_->IsInitialized()) {
+            shader->setInt("uUseCSM", 1);
+            shader->setInt("uCascadeCount", CASCADE_COUNT);
+            
+            glActiveTexture(GL_TEXTURE12);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, csm_->GetTextureArray());
+            shader->setInt("uShadowCascades", 12);
+            
+            // Cascade matrices and split depths
+            for (int i = 0; i < CASCADE_COUNT; i++) {
+                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
+                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
+                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
+                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+            }
+            
+            shader->setInt("uVisualizeCascades", visualizeCascades_ ? 1 : 0);
+        } else {
+            shader->setInt("uUseCSM", 0);
+            shader->setInt("uVisualizeCascades", 0);
         }
-
-
         
         // HDR exposure control
         shader->setFloat("uExposure", sceneData_.Exposure);
@@ -1050,6 +1070,25 @@ void SceneRenderer::RenderScenePass() {
             shader->setInt("uDfgLut", 11);
         } else {
             shader->setInt("uHasIBLCubemaps", 0);
+        }
+        
+        // Bind Cascaded Shadow Maps if available (instanced)
+        if (csmEnabled_ && csm_ && csm_->IsInitialized()) {
+            shader->setInt("uUseCSM", 1);
+            shader->setInt("uCascadeCount", CASCADE_COUNT);
+            
+            glActiveTexture(GL_TEXTURE12);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, csm_->GetTextureArray());
+            shader->setInt("uShadowCascades", 12);
+            
+            for (int i = 0; i < CASCADE_COUNT; i++) {
+                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
+                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
+                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
+                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+            }
+        } else {
+            shader->setInt("uUseCSM", 0);
         }
         
         // Bind Radiance Cascades GI texture if available
@@ -1322,5 +1361,115 @@ void SceneRenderer::RenderSkybox() {
     glDepthFunc(GL_LESS);
 }
 
-}  // namespace se
+void SceneRenderer::RenderCSMPass() {
+    static int csmLogCount = 0;
+    
+    if (!csm_ || !csm_->IsInitialized()) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: CSM not initialized\n");
+        return;
+    }
+    if (!csmEnabled_) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: CSM disabled\n");
+        return;
+    }
+    if (sceneData_.Submissions.empty() && instancedSubmissions_.empty()) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: No submissions\n");
+        return;
+    }
+    if (!sceneData_.directional_light.Active || !sceneData_.directional_light.CastShadows) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: Light inactive or no shadows (active=%d, castShadows=%d)\n", 
+            sceneData_.directional_light.Active, sceneData_.directional_light.CastShadows);
+        return;
+    }
+    if (!sceneData_.CurrentCamera) {
+        if (csmLogCount++ < 5) printf("[CSM] Skipped: No camera\n");
+        return;  // Need camera for cascade calculation
+    }
+    
+    // Calculate cascade splits and matrices
+    // Light direction should be normalized and pointing FROM the light
+    float aspectRatio = (float)screenWidth_ / (float)screenHeight_;
+    glm::vec3 lightDir = glm::normalize(sceneData_.directional_light.Direction);
+    csm_->CalculateCascades(*sceneData_.CurrentCamera, lightDir, aspectRatio, 100.0f);
+    
+    // Save current state
+    GLint previousFramebuffer = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+    GLint previousViewport[4];
+    glGetIntegerv(GL_VIEWPORT, previousViewport);
+    
+    GLboolean wasCullEnabled = glIsEnabled(GL_CULL_FACE);
+    GLint previousCullFaceMode = GL_BACK;
+    if (wasCullEnabled) glGetIntegerv(GL_CULL_FACE_MODE, &previousCullFaceMode);
+    
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    
+    // Ensure depth testing and writing are enabled for shadow pass
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    
+    csm_->BeginShadowPass();
+    
+    // Render each cascade
+    for (int cascade = 0; cascade < CASCADE_COUNT; cascade++) {
+        csm_->BeginCascade(cascade);
+        
+        glm::mat4 lightSpaceMatrix = csm_->GetCascadeMatrix(cascade);
+        
+        // Render regular submissions
+        if (sceneData_.ShadowShader) {
+            sceneData_.ShadowShader->bind();
+            sceneData_.ShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& submission : sceneData_.Submissions) {
+                if (!submission.CastsShadows) continue;
+                if (!submission.vertex_array) continue;
+                
+                sceneData_.ShadowShader->setMat4("uModel", submission.Transform);
+                RenderCommand::DrawIndexed(submission.vertex_array.get());
+            }
+        }
+        
+        // Render instanced submissions
+        if (!instancedSubmissions_.empty() && sceneData_.InstancedShadowShader) {
+            sceneData_.InstancedShadowShader->bind();
+            sceneData_.InstancedShadowShader->setMat4("uLightSpaceMatrix", lightSpaceMatrix);
+            
+            for (const auto& instanced : instancedSubmissions_) {
+                if (!instanced.castsShadows) continue;
+                if (!instanced.instancedMesh) continue;
+                
+                auto va = instanced.instancedMesh->GetVertexArray();
+                if (!va) continue;
+                
+                uint32_t instanceCount = instanced.instancedMesh->GetInstanceCount();
+                if (instanceCount == 0) continue;
+                
+                RenderCommand::DrawIndexedInstanced(va.get(), instanceCount);
+            }
+        }
+    }
+    
+    csm_->EndShadowPass();
+    
+    // Restore state
+    glCullFace(previousCullFaceMode);
+    if (!wasCullEnabled) glDisable(GL_CULL_FACE);
+    
+    // Restore depth state
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    
+    glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+    glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+}
 
+void SceneRenderer::SetCSMSplitLambda(float lambda) {
+    if (csm_) {
+        csm_->SetSplitLambda(lambda);
+    }
+}
+
+}  // namespace se

@@ -15,6 +15,7 @@
 #include "engine/renderer/SceneVoxelizer.h"
 #include "engine/renderer/SparseRadianceCascades.h"
 #include "engine/renderer/SSGIPass.h"
+#include "engine/renderer/CascadedShadowMap.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -157,6 +158,13 @@ class SceneRenderer {
     PBRMaterialParams* GetGlobalMaterialOverride() const {
         return globalMaterialOverride_;
     }
+    
+    // Cascaded Shadow Maps control
+    void SetCSMEnabled(bool enabled) { csmEnabled_ = enabled; }
+    bool IsCSMEnabled() const { return csmEnabled_; }
+    void SetVisualizeCascades(bool enabled) { visualizeCascades_ = enabled; }
+    bool IsVisualizeCascadesEnabled() const { return visualizeCascades_; }
+    void SetCSMSplitLambda(float lambda);
 
    private:
     struct Submission {
@@ -192,6 +200,7 @@ class SceneRenderer {
         float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
         bool                    ShadowsEnabled  = true;
         Vector3                 CameraPosition{0.0f};    // For GI occlusion
+        const Camera*           CurrentCamera = nullptr; // For CSM
         std::vector<Submission> Submissions;
     };
     
@@ -253,6 +262,12 @@ class SceneRenderer {
     
     void InitSkybox();
     void RenderSkybox();
+    
+    // Cascaded Shadow Maps
+    std::unique_ptr<CascadedShadowMap> csm_;
+    bool csmEnabled_ = true;
+    bool visualizeCascades_ = false;
+    void RenderCSMPass();
 };
 
 }  // namespace se
