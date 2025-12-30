@@ -477,6 +477,47 @@ void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCuller_.SetEnabled(enabled);
 }
 
+void SceneRenderer::SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArray,
+                                  const std::shared_ptr<Material>& material,
+                                  const Matrix4& transform,
+                                  const PBRMaterialParams& pbrParams,
+                                  bool castsShadows, bool receiveShadows) {
+    Submission submission;
+    submission.vertex_array    = vertexArray;
+    submission.material        = material;
+    submission.Transform       = transform;
+    submission.CastsShadows    = castsShadows;
+    submission.ReceiveShadows  = receiveShadows;
+    submission.EmissiveColor   = pbrParams.EmissiveColor;
+    submission.EmissiveFactor  = pbrParams.EmissiveFactor;
+    
+    // Per-object PBR override
+    submission.UseCustomPBR    = true;
+    submission.BaseColor       = pbrParams.BaseColor;
+    submission.Metallic        = pbrParams.Metallic;
+    submission.Roughness       = pbrParams.Roughness;
+    submission.Reflectance     = pbrParams.Reflectance;
+    submission.AO              = pbrParams.AO;
+
+    // Extract position from transform
+    submission.Center = Vector3(transform[3]);
+
+    // Create stable ObjectId based on position hash
+    auto hashFloat      = [](float f) -> uint32_t { return *reinterpret_cast<uint32_t*>(&f); };
+    submission.ObjectId = hashFloat(submission.Center.x) ^ (hashFloat(submission.Center.y) << 8) ^
+                          (hashFloat(submission.Center.z) << 16);
+    if (submission.ObjectId == 0) submission.ObjectId = 1;
+
+    // Calculate bounding radius considering scale
+    float scaleX   = glm::length(Vector3(transform[0]));
+    float scaleY   = glm::length(Vector3(transform[1]));
+    float scaleZ   = glm::length(Vector3(transform[2]));
+    float maxScale = glm::max(glm::max(scaleX, scaleY), scaleZ);
+    submission.BoundingRadius = 0.866f * maxScale;  // Unit cube bounding sphere
+
+    sceneData_.Submissions.emplace_back(std::move(submission));
+}
+
 void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
     sceneData_.directional_light        = light;
     sceneData_.directional_light.Active = true;
@@ -940,6 +981,37 @@ void SceneRenderer::RenderScenePass() {
             shader->setFloat("uThickness", globalMaterialOverride_->Thickness);
             shader->setFloat("uTransmission", globalMaterialOverride_->Transmission);
             shader->setFloat("uIOR", globalMaterialOverride_->IOR);
+        } else if (submission.UseCustomPBR) {
+            // Per-object PBR override from Material Editor assignment
+            shader->setInt("uHasAlbedo", 0);
+            shader->setInt("uHasNormal", 0);
+            shader->setInt("uHasMetallic", 0);
+            shader->setInt("uHasRoughness", 0);
+            shader->setInt("uHasAO", 0);
+            shader->setInt("uHasEmissive", 0);
+            shader->setInt("uHasMetallicRoughness", 0);
+            
+            shader->setVec4("uBaseColor", submission.BaseColor);
+            shader->setFloat("uMetallicFactor", submission.Metallic);
+            shader->setFloat("uRoughnessFactor", submission.Roughness);
+            shader->setFloat("uReflectance", submission.Reflectance);
+            shader->setFloat("uAOFactor", submission.AO);
+            shader->setVec3("uEmissiveColor", submission.EmissiveColor);
+            shader->setFloat("uEmissiveFactor", submission.EmissiveFactor);
+            shader->setFloat("uNormalScale", 1.0f);
+            
+            // Default advanced PBR for per-object
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uAnisotropyDirection", glm::vec3(1.0f, 0.0f, 0.0f));
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
+            shader->setVec3("uSubsurfaceColor", glm::vec3(0.0f));
+            shader->setFloat("uSubsurfacePower", 0.0f);
+            shader->setFloat("uThickness", 0.0f);
+            shader->setFloat("uTransmission", 0.0f);
+            shader->setFloat("uIOR", 1.5f);
         } else {
             // Default advanced PBR values
             shader->setFloat("uClearCoat", 0.0f);

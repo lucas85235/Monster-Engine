@@ -2,11 +2,12 @@
 
 #include <imgui.h>
 
+#include "core/EditorContext.h"
 #include "engine/ecs/SimpleComponents.h"
 
 namespace mst {
 
-void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo) {
+void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo, EditorContext& context) {
     ImGui::Begin("Properties");
 
     RenderGizmoControls(gizmo);
@@ -46,10 +47,15 @@ void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo
 
     ImGui::Separator();
 
-    // Editor metadata
+    // Editor metadata (collision)
     if (entity.HasComponent<PrimitiveFactory::EditorMetadata>()) {
         auto& metadata = entity.GetComponent<PrimitiveFactory::EditorMetadata>();
         RenderEditorMetadata(metadata);
+        
+        ImGui::Separator();
+        
+        // Material assignment - pass entity to apply to MeshRenderComponent
+        RenderMaterial(metadata, context, entity);
     }
 
     ImGui::Separator();
@@ -144,6 +150,84 @@ void PropertiesPanel::RenderEditorMetadata(PrimitiveFactory::EditorMetadata& met
     }
 }
 
+void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata, EditorContext& context, se::Entity entity) {
+    if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Checkbox("Use Custom Material", &metadata.hasCustomMaterial);
+        
+        if (metadata.hasCustomMaterial) {
+            // Build combo items from material library
+            const auto& materials = context.GetMaterials();
+            
+            if (materials.empty()) {
+                ImGui::TextDisabled("No materials available");
+                if (ImGui::Button("Create Material")) {
+                    context.CreateNewMaterial();
+                }
+            } else {
+                // Find current selection index
+                int currentIndex = -1;
+                for (size_t i = 0; i < materials.size(); ++i) {
+                    if (materials[i].name == metadata.materialName) {
+                        currentIndex = static_cast<int>(i);
+                        break;
+                    }
+                }
+                
+                int previousIndex = currentIndex;
+                
+                // Material dropdown
+                if (ImGui::BeginCombo("##MaterialCombo", 
+                    currentIndex >= 0 ? materials[currentIndex].name.c_str() : "(None)")) {
+                    for (size_t i = 0; i < materials.size(); ++i) {
+                        ImGui::PushID(static_cast<int>(i));
+                        bool isSelected = (currentIndex == static_cast<int>(i));
+                        if (ImGui::Selectable(materials[i].name.c_str(), isSelected)) {
+                            metadata.materialName = materials[i].name;
+                            currentIndex = static_cast<int>(i);
+                        }
+                        if (isSelected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::PopID();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("Material");
+                
+                // Apply material params to MeshRenderComponent when material changes or is selected
+                if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
+                    const auto& mat = materials[currentIndex];
+                    auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                    
+                    // Apply PBR params from material to MeshRenderComponent
+                    meshRender.UseCustomPBR = true;
+                    meshRender.Metallic = mat.metallic;
+                    meshRender.Roughness = mat.roughness;
+                    meshRender.Reflectance = mat.reflectance;
+                    meshRender.AO = mat.ao;
+                    
+                    // Also apply base color and emissive
+                    meshRender.Color = mat.baseColor;
+                    meshRender.EmissiveColor = mat.emissiveColor;
+                    meshRender.EmissiveFactor = mat.emissiveFactor;
+                    
+                    // Quick preview of selected material
+                    ImGui::TextDisabled("Metallic: %.2f  Roughness: %.2f", mat.metallic, mat.roughness);
+                }
+            }
+        } else {
+            ImGui::TextDisabled("Using default material");
+            
+            // Reset custom PBR if disabled
+            if (entity.HasComponent<se::MeshRenderComponent>()) {
+                auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                meshRender.UseCustomPBR = false;
+            }
+        }
+    }
+}
+
 void PropertiesPanel::RenderGizmoControls(GizmoController& gizmo) {
     if (ImGui::CollapsingHeader("Gizmo", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("Operation: %s", gizmo.GetOperationName());
@@ -170,3 +254,4 @@ void PropertiesPanel::RenderGizmoControls(GizmoController& gizmo) {
 }
 
 }  // namespace mst
+

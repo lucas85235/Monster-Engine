@@ -61,17 +61,21 @@ struct MapEntityData {
     // Emissive (GI) properties
     Vector3      emissiveColor{0.0f, 0.0f, 0.0f};
     float        emissiveFactor = 0.0f;
+    
+    // Material reference
+    std::string  materialName;
+    bool         hasCustomMaterial = false;
 };
 
 // Directional light data for scene lighting
 struct MapDirectionalLightData {
-    Vector3 direction{0.0f, -1.0f, 0.0f};  // Light direction
-    Vector3 position{0.0f, 10.0f, 10.0f};  // Light position (for shadow origin)
-    Vector3 rotation{-45.0f, 0.0f, 0.0f};  // Euler rotation
-    Vector3 color{1.0f, 0.98f, 0.9f};      // Light color
-    float   intensity = 1.5f;              // Light intensity
-    bool    castShadows = true;            // Whether light casts shadows
-    bool    enabled = true;                // Whether light is active
+    Vector3 direction{-0.3f, -0.8f, -0.5f};   // Angled sun direction
+    Vector3 position{15.0f, 25.0f, 15.0f};    // High position for good shadow coverage
+    Vector3 rotation{-50.0f, 30.0f, 0.0f};    // Corresponding euler rotation
+    Vector3 color{1.0f, 0.95f, 0.85f};        // Warm sunlight (5600K temperature)
+    float   intensity = 2.0f;                  // Strong direct light
+    bool    castShadows = true;
+    bool    enabled = true;
 };
 
 struct MapData {

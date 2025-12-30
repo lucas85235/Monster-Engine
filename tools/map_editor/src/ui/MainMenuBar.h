@@ -27,6 +27,9 @@ struct MenuBarActions {
     bool toggleGrid         = false;
     bool toggleColliderDebug = false;
     bool resetCamera         = false;
+    
+    // Tools
+    bool openMaterialEditor = false;
 
     void Reset() { *this = MenuBarActions{}; }
 };
@@ -50,6 +53,7 @@ class MainMenuBar {
     void RenderEditMenu(MenuBarActions& actions);
     void RenderCreateMenu(MenuBarActions& actions);
     void RenderViewMenu(MenuBarActions& actions);
+    void RenderToolsMenu(MenuBarActions& actions);
     
     PanelVisibility panelVisibility_;
 };

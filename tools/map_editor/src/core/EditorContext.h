@@ -7,8 +7,10 @@
  */
 
 #include <memory>
+#include <vector>
 
 #include "Engine.h"
+#include "EditorMaterialData.h"
 #include "EntityManager.h"
 #include "EventBus.h"
 #include "MapDocument.h"
@@ -41,6 +43,21 @@ public:
     
     // Convenience accessors
     se::Scene& GetScene() { return sceneManager_->GetScene(); }
+    
+    // Material management
+    size_t GetMaterialCount() const { return materials_.size(); }
+    EditorMaterialData* GetMaterialByIndex(int index);
+    EditorMaterialData* GetMaterialByName(const std::string& name);
+    int GetMaterialIndex(const std::string& name) const;
+    
+    void CreateNewMaterial();
+    void DuplicateMaterial(int index);
+    void RemoveMaterial(int index);
+    bool LoadMaterial(const std::string& path);
+    bool SaveMaterial(int index, const std::string& path);
+    void ClearMaterials();
+    
+    const std::vector<EditorMaterialData>& GetMaterials() const { return materials_; }
 
 private:
     EventBus eventBus_;
@@ -52,6 +69,11 @@ private:
     SelectionManager selection_;
     GizmoController gizmo_;
     EditorCamera camera_;
+    
+    // Material library
+    std::vector<EditorMaterialData> materials_;
+    int nextMaterialId_ = 1;
 };
 
 }  // namespace mst
+

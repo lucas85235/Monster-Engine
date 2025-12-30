@@ -79,7 +79,13 @@ class SceneRenderer {
         const Matrix4& transform,
         const std::vector<Matrix4>& boneMatrices,
         bool hasBones);
-
+    
+    // Submit with per-object PBR parameters (for objects with custom materials)
+    void SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArray,
+                       const std::shared_ptr<Material>& material,
+                       const Matrix4& transform,
+                       const PBRMaterialParams& pbrParams,
+                       bool castsShadows = true, bool receiveShadows = true);
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -192,6 +198,14 @@ class SceneRenderer {
         std::shared_ptr<TextureMaterial> textureMaterial;  // PBR texture data
         Vector3                      EmissiveColor{0.0f, 0.0f, 0.0f};  // Emissive for GI
         float                        EmissiveFactor = 0.0f;             // Emission intensity
+        
+        // Per-object PBR material override
+        bool                         UseCustomPBR = false;
+        Vector4                      BaseColor{1.0f, 1.0f, 1.0f, 1.0f};
+        float                        Metallic = 0.0f;
+        float                        Roughness = 0.5f;
+        float                        Reflectance = 0.5f;
+        float                        AO = 1.0f;
     };
 
     struct SceneData {

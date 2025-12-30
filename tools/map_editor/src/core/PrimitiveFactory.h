@@ -31,6 +31,10 @@ class PrimitiveFactory {
         // Rigidbody settings
         uint8_t       rigidbodyType = 0;  // 0=Static, 1=Dynamic, 2=Kinematic
         float         mass = 1.0f;
+        
+        // Material assignment
+        std::string   materialName;
+        bool          hasCustomMaterial = false;
     };
 
     static se::Entity CreatePrimitive(se::Scene& scene, PrimitiveType type,

@@ -18,6 +18,7 @@
 #include "ui/HierarchyPanel.h"
 #include "ui/MainMenuBar.h"
 #include "ui/PropertiesPanel.h"
+#include "ui/MaterialEditorPanel.h"
 #include "engine/Layer.h"
 
 namespace mst {
@@ -49,6 +50,7 @@ private:
     Scope<StatusBarPanel> statusBarPanel_;
     HierarchyPanel hierarchyPanel_;
     PropertiesPanel propertiesPanel_;
+    MaterialEditorPanel materialEditorPanel_;
     FileDialogManager fileDialogs_;
     
     // Input state
@@ -63,3 +65,4 @@ private:
 };
 
 }  // namespace mst
+

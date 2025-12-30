@@ -37,6 +37,7 @@ uniform float uAORadius;
 uniform float uMetallicFactor;
 uniform float uRoughnessFactor;
 uniform float uReflectance;
+uniform vec4 uBaseColor;
 
 // IBL Uniforms
 uniform vec3 uSH[9];
@@ -82,8 +83,8 @@ void main() {
     vec3 lightDir = normalize(uLightDirection);
     vec3 view = normalize(v_ViewPos - v_FragPos);
     
-    // Use vertex color as base color
-    vec3 baseColor = v_Color;
+    // Use material baseColor directly (if set), otherwise fall back to vertex color
+    vec3 baseColor = uBaseColor.a > 0.01 ? uBaseColor.rgb : v_Color;
     
     // PBR parameters (defaults for basic geometry - non-metallic, medium roughness)
     float metallic = uMetallicFactor;

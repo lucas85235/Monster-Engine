@@ -93,7 +93,7 @@ void MapEditorLayer::OnImGuiRender() {
     }
     
     if (propertiesVisible_) {
-        propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo());
+        propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo(), *context_);
     }
     
     if (viewportVisible_) {
@@ -107,6 +107,9 @@ void MapEditorLayer::OnImGuiRender() {
     }
     
     fileDialogs_.Render(*context_);
+    
+    // Material Editor Panel (separate window)
+    materialEditorPanel_.Render(*context_);
 }
 
 void MapEditorLayer::SetupEventHandlers() {
@@ -295,6 +298,10 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     
     if (actions.resetCamera) {
         context_->GetCamera().FocusOnPoint({0.0f, 0.0f, 0.0f});
+    }
+    
+    if (actions.openMaterialEditor) {
+        materialEditorPanel_.ToggleVisible();
     }
 }
 

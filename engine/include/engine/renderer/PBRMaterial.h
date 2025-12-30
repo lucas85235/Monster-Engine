@@ -71,20 +71,23 @@ struct IBLData {
     
     // Initialize with default outdoor lighting
     void SetDefaultOutdoor() {
-        // Outdoor SH approximation - strong ambient to fill shadows realistically
-        // L00 is the dominant ambient term - needs to be bright enough to fill shadow areas
-        SphericalHarmonics[0] = Vector3(2.0f, 2.0f, 2.2f);   // L00 (dominant ambient - very bright)
-        SphericalHarmonics[1] = Vector3(0.0f, 0.0f, 0.0f);   // L1-1
-        SphericalHarmonics[2] = Vector3(0.6f, 0.7f, 0.9f);   // L10 (sky up contribution - blue tint)
-        SphericalHarmonics[3] = Vector3(0.0f, 0.0f, 0.0f);   // L11
-        SphericalHarmonics[4] = Vector3(0.0f, 0.0f, 0.0f);   // L2-2
-        SphericalHarmonics[5] = Vector3(0.0f, 0.0f, 0.0f);   // L2-1
-        SphericalHarmonics[6] = Vector3(0.2f, 0.15f, 0.1f);  // L20 (ground bounce - warm brown)
-        SphericalHarmonics[7] = Vector3(0.0f, 0.0f, 0.0f);   // L21
-        SphericalHarmonics[8] = Vector3(0.0f, 0.0f, 0.0f);   // L22
-        Intensity = 1.5f;  // Increased intensity for shadow fill
-        SkyColor = Vector3(0.9f, 0.95f, 1.0f);   // Bright sky fallback
-        GroundColor = Vector3(0.4f, 0.35f, 0.3f); // Warm ground fallback
+        // Physically-based outdoor SH approximation (clear sky with sun)
+        // Reference: Ramamoorthi and Hanrahan's paper on SH lighting
+        // L00: DC term (average environment color - bright for outdoor)
+        SphericalHarmonics[0] = Vector3(1.8f, 1.85f, 2.1f);
+        // L1-1, L10, L11: Linear terms (directional variation)
+        SphericalHarmonics[1] = Vector3(0.1f, 0.1f, 0.12f);  // Side light (slight)
+        SphericalHarmonics[2] = Vector3(0.8f, 0.85f, 1.1f);  // Sky up - strong blue
+        SphericalHarmonics[3] = Vector3(0.05f, 0.05f, 0.05f); // Minimal horizontal
+        // L2-2, L2-1, L20, L21, L22: Quadratic terms (color bleeding)
+        SphericalHarmonics[4] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[5] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[6] = Vector3(0.35f, 0.3f, 0.2f);  // Ground bounce - warm
+        SphericalHarmonics[7] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[8] = Vector3(0.0f, 0.0f, 0.0f);
+        Intensity = 1.2f;
+        SkyColor = Vector3(0.85f, 0.9f, 1.0f);
+        GroundColor = Vector3(0.45f, 0.4f, 0.35f);
     }
     
     // Initialize with default indoor lighting

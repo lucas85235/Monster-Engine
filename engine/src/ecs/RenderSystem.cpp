@@ -11,6 +11,7 @@
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/SkinnedModelComponent.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/PBRMaterial.h"
 #include "engine/renderer/SceneRenderer.h"
 #include "engine/renderer/Texture.h"
 #include "engine/renderer/TextureMaterial.h"
@@ -250,6 +251,24 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
                                  transform.WorldMatrix, true, true, 1.0f, nullptr,
                                  meshRender.EmissiveColor, meshRender.EmissiveFactor);
+            continue;
+        }
+        
+        // Custom PBR objects must be rendered individually to pass their PBR params
+        if (meshRender.UseCustomPBR) {
+            // Create a temporary PBR override for this object
+            PBRMaterialParams pbrParams;
+            pbrParams.BaseColor = meshRender.Color;
+            pbrParams.Metallic = meshRender.Metallic;
+            pbrParams.Roughness = meshRender.Roughness;
+            pbrParams.Reflectance = meshRender.Reflectance;
+            pbrParams.AO = meshRender.AO;
+            pbrParams.EmissiveColor = meshRender.EmissiveColor;
+            pbrParams.EmissiveFactor = meshRender.EmissiveFactor;
+            
+            sceneRenderer.SubmitWithPBR(meshRender.vertex_array, meshRender.material, 
+                                        transform.WorldMatrix, pbrParams,
+                                        meshRender.CastShadows, meshRender.ReceiveShadows);
             continue;
         }
 
