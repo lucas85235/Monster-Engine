@@ -97,6 +97,13 @@ void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity
     // Emissive properties (version 4+)
     file.write(reinterpret_cast<const char*>(&entity.emissiveColor), sizeof(Vector3));
     file.write(reinterpret_cast<const char*>(&entity.emissiveFactor), sizeof(float));
+    
+    // Material reference (version 5+)
+    uint8_t hasCustomMaterial = entity.hasCustomMaterial ? 1 : 0;
+    file.write(reinterpret_cast<const char*>(&hasCustomMaterial), sizeof(hasCustomMaterial));
+    if (entity.hasCustomMaterial) {
+        WriteString(file, entity.materialName);
+    }
 }
 
 bool MapSerializer::Import(MapData& data, const std::filesystem::path& path) {
@@ -237,6 +244,20 @@ bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity, uint3
         // Default values for older maps
         entity.emissiveColor = Vector3{0.0f, 0.0f, 0.0f};
         entity.emissiveFactor = 0.0f;
+    }
+    
+    // Material reference (version 5+)
+    if (version >= 5) {
+        uint8_t hasCustomMaterial = 0;
+        file.read(reinterpret_cast<char*>(&hasCustomMaterial), sizeof(hasCustomMaterial));
+        entity.hasCustomMaterial = (hasCustomMaterial != 0);
+        if (entity.hasCustomMaterial) {
+            if (!ReadString(file, entity.materialName)) return false;
+        }
+    } else {
+        // Default for older maps
+        entity.hasCustomMaterial = false;
+        entity.materialName.clear();
     }
 
     return !file.fail();

@@ -80,7 +80,7 @@ struct MapDirectionalLightData {
 
 struct MapData {
     static constexpr uint32_t MAGIC   = 0x4D53544D;  // "MSTM"
-    static constexpr uint32_t VERSION = 4;           // Bumped for emissive support
+    static constexpr uint32_t VERSION = 5;           // Bumped for material support
 
     std::string                mapName;
     std::vector<MapEntityData> entities;

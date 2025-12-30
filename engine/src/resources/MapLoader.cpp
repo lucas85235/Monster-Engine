@@ -169,6 +169,19 @@ bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity, uint32_t ver
         entity.emissiveFactor = 0.0f;
     }
     
+    // Version 5+ has material reference
+    if (version >= 5) {
+        uint8_t hasCustomMaterial = 0;
+        file.read(reinterpret_cast<char*>(&hasCustomMaterial), sizeof(hasCustomMaterial));
+        entity.hasCustomMaterial = (hasCustomMaterial != 0);
+        if (entity.hasCustomMaterial) {
+            if (!ReadString(file, entity.materialName)) return false;
+        }
+    } else {
+        entity.hasCustomMaterial = false;
+        entity.materialName.clear();
+    }
+    
     return !file.fail();
 }
 
@@ -200,6 +213,16 @@ void MapLoader::CreateSceneEntity(Scene& scene, const EntityData& data) {
     meshRender.Color = data.color;
     meshRender.EmissiveColor = data.emissiveColor;
     meshRender.EmissiveFactor = data.emissiveFactor;
+    
+    // Apply material reference if present (version 5+)
+    // Note: At runtime, we mark UseCustomPBR = true so RenderSystem renders individually
+    // The actual PBR params would need to be loaded from .mstmat file or stored in map
+    if (data.hasCustomMaterial && !data.materialName.empty()) {
+        meshRender.UseCustomPBR = true;
+        // TODO: Load PBR params from material file if needed
+        // For now, the material name is stored for reference
+        SE_LOG_INFO("MapLoader: Entity '{}' uses material '{}'", data.name, data.materialName);
+    }
     
     // Add collider component if has collision
     // NOTE: Do NOT multiply by scale here - PhysicsSystem applies transform.Scale automatically
