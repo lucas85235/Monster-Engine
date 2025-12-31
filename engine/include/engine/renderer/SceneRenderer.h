@@ -226,7 +226,7 @@ class SceneRenderer {
         float                   AmbientStrength = 0.2f;
         float                   AOStrength      = 0.5f;
         float                   AORadius        = 1.0f;
-        float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
+        float                   Exposure        = 1.0f;  // HDR exposure (1.0 = neutral)
         bool                    ShadowsEnabled  = true;
         Vector3                 CameraPosition{0.0f};    // For GI occlusion
         const Camera*           CurrentCamera = nullptr; // For CSM

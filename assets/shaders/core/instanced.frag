@@ -164,9 +164,11 @@ float CalculateCascadedShadow(vec3 worldPos, float viewDepth, vec3 normal, vec3 
 void main() {
     vec3 normal = normalize(v_Normal);
     
-    // Build MaterialInputs - use override color if enabled, otherwise vertex color
+    // Build MaterialInputs
+    // If v_Color is white (1,1,1) - which is the default instance color - use uBaseColor uniform
+    // Otherwise use the per-instance color from v_Color
     MaterialInputs material = initMaterialInputs();
-    vec3 baseColor = (uUseBaseColorOverride == 1) ? uBaseColor.rgb : v_Color;
+    vec3 baseColor = (v_Color == vec3(1.0)) ? uBaseColor.rgb : v_Color;
     material.baseColor = vec4(baseColor, 1.0);
     material.metallic = uMetallicFactor;
     material.roughness = uRoughnessFactor > 0.0 ? uRoughnessFactor : 0.5;
@@ -253,11 +255,11 @@ void main() {
     vec3 aoColor = multiBounceAO(ao, pixel.diffuseColor);
     indirectLight *= aoColor;
     
-    // Ambient and rim lighting
-    vec3 omniAmbient = pixel.diffuseColor * uSH[0] * 0.15;
-    float rimFactor = pow(1.0 - saturate(dot(normal, shading.view)), 3.0) * 0.3;
+    // Ambient and rim lighting (reduced for better shadow contrast)
+    vec3 omniAmbient = pixel.diffuseColor * uSH[0] * 0.05;
+    float rimFactor = pow(1.0 - saturate(dot(normal, shading.view)), 3.0) * 0.15;
     vec3 rimLight = uSkyColor * rimFactor * (1.0 - material.metallic);
-    vec3 minAmbient = pixel.diffuseColor * 0.08;
+    vec3 minAmbient = pixel.diffuseColor * 0.02;
     indirectLight = max(indirectLight + omniAmbient + rimLight, minAmbient);
     
     // GI contribution

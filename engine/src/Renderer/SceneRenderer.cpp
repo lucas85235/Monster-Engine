@@ -1194,7 +1194,17 @@ void SceneRenderer::RenderScenePass() {
             shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
             shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
         } else {
+            // Set default PBR values when no global override
             shader->setInt("uUseBaseColorOverride", 0);
+            shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+            shader->setFloat("uMetallicFactor", 0.0f);
+            shader->setFloat("uRoughnessFactor", 0.9f);  // Nearly matte surfaces by default
+            shader->setFloat("uReflectance", 0.5f);
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
         }
         
         // IBL for instanced

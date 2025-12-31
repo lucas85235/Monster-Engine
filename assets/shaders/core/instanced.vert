@@ -1,6 +1,6 @@
 #version 330 core
 layout(location = 0) in vec3 a_Position;
-layout(location = 1) in vec3 a_Color;
+layout(location = 1) in vec3 a_Color;  // Unused - MeshFactory generates position-based colors
 layout(location = 2) in vec3 a_Normal;
 
 // Per-instance data (Mat4 uses locations 3-6, Color uses 7)
@@ -29,12 +29,9 @@ void main() {
     v_Normal = mat3(transpose(inverse(model))) * a_Normal;
     v_ViewPos = inverse(uView)[3].xyz;
     
-    // Use instance color if set (not white), otherwise use vertex color
-    if (a_InstanceColor.rgb == vec3(1.0, 1.0, 1.0)) {
-        v_Color = a_Color;
-    } else {
-        v_Color = a_InstanceColor.rgb;
-    }
+    // Always use instance color - a_Color from vertices is position-based (not useful)
+    // When instance color is white (1,1,1), fragment shader will use uBaseColor uniform
+    v_Color = a_InstanceColor.rgb;
     
     v_LightSpacePos = uLightSpaceMatrix * world_position;
 

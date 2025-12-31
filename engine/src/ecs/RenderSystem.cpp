@@ -247,46 +247,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        // Emissive objects must be rendered individually to pass their emissive properties
-        if (meshRender.EmissiveFactor > 0.0f) {
-            sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
-                                 transform.WorldMatrix, true, true, 1.0f, nullptr,
-                                 meshRender.EmissiveColor, meshRender.EmissiveFactor);
-            continue;
-        }
-        
-        // Use MaterialInstance if available (new unified material system)
-        if (meshRender.materialInstance) {
-            auto shader = meshRender.material ? meshRender.material->GetShader() : nullptr;
-            if (shader) {
-                shader->bind();
-                meshRender.materialInstance->Bind(shader.get());
-            }
-            sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
-                                 transform.WorldMatrix, meshRender.CastShadows, 
-                                 meshRender.ReceiveShadows, 1.0f, nullptr);
-            continue;
-        }
-        
-        // Legacy: Custom PBR objects must be rendered individually to pass their PBR params
-        if (meshRender.UseCustomPBR) {
-            // Create a temporary PBR override for this object
-            PBRMaterialParams pbrParams;
-            pbrParams.BaseColor = meshRender.Color;
-            pbrParams.Metallic = meshRender.Metallic;
-            pbrParams.Roughness = meshRender.Roughness;
-            pbrParams.Reflectance = meshRender.Reflectance;
-            pbrParams.AO = meshRender.AO;
-            pbrParams.EmissiveColor = meshRender.EmissiveColor;
-            pbrParams.EmissiveFactor = meshRender.EmissiveFactor;
-            
-            sceneRenderer.SubmitWithPBR(meshRender.vertex_array, meshRender.material, 
-                                        transform.WorldMatrix, pbrParams,
-                                        meshRender.CastShadows, meshRender.ReceiveShadows,
-                                        meshRender.customTextureMaterial);
-            continue;
-        }
-
+        // All MeshRenderComponent entities now use instanced batching
+        // Color and emissive properties are stored in InstanceData
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
 
         // Cache shared_ptrs and properties on first encounter for this batch
@@ -301,7 +263,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         InstanceData instanceData;
         instanceData.Transform = transform.WorldMatrix;
-        instanceData.Color     = meshRender.Color;  // Use per-entity color
+        // Always pass the component color - shader uses uBaseColor if this is white (1,1,1)
+        instanceData.Color = meshRender.Color;
 
         instanceBatches_[key].push_back(instanceData);
     }
@@ -639,46 +602,41 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         if (!material || !va) continue;
 
-        if (instances.size() == 1) {
-            // Single instance - use normal submit with emissive properties
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, 
-                                 resources.emissiveColor, resources.emissiveFactor);
-        } else {
-            // Multiple instances - use instanced rendering
-            instancedObjects += static_cast<uint32_t>(instances.size());
+        // Always use instanced rendering - even for single instances
+        // This ensures consistent shader path (instanced.frag) for all objects
+        instancedObjects += static_cast<uint32_t>(instances.size());
 
-            // Get or create InstancedMesh for this batch
-            auto it = instancedMeshCache_.find(key);
-            if (it == instancedMeshCache_.end()) {
-                // Create new InstancedMesh with capacity for growth
-                uint32_t maxInstances =
-                    std::max(static_cast<uint32_t>(instances.size() * 2), 1000u);
-                auto instancedMesh = std::make_shared<InstancedMesh>(va, maxInstances);
-                it                 = instancedMeshCache_.emplace(key, instancedMesh).first;
-                SE_LOG_INFO("Created InstancedMesh for batch with capacity {}", maxInstances);
-            }
+        // Get or create InstancedMesh for this batch
+        auto it = instancedMeshCache_.find(key);
+        if (it == instancedMeshCache_.end()) {
+            // Create new InstancedMesh with capacity for growth
+            uint32_t maxInstances =
+                std::max(static_cast<uint32_t>(instances.size() * 2), 1000u);
+            auto instancedMesh = std::make_shared<InstancedMesh>(va, maxInstances);
+            it                 = instancedMeshCache_.emplace(key, instancedMesh).first;
+            SE_LOG_INFO("Created InstancedMesh for batch with capacity {}", maxInstances);
+        }
 
-            auto& instancedMesh = it->second;
+        auto& instancedMesh = it->second;
 
-            // Check if we need to resize
-            if (instances.size() > instancedMesh->GetMaxInstances()) {
-                uint32_t newMax = static_cast<uint32_t>(instances.size() * 2);
-                instancedMesh   = std::make_shared<InstancedMesh>(va, newMax);
-                it->second      = instancedMesh;
-                SE_LOG_INFO("Resized InstancedMesh to capacity {}", newMax);
-            }
+        // Check if we need to resize
+        if (instances.size() > instancedMesh->GetMaxInstances()) {
+            uint32_t newMax = static_cast<uint32_t>(instances.size() * 2);
+            instancedMesh   = std::make_shared<InstancedMesh>(va, newMax);
+            it->second      = instancedMesh;
+            SE_LOG_INFO("Resized InstancedMesh to capacity {}", newMax);
+        }
 
-            // Upload instance data and draw
-            instancedMesh->SetInstances(instances);
+        // Upload instance data and draw
+        instancedMesh->SetInstances(instances);
 
-            // Ensure we have the instanced material loaded
-            EnsureInstancedMaterial();
+        // Ensure we have the instanced material loaded
+        EnsureInstancedMaterial();
 
-            // Submit to SceneRenderer for instanced rendering (use instanced material for proper
-            // shader)
-            if (instancedMaterial_) {
-                sceneRenderer.SubmitInstanced(instancedMesh, instancedMaterial_, true, true);
-            }
+        // Submit to SceneRenderer for instanced rendering (use instanced material for proper
+        // shader)
+        if (instancedMaterial_) {
+            sceneRenderer.SubmitInstanced(instancedMesh, instancedMaterial_, true, true);
         }
     }
 

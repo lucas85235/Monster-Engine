@@ -30,7 +30,11 @@ PixelParams getPixelParams(MaterialInputs material, ShadingData shading) {
     vec2 dfg = prefilteredDFG_Karis(shading.NoV, pixel.perceptualRoughness);
     pixel.dfg = vec3(dfg.x, dfg.y, 0.0);
     // energyCompensation = 1 + f0 * (1/dfg.y - 1)
-    pixel.energyCompensation = 1.0 + pixel.f0 * (1.0 / max(dfg.y, 0.001) - 1.0);
+    // Clamp dfg.y to minimum 0.1 to prevent explosion (was 0.001 which caused 1000x multiplier)
+    // Also clamp final result to max 2.0 for safety
+    float energyMultiplier = 1.0 / max(dfg.y, 0.1) - 1.0;
+    vec3 safeEnergy = vec3(1.0) + pixel.f0 * energyMultiplier;
+    pixel.energyCompensation = clamp(safeEnergy, vec3(1.0), vec3(2.0));
     
     // Clear coat
     pixel.clearCoat = material.clearCoat;
@@ -75,7 +79,8 @@ vec3 isotropicLobe(PixelParams pixel, float NoV, float NoL, float NoH, float LoH
     float D = D_GGX(NoH, pixel.roughness);
     float V = V_SmithGGXCorrelated(NoV, NoL, pixel.roughness);
     vec3  F = F_Schlick(LoH, pixel.f0, pixel.f90);
-    return (D * V) * F;
+    // Clamp specular to prevent hotspots from D*V becoming too large
+    return min((D * V) * F, vec3(1.0));
 }
 
 // Anisotropic specular lobe - for brushed metal, hair
@@ -92,7 +97,8 @@ vec3 anisotropicLobe(PixelParams pixel, ShadingData shading, vec3 h,
     float D = D_GGX_Anisotropic(pixel.at, pixel.ab, ToH, BoH, NoH);
     float V = V_SmithGGXCorrelated_Anisotropic(pixel.at, pixel.ab, ToV, BoV, ToL, BoL, NoV, NoL);
     vec3  F = F_Schlick(LoH, pixel.f0, pixel.f90);
-    return (D * V) * F;
+    // Clamp specular to prevent hotspots
+    return min((D * V) * F, vec3(1.0));
 }
 
 // Select appropriate specular lobe
@@ -192,8 +198,8 @@ vec3 surfaceShading(PixelParams pixel, ShadingData shading, Light light, float o
     vec3 result = (color * light.colorIntensity.rgb) *
            (light.colorIntensity.w * light.attenuation * NoL * occlusion);
     
-    // Clamp result to prevent NaN propagation (black pixels)
-    return clamp(result, vec3(0.0), vec3(100.0));
+    // Clamp result to reasonable HDR range
+    return clamp(result, vec3(0.0), vec3(10.0));
 }
 
 // Simplified surface shading without optional layers
@@ -217,7 +223,7 @@ vec3 surfaceShadingSimple(PixelParams pixel, ShadingData shading, Light light, f
     vec3 result = (color * light.colorIntensity.rgb) *
            (light.colorIntensity.w * light.attenuation * NoL * occlusion);
     
-    return clamp(result, vec3(0.0), vec3(100.0));
+    return clamp(result, vec3(0.0), vec3(10.0));
 }
 
 #endif // PBR_SHADING_STANDARD_GLSL
