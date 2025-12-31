@@ -11,6 +11,7 @@
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/SkinnedModelComponent.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/MaterialInstance.h"
 #include "engine/renderer/PBRMaterial.h"
 #include "engine/renderer/SceneRenderer.h"
 #include "engine/renderer/Texture.h"
@@ -254,7 +255,20 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
         
-        // Custom PBR objects must be rendered individually to pass their PBR params
+        // Use MaterialInstance if available (new unified material system)
+        if (meshRender.materialInstance) {
+            auto shader = meshRender.material ? meshRender.material->GetShader() : nullptr;
+            if (shader) {
+                shader->bind();
+                meshRender.materialInstance->Bind(shader.get());
+            }
+            sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
+                                 transform.WorldMatrix, meshRender.CastShadows, 
+                                 meshRender.ReceiveShadows, 1.0f, nullptr);
+            continue;
+        }
+        
+        // Legacy: Custom PBR objects must be rendered individually to pass their PBR params
         if (meshRender.UseCustomPBR) {
             // Create a temporary PBR override for this object
             PBRMaterialParams pbrParams;
@@ -361,44 +375,53 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     shader->setInt("uHasBones", 0);
                 }
                 
-                // Set texture uniforms
-                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
-                
-                if (texMat) {
-                    if (texMat->HasAlbedo()) {
-                        texMat->Albedo->Bind(1);
-                        hasAlbedo = 1;
+                // Use MaterialInstance if available (new unified system)
+                auto matInstance = submesh.GetMaterialInstance();
+                if (matInstance) {
+                    matInstance->Bind(shader.get());
+                    if (shouldLog) {
+                        SE_LOG_INFO("RenderSystem: Using MaterialInstance for submesh '{}'", submesh.GetName());
                     }
-                    if (texMat->HasNormal()) {
-                        texMat->Normal->Bind(2);
-                        hasNormal = 1;
+                } else {
+                    // Fallback to legacy TextureMaterial binding
+                    int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+                    
+                    if (texMat) {
+                        if (texMat->HasAlbedo()) {
+                            texMat->Albedo->Bind(1);
+                            hasAlbedo = 1;
+                        }
+                        if (texMat->HasNormal()) {
+                            texMat->Normal->Bind(2);
+                            hasNormal = 1;
+                        }
+                        if (texMat->HasSpecular()) {
+                            texMat->Specular->Bind(3);
+                            hasSpecular = 1;
+                        }
+                        if (texMat->HasAO()) {
+                            texMat->AO->Bind(4);
+                            hasAO = 1;
+                        }
                     }
-                    if (texMat->HasSpecular()) {
-                        texMat->Specular->Bind(3);
-                        hasSpecular = 1;
+                    
+                    shader->setInt("uAlbedoMap", 1);
+                    shader->setInt("uNormalMap", 2);
+                    shader->setInt("uSpecularMap", 3);
+                    shader->setInt("uAOMap", 4);
+                    
+                    shader->setInt("uHasAlbedo", hasAlbedo);
+                    shader->setInt("uHasNormal", hasNormal);
+                    shader->setInt("uHasSpecular", hasSpecular);
+                    shader->setInt("uHasAO", hasAO);
+                    
+                    shader->setVec4("uBaseColor", texMat ? texMat->BaseColor : glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+                    shader->setFloat("uShininess", texMat ? texMat->Shininess : 32.0f);
+                    
+                    if (shouldLog && texMat) {
+                        SE_LOG_INFO("RenderSystem PBR: submesh='{}' animated={} albedo={} normal={} spec={} ao={}",
+                                    submesh.GetName(), hasAnimator, hasAlbedo, hasNormal, hasSpecular, hasAO);
                     }
-                    if (texMat->HasAO()) {
-                        texMat->AO->Bind(4);
-                        hasAO = 1;
-                    }
-                }
-                
-                shader->setInt("uAlbedoMap", 1);
-                shader->setInt("uNormalMap", 2);
-                shader->setInt("uSpecularMap", 3);
-                shader->setInt("uAOMap", 4);
-                
-                shader->setInt("uHasAlbedo", hasAlbedo);
-                shader->setInt("uHasNormal", hasNormal);
-                shader->setInt("uHasSpecular", hasSpecular);
-                shader->setInt("uHasAO", hasAO);
-                
-                shader->setVec4("uBaseColor", texMat ? texMat->BaseColor : glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
-                shader->setFloat("uShininess", texMat ? texMat->Shininess : 32.0f);
-                
-                if (shouldLog && texMat) {
-                    SE_LOG_INFO("RenderSystem PBR: submesh='{}' animated={} albedo={} normal={} spec={} ao={}",
-                                submesh.GetName(), hasAnimator, hasAlbedo, hasNormal, hasSpecular, hasAO);
                 }
             }
             
@@ -508,63 +531,69 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         for (const auto& mesh : skinnedComp.model->GetMeshes()) {
             auto texMat = mesh.GetMaterial();
             
-            // Reset texture flags
-            int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
-            int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
-            
-            if (texMat) {
-                if (texMat->HasAlbedo()) {
-                    texMat->Albedo->Bind(1);
-                    hasAlbedo = 1;
-                }
-                if (texMat->HasNormal()) {
-                    texMat->Normal->Bind(2);
-                    hasNormal = 1;
-                }
-                if (texMat->HasSpecular()) {
-                    texMat->Specular->Bind(3);
-                    hasSpecular = 1;
-                }
-                if (texMat->HasAO()) {
-                    texMat->AO->Bind(4);
-                    hasAO = 1;
-                }
-                if (texMat->HasRoughness()) {
-                    texMat->Roughness->Bind(5);
-                    hasRoughness = 1;
-                }
-                if (texMat->HasMetallic()) {
-                    texMat->Metallic->Bind(6);
-                    hasMetallic = 1;
-                }
-                if (texMat->HasEmissive()) {
-                    texMat->Emissive->Bind(7);
-                    hasEmissive = 1;
+            // Use MaterialInstance if available (new unified system)
+            auto matInstance = mesh.GetMaterialInstance();
+            if (matInstance) {
+                matInstance->Bind(shader.get());
+            } else {
+                // Fallback to legacy TextureMaterial binding
+                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+                int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
+                
+                if (texMat) {
+                    if (texMat->HasAlbedo()) {
+                        texMat->Albedo->Bind(1);
+                        hasAlbedo = 1;
+                    }
+                    if (texMat->HasNormal()) {
+                        texMat->Normal->Bind(2);
+                        hasNormal = 1;
+                    }
+                    if (texMat->HasSpecular()) {
+                        texMat->Specular->Bind(3);
+                        hasSpecular = 1;
+                    }
+                    if (texMat->HasAO()) {
+                        texMat->AO->Bind(4);
+                        hasAO = 1;
+                    }
+                    if (texMat->HasRoughness()) {
+                        texMat->Roughness->Bind(5);
+                        hasRoughness = 1;
+                    }
+                    if (texMat->HasMetallic()) {
+                        texMat->Metallic->Bind(6);
+                        hasMetallic = 1;
+                    }
+                    if (texMat->HasEmissive()) {
+                        texMat->Emissive->Bind(7);
+                        hasEmissive = 1;
+                    }
+                    
+                    shader->setVec4("uBaseColor", texMat->BaseColor);
+                    shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
+                    shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
+                    shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
                 }
                 
-                shader->setVec4("uBaseColor", texMat->BaseColor);
-                shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
-                shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
-                shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
+                // Set sampler uniform locations
+                shader->setInt("uAlbedoMap", 1);
+                shader->setInt("uNormalMap", 2);
+                shader->setInt("uSpecularMap", 3);
+                shader->setInt("uAOMap", 4);
+                shader->setInt("uRoughnessMap", 5);
+                shader->setInt("uMetallicMap", 6);
+                shader->setInt("uEmissiveMap", 7);
+                
+                // Set texture presence flags
+                shader->setInt("uHasAlbedo", hasAlbedo);
+                shader->setInt("uHasNormal", hasNormal);
+                shader->setInt("uHasSpecular", hasSpecular);
+                shader->setInt("uHasAO", hasAO);
+                shader->setInt("uHasRoughness", hasRoughness);
+                shader->setInt("uHasMetallic", hasMetallic);
+                shader->setInt("uHasEmissive", hasEmissive);
             }
-            
-            // Set sampler uniform locations
-            shader->setInt("uAlbedoMap", 1);
-            shader->setInt("uNormalMap", 2);
-            shader->setInt("uSpecularMap", 3);
-            shader->setInt("uAOMap", 4);
-            shader->setInt("uRoughnessMap", 5);
-            shader->setInt("uMetallicMap", 6);
-            shader->setInt("uEmissiveMap", 7);
-            
-            // Set texture presence flags
-            shader->setInt("uHasAlbedo", hasAlbedo);
-            shader->setInt("uHasNormal", hasNormal);
-            shader->setInt("uHasSpecular", hasSpecular);
-            shader->setInt("uHasAO", hasAO);
-            shader->setInt("uHasRoughness", hasRoughness);
-            shader->setInt("uHasMetallic", hasMetallic);
-            shader->setInt("uHasEmissive", hasEmissive);
             
             mesh.Draw();
             

@@ -11,10 +11,9 @@ namespace se {
 class Texture;
 struct TextureMaterial;
 
-/**
- * PBR Material Parameters following Filament's Standard Model.
- * These are the artist-friendly parameters exposed to the user.
- */
+// DEPRECATED: Use MaterialDefinition instead
+// This struct is kept for backward compatibility during migration
+// See: engine/include/engine/renderer/MaterialDefinition.h
 struct PBRMaterialParams {
     // Core parameters
     Vector4 BaseColor{1.0f, 1.0f, 1.0f, 1.0f};  // Base color (linear RGBA)

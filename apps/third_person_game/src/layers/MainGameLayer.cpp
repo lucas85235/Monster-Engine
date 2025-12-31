@@ -15,13 +15,14 @@
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
 #include "engine/renderer/IBLProcessor.h"
+#include <imgui.h>
 
 #include <filesystem>
 
 
 namespace FirstGame {
 
-void ImguiDebug() {
+void MainGameLayer::ImguiDebug() {
     auto& app    = se::Application::Get();
     auto& window = app.GetWindow();
 
@@ -31,6 +32,38 @@ void ImguiDebug() {
     ImGui::Text("Current Resolution: [%d x %d]", window.GetWidth(), window.GetHeight());
     ImGui::Separator();
     ImGui::Text("Press TAB to toggle mouse capture");
+    
+
+    // Initialize static values from the entity on first frame
+    static float lightAzimuth = 210.0f;
+    static float lightElevation = 45.0f;
+    static bool firstFrame = true;
+    
+    if (lightEntity_.IsValid() && lightEntity_.HasComponent<se::DirectionalLightComponent>()) {
+        auto& light = lightEntity_.GetComponent<se::DirectionalLightComponent>();
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
+        
+        // On first frame, derive azimuth/elevation from entity's rotation
+        if (firstFrame) {
+            se::Vector3 rotation = transform.Rotation;
+            // rotation.x > 0 means light points down, so elevation = rotation.x
+            lightElevation = rotation.x;
+            lightAzimuth = rotation.y + 180.0f;
+        }
+        
+        bool lightChanged = false;
+        lightChanged |= ImGui::SliderFloat("Azimuth", &lightAzimuth, 0.0f, 360.0f, "%.1f deg");
+        lightChanged |= ImGui::SliderFloat("Elevation", &lightElevation, 5.0f, 90.0f, "%.1f deg");
+        lightChanged |= ImGui::ColorEdit3("Light Color", &light.Color.x);
+        lightChanged |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.0f, 10.0f);
+        
+        if (lightChanged) {
+            // Positive elevation -> positive rotation.x tilts forward vector down
+            // RenderSystem uses -transform.GetForward() for direction FROM light TO scene
+            transform.SetRotation({lightElevation, lightAzimuth - 180.0f, 0.0f});
+        }
+    }
+
     ImGui::End();
 }
 
@@ -93,6 +126,21 @@ void MainGameLayer::OnAttach() {
     // Enable Cascaded Shadow Maps for better shadow quality
     renderer.SetCSMEnabled(true);
     renderer.SetCSMSplitLambda(0.85f);
+
+    if (!lightEntity_.IsValid()) {
+        // Create directional light entity like ThirdPersonLayer
+        lightEntity_ = scene_->CreateEntity("Sun");
+        auto& transform = lightEntity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition({10.0f, 20.0f, 10.0f});
+        transform.SetRotation({45.0f, 45.0f, 0.0f});
+        
+        auto& light = lightEntity_.AddComponent<se::DirectionalLightComponent>();
+        light.Color = {1.0f, 0.95f, 0.9f};
+        light.Intensity = 2.0f;
+        light.CastShadows = true;
+        light.Enabled = true;
+        SE_LOG_INFO("[MainGameLayer] Created new directional light entity");
+    }
     
     SE_LOG_INFO("[MainGameLayer] Scene initialized with IBL and CSM");
 }

@@ -7,7 +7,10 @@ namespace se {
 
 class Texture;
 
-struct TextureMaterial {
+// DEPRECATED: Use MaterialInstance with MaterialDefinition instead
+// This struct is kept for backward compatibility during migration
+// See: engine/include/engine/renderer/MaterialInstance.h
+struct [[deprecated("Use MaterialInstance instead")]] TextureMaterial {
     std::shared_ptr<Texture> Albedo;
     std::shared_ptr<Texture> Normal;
     std::shared_ptr<Texture> Specular;

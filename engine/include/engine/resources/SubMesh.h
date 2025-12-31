@@ -9,6 +9,7 @@ namespace se {
 
 class VertexArray;
 class Material;
+class MaterialInstance;
 
 class SubMesh {
    public:
@@ -31,16 +32,22 @@ class SubMesh {
 
     void SetMaterial(std::shared_ptr<Material> material) { material_ = std::move(material); }
 
+    // Legacy TextureMaterial support (backward compat)
     void SetTextureMaterial(std::shared_ptr<TextureMaterial> texMat) { textureMaterial_ = std::move(texMat); }
     const std::shared_ptr<TextureMaterial>& GetTextureMaterial() const { return textureMaterial_; }
     bool HasTextureMaterial() const { return textureMaterial_ != nullptr; }
+    
+    // New MaterialInstance support
+    void SetMaterialInstance(MaterialInstance* matInstance) { materialInstance_ = matInstance; }
+    MaterialInstance* GetMaterialInstance() const { return materialInstance_; }
+    bool HasMaterialInstance() const { return materialInstance_ != nullptr; }
 
    private:
     std::shared_ptr<VertexArray> vertexArray_;
     std::shared_ptr<Material> material_;
     std::shared_ptr<TextureMaterial> textureMaterial_;
+    MaterialInstance* materialInstance_ = nullptr;
     std::string name_;
 };
 
 }  // namespace se
-

@@ -7,10 +7,12 @@
 #include "engine/Log.h"
 #include "engine/renderer/Buffer.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/MaterialInstance.h"
 #include "engine/renderer/Texture.h"
 #include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/VertexArray.h"
 #include "engine/resources/AssimpModelLoader.h"
+#include "engine/resources/MaterialLibrary.h"
 #include "engine/resources/Model.h"
 #include "engine/resources/ModelData.h"
 #include "engine/resources/SubMesh.h"
@@ -239,6 +241,25 @@ std::shared_ptr<Model> ModelManager::CreateModelFromData(const ModelData& data) 
         SubMesh submesh(vertexArray, material, submeshData.Name);
         if (textureMaterial) {
             submesh.SetTextureMaterial(textureMaterial);
+            
+            // Also create MaterialInstance for new system
+            std::string matName = data.Name + "_" + submeshData.Name + "_mat";
+            MaterialInstance* matInstance = MaterialLibrary::Get().CreateFromTextureMaterial(
+                matName,
+                textureMaterial->Albedo,
+                textureMaterial->Normal,
+                textureMaterial->Metallic,
+                textureMaterial->Roughness,
+                textureMaterial->AO,
+                textureMaterial->Emissive
+            );
+            if (matInstance) {
+                matInstance->SetBaseColor(textureMaterial->BaseColor);
+                matInstance->SetMetallic(textureMaterial->MetallicFactor);
+                matInstance->SetRoughness(textureMaterial->RoughnessFactor);
+                submesh.SetMaterialInstance(matInstance);
+                SE_LOG_INFO("ModelManager: Created MaterialInstance '{}'", matName);
+            }
         }
         model->AddSubMesh(std::move(submesh));
 

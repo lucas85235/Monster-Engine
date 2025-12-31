@@ -25,8 +25,11 @@ public:
     void OnImGuiRender() override;
 
 private:
-    Entity        character_entity_;
-    Scope<Scene>  scene_;
-    Ref<Material> material_;
+    void ImguiDebug();
+
+    se::Entity        character_entity_;
+    se::Scope<se::Scene>  scene_;
+    se::Ref<se::Material> material_;
+    se::Entity    lightEntity_;
 };
 } // namespace FirstGame

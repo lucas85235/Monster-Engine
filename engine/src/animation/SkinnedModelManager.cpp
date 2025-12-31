@@ -6,7 +6,9 @@
 #include "engine/animation/SkinnedModel.h"
 #include "engine/animation/SkinnedModelLoader.h"
 #include "engine/Log.h"
+#include "engine/renderer/MaterialInstance.h"
 #include "engine/renderer/TextureMaterial.h"
+#include "engine/resources/MaterialLibrary.h"
 #include "engine/resources/TextureManager.h"
 
 namespace se {
@@ -124,6 +126,23 @@ std::shared_ptr<SkinnedModel> SkinnedModelManager::CreateFromData(std::shared_pt
             
             material->BaseColor = matData.DiffuseColor;
             mesh.SetMaterial(material);
+            
+            // Also create MaterialInstance for new system
+            std::string matName = data->Name + "_mesh" + std::to_string(i) + "_mat";
+            MaterialInstance* matInstance = MaterialLibrary::Get().CreateFromTextureMaterial(
+                matName,
+                material->Albedo,
+                material->Normal,
+                material->Metallic,
+                material->Roughness,
+                material->AO,
+                material->Emissive
+            );
+            if (matInstance) {
+                matInstance->SetBaseColor(material->BaseColor);
+                mesh.SetMaterialInstance(matInstance);
+                SE_LOG_INFO("SkinnedModelManager: Created MaterialInstance '{}'", matName);
+            }
         }
         
         model->AddMesh(std::move(mesh));

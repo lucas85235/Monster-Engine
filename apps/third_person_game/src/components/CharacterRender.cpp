@@ -24,8 +24,8 @@ void CharacterRender::Start() {
     ApplyTransformCorrections();
     
     if (modelData_ && modelData_->HasSkeleton()) {
-        SetupAnimator();
-        SetupBoneAttachmentTest();
+        // SetupAnimator();
+        // SetupBoneAttachmentTest();
     }
 }
 

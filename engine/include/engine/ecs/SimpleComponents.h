@@ -141,6 +141,7 @@ struct NameComponent {
 
 // ==================== Mesh Render Component ====================
 struct TextureMaterial;  // Forward declaration
+class MaterialInstance;  // Forward declaration (new material system)
 
 struct MeshRenderComponent {
     std::shared_ptr<VertexArray> vertex_array;
@@ -154,14 +155,17 @@ struct MeshRenderComponent {
     Vector3                      EmissiveColor{0.0f, 0.0f, 0.0f};  // RGB emissive color
     float                        EmissiveFactor = 0.0f;             // Emission intensity multiplier
     
-    // PBR Material parameters
+    // New unified material system
+    MaterialInstance*            materialInstance = nullptr;  // Non-owning, from MaterialLibrary
+    
+    // Legacy PBR Material parameters (kept for backward compat)
     float                        Metallic = 0.0f;       // 0 = dielectric, 1 = metal
     float                        Roughness = 0.5f;      // Perceptual roughness [0-1]
     float                        Reflectance = 0.5f;    // Dielectric reflectance (0.5 = 4% F0)
     float                        AO = 1.0f;             // Ambient occlusion multiplier
     bool                         UseCustomPBR = false;  // Use custom PBR instead of defaults
     
-    // PBR Texture material (loaded textures from Material Editor)
+    // Legacy PBR Texture material (kept for backward compat)
     std::shared_ptr<TextureMaterial> customTextureMaterial;
 
     MeshRenderComponent()                           = default;
