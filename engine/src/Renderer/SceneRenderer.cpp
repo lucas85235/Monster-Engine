@@ -115,7 +115,7 @@ void SceneRenderer::Init() {
     
     // Load G-Buffer shaders (may fail if files don't exist, handle gracefully)
     try {
-        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer.vert", "assets/shaders/gbuffer.frag");
+        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/deferred/gbuffer.vert", "assets/shaders/deferred/gbuffer.frag");
         SE_LOG_INFO("G-Buffer shader loaded");
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Error loading gbuffer shader: {}", e.what());
@@ -123,7 +123,7 @@ void SceneRenderer::Init() {
     }
     
     try {
-        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer_instanced.vert", "assets/shaders/gbuffer_instanced.frag");
+        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/deferred/gbuffer_instanced.vert", "assets/shaders/deferred/gbuffer_instanced.frag");
         SE_LOG_INFO("G-Buffer instanced shader loaded");
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Error loading gbuffer instanced shader: {}", e.what());
@@ -1446,8 +1446,8 @@ void SceneRenderer::InitSkybox() {
     
     namespace fs = std::filesystem;
     fs::path assetsPath = fs::current_path() / "assets";
-    fs::path vertPath = assetsPath / "shaders" / "skybox.vert";
-    fs::path fragPath = assetsPath / "shaders" / "skybox.frag";
+    fs::path vertPath = assetsPath / "shaders" / "environment" / "skybox.vert";
+    fs::path fragPath = assetsPath / "shaders" / "environment" / "skybox.frag";
     
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_WARN("[Skybox] Shaders not found, skybox disabled");

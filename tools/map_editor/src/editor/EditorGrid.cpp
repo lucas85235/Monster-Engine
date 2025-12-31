@@ -23,8 +23,8 @@ EditorGrid::~EditorGrid() {
 
 void EditorGrid::LoadShader() {
     fs::path assetsPath = fs::current_path() / "assets";
-    fs::path vertPath = assetsPath / "shaders" / "grid.vert";
-    fs::path fragPath = assetsPath / "shaders" / "grid.frag";
+    fs::path vertPath = assetsPath / "shaders" / "utility" / "grid.vert";
+    fs::path fragPath = assetsPath / "shaders" / "utility" / "grid.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("EditorGrid: Grid shaders not found at {}", vertPath.string());

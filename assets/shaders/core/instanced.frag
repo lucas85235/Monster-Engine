@@ -4,12 +4,12 @@
 // PBR Instanced Fragment Shader - Based on Google Filament Standard Model
 // =============================================================================
 
-#include "pbr/pbr_types.glsl"
-#include "pbr/pbr_common.glsl"
-#include "pbr/shading_standard.glsl"
-#include "pbr/pbr_ibl.glsl"
-#include "pbr/pbr_fog.glsl"
-#include "pbr/pbr_contact_shadows.glsl"
+#include "include/pbr_types.glsl"
+#include "include/pbr_common.glsl"
+#include "include/shading_standard.glsl"
+#include "include/pbr_ibl.glsl"
+#include "include/pbr_fog.glsl"
+#include "include/pbr_contact_shadows.glsl"
 
 layout(location = 0) out vec4 color;
 

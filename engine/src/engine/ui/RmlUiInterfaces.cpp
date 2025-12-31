@@ -39,8 +39,8 @@ static GLuint CompileGLShader(GLenum type, const std::string& source) {
 }
 
 RmlUiRenderInterface::RmlUiRenderInterface() {
-    std::string vertSource = LoadShaderSource("assets/shaders/RmlUi.vert");
-    std::string fragSource = LoadShaderSource("assets/shaders/RmlUi.frag");
+    std::string vertSource = LoadShaderSource("assets/shaders/ui/RmlUi.vert");
+    std::string fragSource = LoadShaderSource("assets/shaders/ui/RmlUi.frag");
 
     GLuint vert = CompileGLShader(GL_VERTEX_SHADER, vertSource);
     GLuint frag = CompileGLShader(GL_FRAGMENT_SHADER, fragSource);

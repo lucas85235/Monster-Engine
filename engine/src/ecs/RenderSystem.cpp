@@ -66,8 +66,8 @@ void RenderSystem::EnsureInstancedMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "instanced.vert";
-    fs::path fragPath = assetsPath / "shaders" / "instanced.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "instanced.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "instanced.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Instanced shaders not found at: {}", vertPath.string());
@@ -100,8 +100,8 @@ void RenderSystem::EnsureModelMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "model.vert";
-    fs::path fragPath = assetsPath / "shaders" / "model.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "model.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "model.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Model shaders not found at: {}", vertPath.string());
@@ -134,8 +134,8 @@ void RenderSystem::EnsureSkinnedMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "skinned_model.vert";
-    fs::path fragPath = assetsPath / "shaders" / "skinned_model.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "skinned_model.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "skinned_model.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Skinned model shaders not found at: {}", vertPath.string());
