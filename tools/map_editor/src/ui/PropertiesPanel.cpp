@@ -176,6 +176,7 @@ void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata,
                     }
                 }
                 
+                // Capture previous state BEFORE combo changes it
                 int previousIndex = currentIndex;
                 
                 // Material dropdown
@@ -198,55 +199,73 @@ void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata,
                 ImGui::SameLine();
                 ImGui::TextDisabled("Material");
                 
-                // Apply material params to MeshRenderComponent when material changes or is selected
+                // Detect if combo selection changed this frame
+                bool selectionChanged = (currentIndex != previousIndex);
+                
+                // Also check if material is not yet applied to the mesh component
+                bool needsInitialLoad = false;
+                if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
+                    auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                    needsInitialLoad = (meshRender.customTextureMaterial == nullptr && metadata.hasCustomMaterial);
+                }
+                
+                // Apply material to MeshRenderComponent only on change or initial load
                 if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
                     const auto& mat = materials[currentIndex];
                     auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
                     
-                    // Apply PBR params from material to MeshRenderComponent
-                    meshRender.UseCustomPBR = true;
-                    meshRender.Metallic = mat.metallic;
-                    meshRender.Roughness = mat.roughness;
-                    meshRender.Reflectance = mat.reflectance;
-                    meshRender.AO = mat.ao;
+                    if (selectionChanged || needsInitialLoad) {
+                        // Apply PBR params from material to MeshRenderComponent
+                        meshRender.UseCustomPBR = true;
+                        meshRender.Metallic = mat.metallic;
+                        meshRender.Roughness = mat.roughness;
+                        meshRender.Reflectance = mat.reflectance;
+                        meshRender.AO = mat.ao;
+                        meshRender.Color = mat.baseColor;
+                        meshRender.EmissiveColor = mat.emissiveColor;
+                        meshRender.EmissiveFactor = mat.emissiveFactor;
+                        
+                        // Create TextureMaterial using cached TextureManager (no per-frame loading)
+                        auto texMat = std::make_shared<se::TextureMaterial>();
+                        texMat->BaseColor = mat.baseColor;
+                        texMat->MetallicFactor = mat.metallic;
+                        texMat->RoughnessFactor = mat.roughness;
+                        
+                        // Load textures using TextureManager (cached - fast lookup)
+                        if (mat.useAlbedoTexture && !mat.albedoTexturePath.empty()) {
+                            texMat->Albedo = se::TextureManager::Load(mat.albedoTexturePath);
+                        }
+                        if (mat.useNormalTexture && !mat.normalTexturePath.empty()) {
+                            texMat->Normal = se::TextureManager::Load(mat.normalTexturePath);
+                        }
+                        if (mat.useMetallicTexture && !mat.metallicTexturePath.empty()) {
+                            texMat->Metallic = se::TextureManager::Load(mat.metallicTexturePath);
+                        }
+                        if (mat.useRoughnessTexture && !mat.roughnessTexturePath.empty()) {
+                            texMat->Roughness = se::TextureManager::Load(mat.roughnessTexturePath);
+                        }
+                        if (mat.useAOTexture && !mat.aoTexturePath.empty()) {
+                            texMat->AO = se::TextureManager::Load(mat.aoTexturePath);
+                        }
+                        if (mat.useEmissiveTexture && !mat.emissiveTexturePath.empty()) {
+                            texMat->Emissive = se::TextureManager::Load(mat.emissiveTexturePath);
+                        }
+                        
+                        meshRender.customTextureMaterial = texMat;
+                        
+                        SE_LOG_INFO("PropertiesPanel: Applied material '{}' to entity", mat.name);
+                    }
                     
-                    // Also apply base color and emissive
-                    meshRender.Color = mat.baseColor;
-                    meshRender.EmissiveColor = mat.emissiveColor;
-                    meshRender.EmissiveFactor = mat.emissiveFactor;
-                    
-                    // Load textures from paths and create TextureMaterial
-                    auto texMat = std::make_shared<se::TextureMaterial>();
-                    texMat->BaseColor = mat.baseColor;
-                    texMat->MetallicFactor = mat.metallic;
-                    texMat->RoughnessFactor = mat.roughness;
-                    
-                    // Load textures if paths are set
-                    if (mat.useAlbedoTexture && !mat.albedoTexturePath.empty()) {
-                        texMat->Albedo = se::TextureManager::Load(mat.albedoTexturePath);
-                    }
-                    if (mat.useNormalTexture && !mat.normalTexturePath.empty()) {
-                        texMat->Normal = se::TextureManager::Load(mat.normalTexturePath);
-                    }
-                    if (mat.useMetallicTexture && !mat.metallicTexturePath.empty()) {
-                        texMat->Metallic = se::TextureManager::Load(mat.metallicTexturePath);
-                    }
-                    if (mat.useRoughnessTexture && !mat.roughnessTexturePath.empty()) {
-                        texMat->Roughness = se::TextureManager::Load(mat.roughnessTexturePath);
-                    }
-                    if (mat.useAOTexture && !mat.aoTexturePath.empty()) {
-                        texMat->AO = se::TextureManager::Load(mat.aoTexturePath);
-                    }
-                    if (mat.useEmissiveTexture && !mat.emissiveTexturePath.empty()) {
-                        texMat->Emissive = se::TextureManager::Load(mat.emissiveTexturePath);
-                    }
-                    
-                    meshRender.customTextureMaterial = texMat;
-                    
-                    // Quick preview of selected material
+                    // Quick preview of selected material (UI only, no loading)
                     ImGui::TextDisabled("Metallic: %.2f  Roughness: %.2f", mat.metallic, mat.roughness);
-                    if (texMat->HasAlbedo()) {
-                        ImGui::TextDisabled("Albedo texture loaded");
+                    if (mat.HasAnyTexture()) {
+                        ImGui::TextDisabled("Textures: %s%s%s%s%s%s",
+                            mat.useAlbedoTexture ? "A" : "",
+                            mat.useNormalTexture ? "N" : "",
+                            mat.useMetallicTexture ? "M" : "",
+                            mat.useRoughnessTexture ? "R" : "",
+                            mat.useAOTexture ? "O" : "",
+                            mat.useEmissiveTexture ? "E" : "");
                     }
                 }
             }

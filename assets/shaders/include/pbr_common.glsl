@@ -132,13 +132,17 @@ vec3 finalColorOutput(vec3 hdrColor, float exposure) {
     return gammaCorrected;
 }
 
+// HDR output for post-processing pipeline - NO tonemapping, just linear HDR
+// Use this when rendering to HDR framebuffer that will be post-processed
+vec3 hdrOutput(vec3 hdrColor) {
+    return max(hdrColor, vec3(0.0));
+}
+
 // Complete HDR to LDR pipeline with dithering: exposure -> tone mapping -> gamma -> dither
+// When uPostProcessEnabled is true, skip tonemapping and gamma - just output HDR
 vec3 finalColorOutputDithered(vec3 hdrColor, float exposure, vec2 screenPos) {
-    vec3 exposed = applyExposure(hdrColor, exposure);
-    vec3 tonemapped = toneMapACES(exposed);
-    vec3 gammaCorrected = linearToSRGB(tonemapped);
-    vec3 dithered = ditherOutput(gammaCorrected, screenPos);
-    return dithered;
+    // Always output raw HDR - post-processing handles tonemapping now
+    return max(hdrColor, vec3(0.0));
 }
 
 // Compute the squared perceptual roughness (alpha) from perceptual roughness
@@ -399,11 +403,22 @@ float cavityAO(vec3 normal, vec3 fragPos) {
 }
 
 // Combined procedural AO (no texture required)
-// Combines curvature and cavity detection for reasonable AO without a texture
+// Uses curvature and cavity detection from screen-space derivatives
 float proceduralAO(vec3 normal, vec3 fragPos, float radius, float strength) {
-    float curv = curvatureAO(normal, radius, strength);
-    float cavity = cavityAO(normal, fragPos);
-    float ao = curv * cavity;
+    // Curvature-based AO from normal derivatives
+    vec3 dNdx = dFdx(normal);
+    vec3 dNdy = dFdy(normal);
+    float curvature = length(dNdx) + length(dNdy);
+    float curvAO = 1.0 - clamp(curvature * radius * 5.0, 0.0, 0.8);
+    
+    // Cavity detection from position derivatives
+    vec3 dPosdx = dFdx(fragPos);
+    vec3 dPosdy = dFdy(fragPos);
+    vec3 faceNormal = normalize(cross(dPosdx, dPosdy));
+    float cavity = mix(0.6, 1.0, saturate(dot(normal, faceNormal)));
+    
+    float ao = curvAO * cavity;
+    ao = mix(1.0, ao, strength);
     return max(ao, 0.1);  // Minimum 10% to avoid completely black areas
 }
 

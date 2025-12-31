@@ -12,6 +12,7 @@
 #include <string>
 
 #include "Engine.h"
+#include "engine/assets/MaterialAsset.h"
 
 namespace mst {
 
@@ -87,6 +88,9 @@ struct EditorMaterialData {
     void Reset() {
         *this = EditorMaterialData{};
     }
+    
+    se::MaterialAsset ToEngineAsset() const;
+    void FromEngineAsset(const se::MaterialAsset& asset);
 };
 
 /**

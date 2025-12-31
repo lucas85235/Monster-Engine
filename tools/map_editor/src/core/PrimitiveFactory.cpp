@@ -92,30 +92,30 @@ std::shared_ptr<se::Material> PrimitiveFactory::GetDefaultMaterial() {
         return cachedMaterial_;
     }
     
-    // Try to load the basic shader from assets
+    // Try to load the instanced shader from assets (core shaders)
     fs::path assetsPath = fs::current_path() / "assets";
     if (!fs::exists(assetsPath)) {
         SE_LOG_WARN("PrimitiveFactory: Assets folder not found, using engine default material");
         return se::MaterialManager::GetDefaultMaterial();
     }
     
-    fs::path vertPath = assetsPath / "shaders" / "basic.vert";
-    fs::path fragPath = assetsPath / "shaders" / "basic.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "instanced.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "instanced.frag";
     
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
-        SE_LOG_WARN("PrimitiveFactory: Basic shaders not found, using engine default material");
+        SE_LOG_WARN("PrimitiveFactory: Instanced shaders not found at {}, using engine default material", vertPath.string());
         return se::MaterialManager::GetDefaultMaterial();
     }
     
-    auto shader = se::MaterialManager::GetShader("EditorBasicShader", vertPath, fragPath);
+    auto shader = se::MaterialManager::GetShader("EditorInstancedShader", vertPath, fragPath);
     if (!shader) {
-        SE_LOG_ERROR("PrimitiveFactory: Failed to load basic shader");
+        SE_LOG_ERROR("PrimitiveFactory: Failed to load instanced shader");
         return se::MaterialManager::GetDefaultMaterial();
     }
     
     cachedMaterial_ = se::MaterialManager::CreateMaterial(shader);
-    cachedMaterial_->SetFloat("uSpecularStrength", 0.5f);
-    SE_LOG_INFO("PrimitiveFactory: Created material with basic shader");
+    cachedMaterial_->SetFloat("uReflectance", 0.5f);
+    SE_LOG_INFO("PrimitiveFactory: Created material with instanced shader");
     
     return cachedMaterial_;
 }

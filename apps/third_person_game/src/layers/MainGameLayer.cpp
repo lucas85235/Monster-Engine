@@ -153,6 +153,17 @@ void MainGameLayer::OnDetach() {
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
     scene_->OnUpdate(ts);
+    
+    // Debug visualization mode hotkeys (F1-F7)
+    auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
+    auto& input = se::InputManager::Get();
+    if (input.IsKeyDown(se::Key::F1)) renderer.SetDebugMode(0);  // Normal
+    if (input.IsKeyDown(se::Key::F2)) renderer.SetDebugMode(1);  // AO
+    if (input.IsKeyDown(se::Key::F3)) renderer.SetDebugMode(2);  // Normals
+    if (input.IsKeyDown(se::Key::F4)) renderer.SetDebugMode(3);  // Roughness
+    if (input.IsKeyDown(se::Key::F5)) renderer.SetDebugMode(4);  // Metallic
+    if (input.IsKeyDown(se::Key::F6)) renderer.SetDebugMode(5);  // Depth
+    if (input.IsKeyDown(se::Key::F7)) renderer.SetDebugMode(6);  // Geometry
 }
 
 void MainGameLayer::OnRender() {

@@ -35,6 +35,8 @@ uniform float uShadowsEnabled;
 // AO Uniforms
 uniform float uAOStrength;
 uniform float uAORadius;
+uniform sampler2D uSSAOTexture;
+uniform int uHasSSAO;
 
 // Core PBR Parameters
 uniform vec4 uBaseColor;
@@ -79,6 +81,9 @@ uniform int uVisualizeCascades;
 // Camera/Post-processing
 uniform float uExposure;
 uniform mat4 uProjection;
+
+// Debug modes: 0=off, 1=AO only, 2=Normals, 3=Roughness, 4=Metallic
+uniform int uDebugMode;
 
 // Contact Shadows
 uniform sampler2D uDepthBuffer;
@@ -212,9 +217,65 @@ void main() {
         visibility *= (1.0 - contactShadow * 0.5);
     }
     
+    // Debug visualization modes (bypass all lighting calculations)
+    if (uDebugMode == 2) {
+        // World normals visualization
+        color = vec4(normal * 0.5 + 0.5, 1.0);
+        return;
+    } else if (uDebugMode == 3) {
+        // Roughness visualization
+        color = vec4(vec3(pixel.perceptualRoughness), 1.0);
+        return;
+    } else if (uDebugMode == 4) {
+        // Metallic visualization
+        color = vec4(vec3(material.metallic), 1.0);
+        return;
+    } else if (uDebugMode == 5) {
+        // Depth visualization (logarithmic for better close-range detail)
+        float viewDepth = abs((uView * vec4(v_FragPos, 1.0)).z);
+        float near = 0.1;
+        float far = 200.0;
+        // Use logarithmic depth for better distribution
+        float logDepth = log(viewDepth / near) / log(far / near);
+        logDepth = clamp(logDepth, 0.0, 1.0);
+        color = vec4(vec3(1.0 - logDepth), 1.0);
+        return;
+    } else if (uDebugMode == 6) {
+        // Geometry info visualization: face normals + checker pattern
+        vec3 dPosdx = dFdx(v_FragPos);
+        vec3 dPosdy = dFdy(v_FragPos);
+        vec3 faceNormal = normalize(cross(dPosdx, dPosdy));
+        vec3 faceNormalColor = faceNormal * 0.5 + 0.5;
+        
+        // Add checker pattern to show triangles/quads
+        float checker = mod(floor(v_FragPos.x * 2.0) + floor(v_FragPos.y * 2.0) + floor(v_FragPos.z * 2.0), 2.0);
+        faceNormalColor *= mix(0.8, 1.0, checker);
+        
+        color = vec4(faceNormalColor, 1.0);
+        return;
+    }
+    
+    // Sample SSAO texture or fallback to procedural AO
+    float ao;
+    if (uHasSSAO == 1) {
+        // Sample from SSAO texture using screen-space coordinates
+        vec2 screenUV = gl_FragCoord.xy / uScreenSize;
+        ao = texture(uSSAOTexture, screenUV).r;
+        ao = mix(1.0, ao, uAOStrength);  // Apply strength factor
+    } else {
+        // Fallback to procedural AO (works on edges/curvature only)
+        ao = proceduralAO(normal, v_FragPos, uAORadius, uAOStrength);
+    }
+    
     // Apply micro-shadowing
-    float ao = proceduralAO(normal, v_FragPos, uAORadius, uAOStrength);
     visibility *= computeMicroShadowing(light.NoL, ao);
+    
+    // AO debug mode (after AO calculation)
+    if (uDebugMode == 1) {
+        // AO only - white = no occlusion, black = full occlusion
+        color = vec4(vec3(ao), 1.0);
+        return;
+    }
     
     // Evaluate direct lighting 
     vec3 directLight = surfaceShading(pixel, shading, light, visibility);

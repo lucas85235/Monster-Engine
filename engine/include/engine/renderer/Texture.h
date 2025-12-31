@@ -29,6 +29,14 @@ class Texture {
     Texture& operator=(Texture&& other) noexcept;
 
     static std::shared_ptr<Texture> Create(const std::string& path);
+    
+    static std::shared_ptr<Texture> CreateFromMemory(
+        const uint8_t* data,
+        uint32_t width,
+        uint32_t height,
+        uint8_t channels,
+        const std::string& debugName = "embedded"
+    );
 
     void Bind(uint32_t slot = 0) const;
     void Unbind() const;
@@ -42,6 +50,7 @@ class Texture {
 
    private:
     bool LoadFromFile(const std::string& path);
+    bool LoadFromMemory(const uint8_t* data, uint32_t width, uint32_t height, uint8_t channels);
     void Release();
 
     uint32_t id_ = 0;

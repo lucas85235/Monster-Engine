@@ -121,6 +121,9 @@ uniform int uVisualizeCascades;
 uniform float uExposure;
 uniform mat4 uProjection;
 
+// Debug modes: 0=off, 1=AO only, 2=Normals, 3=Roughness, 4=Metallic
+uniform int uDebugMode;
+
 // Contact Shadows
 uniform sampler2D uDepthBuffer;
 uniform int uContactShadowsEnabled;
@@ -330,6 +333,25 @@ void main() {
     
     // Apply micro-shadowing from AO
     visibility *= computeMicroShadowing(light.NoL, material.ambientOcclusion);
+    
+    // Debug visualization modes
+    if (uDebugMode == 1) {
+        // AO only - white = no occlusion, black = full occlusion
+        FragColor = vec4(vec3(material.ambientOcclusion), 1.0);
+        return;
+    } else if (uDebugMode == 2) {
+        // World normals visualization
+        FragColor = vec4(normal * 0.5 + 0.5, 1.0);
+        return;
+    } else if (uDebugMode == 3) {
+        // Roughness visualization
+        FragColor = vec4(vec3(material.roughness), 1.0);
+        return;
+    } else if (uDebugMode == 4) {
+        // Metallic visualization
+        FragColor = vec4(vec3(material.metallic), 1.0);
+        return;
+    }
     
     // 7. Evaluate direct lighting using Filament pipeline
     vec3 directLight = surfaceShading(pixel, shading, light, visibility);

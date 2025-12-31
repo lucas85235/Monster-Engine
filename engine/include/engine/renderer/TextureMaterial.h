@@ -32,6 +32,11 @@ struct [[deprecated("Use MaterialInstance instead")]] TextureMaterial {
     bool HasEmissive() const { return Emissive != nullptr; }
     bool HasRoughness() const { return Roughness != nullptr; }
     bool HasMetallic() const { return Metallic != nullptr; }
+    
+    bool HasAnyTexture() const {
+        return HasAlbedo() || HasNormal() || HasSpecular() || HasAO() ||
+               HasEmissive() || HasRoughness() || HasMetallic();
+    }
 };
 
 }  // namespace se

@@ -22,6 +22,10 @@ void ViewportRenderer::BeginFrame() {
     if (framebuffer_) {
         framebuffer_->Bind();
         
+        // CRITICAL: Set viewport to match framebuffer dimensions
+        // SceneRenderer::BeginFrame reads this via glGetIntegerv(GL_VIEWPORT)
+        glViewport(0, 0, width_, height_);
+        
         glClearColor(settings_.clearColor.x, settings_.clearColor.y, settings_.clearColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
