@@ -4,11 +4,11 @@
 // PBR Skinned Model Fragment Shader - Based on Google Filament Standard Model
 // =============================================================================
 
-#include "include/pbr_types.glsl"
-#include "include/pbr_common.glsl"
-#include "include/shading_standard.glsl"
-#include "include/pbr_ibl.glsl"
-#include "include/pbr_fog.glsl"
+#include "../include/pbr_types.glsl"
+#include "../include/pbr_common.glsl"
+#include "../include/shading_standard.glsl"
+#include "../include/pbr_ibl.glsl"
+#include "../include/pbr_fog.glsl"
 
 // Inputs from Vertex Shader
 in vec3 v_FragPos;

@@ -5,12 +5,12 @@
 // Uses the full Filament-style shading pipeline via shading_standard.glsl
 // =============================================================================
 
-#include "include/pbr_types.glsl"
-#include "include/pbr_common.glsl"
-#include "include/shading_standard.glsl"
-#include "include/pbr_ibl.glsl"
-#include "include/pbr_fog.glsl"
-#include "include/pbr_contact_shadows.glsl"
+#include "../include/pbr_types.glsl"
+#include "../include/pbr_common.glsl"
+#include "../include/shading_standard.glsl"
+#include "../include/pbr_ibl.glsl"
+#include "../include/pbr_fog.glsl"
+#include "../include/pbr_contact_shadows.glsl"
 
 // -----------------------------------------------------------------------------
 // Inputs from Vertex Shader
