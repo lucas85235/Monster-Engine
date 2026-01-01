@@ -5,8 +5,11 @@
 
 #include "engine/Log.h"
 #include "engine/MeshFactory.h"
+#include "engine/assets/MaterialAssetLoader.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
+#include "engine/renderer/MaterialInstance.h"
+#include "engine/renderer/TextureMaterial.h"
 #include "engine/resources/MaterialManager.h"
 #include "engine/resources/MeshManager.h"
 #include "engine/physics/Collider.h"
@@ -176,10 +179,15 @@ bool MapLoader::ReadEntity(std::ifstream& file, EntityData& entity, uint32_t ver
         entity.hasCustomMaterial = (hasCustomMaterial != 0);
         if (entity.hasCustomMaterial) {
             if (!ReadString(file, entity.materialName)) return false;
+            // Version 6+ has compiled material path
+            if (version >= 6) {
+                if (!ReadString(file, entity.compiledMaterialPath)) return false;
+            }
         }
     } else {
         entity.hasCustomMaterial = false;
         entity.materialName.clear();
+        entity.compiledMaterialPath.clear();
     }
     
     return !file.fail();
@@ -215,13 +223,48 @@ void MapLoader::CreateSceneEntity(Scene& scene, const EntityData& data) {
     meshRender.EmissiveFactor = data.emissiveFactor;
     
     // Apply material reference if present (version 5+)
-    // Note: At runtime, we mark UseCustomPBR = true so RenderSystem renders individually
-    // The actual PBR params would need to be loaded from .mstmat file or stored in map
+    // Load compiled material from binary path if available (version 6+)
     if (data.hasCustomMaterial && !data.materialName.empty()) {
         meshRender.UseCustomPBR = true;
-        // TODO: Load PBR params from material file if needed
-        // For now, the material name is stored for reference
-        SE_LOG_INFO("MapLoader: Entity '{}' uses material '{}'", data.name, data.materialName);
+        
+        // Try to load compiled material binary
+        if (!data.compiledMaterialPath.empty()) {
+            std::filesystem::path materialPath = "assets" / std::filesystem::path(data.compiledMaterialPath);
+            
+            auto matInstance = MaterialAssetLoader::Load(materialPath);
+            if (matInstance) {
+                // Convert MaterialInstance to TextureMaterial for legacy render system
+                auto texMat = std::make_shared<TextureMaterial>();
+                
+                // Copy textures from MaterialInstance using shared_ptr for proper ownership
+                texMat->Albedo = matInstance->GetTextureShared(TextureSlot::Albedo);
+                texMat->Normal = matInstance->GetTextureShared(TextureSlot::Normal);
+                texMat->Metallic = matInstance->GetTextureShared(TextureSlot::Metallic);
+                texMat->Roughness = matInstance->GetTextureShared(TextureSlot::Roughness);
+                texMat->AO = matInstance->GetTextureShared(TextureSlot::AO);
+                texMat->Emissive = matInstance->GetTextureShared(TextureSlot::Emissive);
+                
+                // Copy PBR properties
+                const auto& def = matInstance->GetDefinition();
+                texMat->BaseColor = def.baseColor;
+                texMat->MetallicFactor = def.metallic;
+                texMat->RoughnessFactor = def.roughness;
+                texMat->EmissiveColor = def.emissiveColor;
+                
+                meshRender.customTextureMaterial = texMat;
+                meshRender.Metallic = def.metallic;
+                meshRender.Roughness = def.roughness;
+                
+                SE_LOG_INFO("MapLoader: Loaded compiled material '{}' from '{}'", 
+                            data.materialName, data.compiledMaterialPath);
+            } else {
+                SE_LOG_WARN("MapLoader: Failed to load compiled material '{}' from '{}'", 
+                            data.materialName, data.compiledMaterialPath);
+            }
+        } else {
+            SE_LOG_INFO("MapLoader: Entity '{}' uses material '{}' (no compiled path)", 
+                        data.name, data.materialName);
+        }
     }
     
     // Add collider component if has collision

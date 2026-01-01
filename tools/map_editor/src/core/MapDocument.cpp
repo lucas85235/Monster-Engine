@@ -1,5 +1,8 @@
 #include "MapDocument.h"
 
+#include <algorithm>
+#include <filesystem>
+
 #include "EntityManager.h"
 #include "EventBus.h"
 #include "MapSerializer.h"
@@ -63,6 +66,36 @@ bool MapDocument::Save() {
 
 bool MapDocument::SaveAs(const std::string& path) {
     BuildMapData();
+    
+    // Create compiled materials directory based on map location
+    std::filesystem::path mapPath(path);
+    std::filesystem::path assetsPath = mapPath.parent_path().parent_path(); // Go up from maps/ to assets/
+    std::filesystem::path compiledMaterialsPath = assetsPath / "compiled_materials" / mapPath.stem();
+    
+    // Ensure compiled_materials directory exists
+    std::error_code ec;
+    std::filesystem::create_directories(compiledMaterialsPath, ec);
+    if (ec) {
+        SE_LOG_WARN("MapDocument: Failed to create compiled_materials directory: {}", ec.message());
+    } else {
+        SE_LOG_INFO("MapDocument: Created compiled materials directory at '{}'", compiledMaterialsPath.string());
+    }
+    
+    // Compile materials for entities that have custom materials
+    for (auto& entityData : mapData_.entities) {
+        if (entityData.hasCustomMaterial && !entityData.materialName.empty()) {
+            // Generate compiled material filename
+            std::string sanitizedName = entityData.materialName;
+            std::replace(sanitizedName.begin(), sanitizedName.end(), ' ', '_');
+            std::filesystem::path materialPath = compiledMaterialsPath / (sanitizedName + ".mstmat");
+            
+            // Store the relative path from assets folder
+            entityData.compiledMaterialPath = "compiled_materials/" + mapPath.stem().string() + "/" + sanitizedName + ".mstmat";
+            
+            SE_LOG_INFO("MapDocument: Material '{}' will be saved to '{}'", 
+                        entityData.materialName, entityData.compiledMaterialPath);
+        }
+    }
     
     if (!MapSerializer::Export(mapData_, path)) {
         SE_LOG_ERROR("MapDocument: Failed to save to '{}'", path);

@@ -63,7 +63,29 @@ void MainGameLayer::ImguiDebug() {
             transform.SetRotation({lightElevation, lightAzimuth - 180.0f, 0.0f});
         }
     }
-
+    
+    ImGui::End();
+    
+    // Post-Processing Controls Window
+    ImGui::Begin("Post-Processing");
+    
+    auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
+    
+    // Master enable/disable
+    bool postProcessEnabled = renderer.IsPostProcessEnabled();
+    if (ImGui::Checkbox("Enable Post-Processing", &postProcessEnabled)) {
+        renderer.SetPostProcessEnabled(postProcessEnabled);
+    }
+    
+    // Individual pass controls
+    if (postProcessEnabled) {
+        auto* pipeline = renderer.GetPostProcessPipeline();
+        if (pipeline) {
+            ImGui::Separator();
+            pipeline->RenderUI();
+        }
+    }
+    
     ImGui::End();
 }
 

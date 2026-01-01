@@ -44,6 +44,7 @@ public:
     void SetDefinition(const MaterialDefinition& def);
     
     Texture* GetTexture(TextureSlot slot) const;
+    std::shared_ptr<Texture> GetTextureShared(TextureSlot slot) const;
     void SetTexture(TextureSlot slot, std::shared_ptr<Texture> texture);
     
     bool HasTexture(TextureSlot slot) const;

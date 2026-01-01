@@ -204,17 +204,20 @@ void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata,
                 
                 // Also check if material is not yet applied to the mesh component
                 bool needsInitialLoad = false;
+                bool materialModified = false;
                 if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
                     auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
                     needsInitialLoad = (meshRender.customTextureMaterial == nullptr && metadata.hasCustomMaterial);
+                    // Detect if material was modified in Material Editor
+                    materialModified = materials[currentIndex].isDirty;
                 }
                 
-                // Apply material to MeshRenderComponent only on change or initial load
+                // Apply material to MeshRenderComponent on change, initial load, or when modified
                 if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
-                    const auto& mat = materials[currentIndex];
+                    auto& mat = const_cast<EditorMaterialData&>(materials[currentIndex]);
                     auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
                     
-                    if (selectionChanged || needsInitialLoad) {
+                    if (selectionChanged || needsInitialLoad || materialModified) {
                         // Apply PBR params from material to MeshRenderComponent
                         meshRender.UseCustomPBR = true;
                         meshRender.Metallic = mat.metallic;
@@ -253,7 +256,11 @@ void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata,
                         
                         meshRender.customTextureMaterial = texMat;
                         
-                        SE_LOG_INFO("PropertiesPanel: Applied material '{}' to entity", mat.name);
+                        // Clear dirty flag after applying to this entity
+                        mat.isDirty = false;
+                        
+                        SE_LOG_INFO("PropertiesPanel: Applied material '{}' to entity (modified={})", 
+                                    mat.name, materialModified);
                     }
                     
                     // Quick preview of selected material (UI only, no loading)

@@ -37,9 +37,9 @@ class Mesh {
     }
 
     // Get vertex count
-    // 9 = 3 position + 3 color + 3 normal per vertex
+    // 8 = 3 position + 2 uv + 3 normal per vertex
     size_t getVertexCount() const {
-        return vertices_.size() / 9;
+        return vertices_.size() / 8;
     }
     size_t getIndexCount() const {
         return indices_.size();

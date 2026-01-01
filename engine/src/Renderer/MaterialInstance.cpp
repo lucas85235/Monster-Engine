@@ -226,6 +226,14 @@ Texture* MaterialInstance::GetTexture(TextureSlot slot) const {
     return nullptr;
 }
 
+std::shared_ptr<Texture> MaterialInstance::GetTextureShared(TextureSlot slot) const {
+    size_t idx = static_cast<size_t>(slot);
+    if (idx < textures_.size()) {
+        return textures_[idx];
+    }
+    return nullptr;
+}
+
 void MaterialInstance::SetTexture(TextureSlot slot, std::shared_ptr<Texture> texture) {
     size_t idx = static_cast<size_t>(slot);
     if (idx < textures_.size()) {

@@ -10,6 +10,7 @@
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/SkinnedModelComponent.h"
+#include "engine/renderer/InstancedMesh.h"
 #include "engine/renderer/Material.h"
 #include "engine/renderer/MaterialInstance.h"
 #include "engine/renderer/PBRMaterial.h"
@@ -285,84 +286,20 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         instanceBatches_[key].push_back(instanceData);
     }
     
-    // Render textured meshes individually (not instanced) to apply custom textures
+    // Render textured primitives (entities with customTextureMaterial) individually
+    // These are submitted to SceneRenderer and rendered with model.frag which handles textures
+    // Note: This requires primitives to have compatible vertex layout with model.vert
     EnsureModelMaterial();
     if (modelMaterial_ && !texturedMeshes.empty()) {
-        auto shader = modelMaterial_->GetShader();
-        if (shader) {
-            shader->bind();
+        for (const auto& data : texturedMeshes) {
+            auto& transform = *data.transform;
+            auto& meshRender = *data.meshRender;
+            auto texMat = meshRender.customTextureMaterial;
             
-            for (const auto& data : texturedMeshes) {
-                auto& transform = *data.transform;
-                auto& meshRender = *data.meshRender;
-                auto texMat = meshRender.customTextureMaterial;
-                
-                // Bind textures
-                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
-                int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
-                
-                if (texMat) {
-                    if (texMat->HasAlbedo()) {
-                        texMat->Albedo->Bind(1);
-                        hasAlbedo = 1;
-                    }
-                    if (texMat->HasNormal()) {
-                        texMat->Normal->Bind(2);
-                        hasNormal = 1;
-                    }
-                    if (texMat->HasSpecular()) {
-                        texMat->Specular->Bind(3);
-                        hasSpecular = 1;
-                    }
-                    if (texMat->HasAO()) {
-                        texMat->AO->Bind(4);
-                        hasAO = 1;
-                    }
-                    if (texMat->HasRoughness()) {
-                        texMat->Roughness->Bind(5);
-                        hasRoughness = 1;
-                    }
-                    if (texMat->HasMetallic()) {
-                        texMat->Metallic->Bind(6);
-                        hasMetallic = 1;
-                    }
-                    if (texMat->HasEmissive()) {
-                        texMat->Emissive->Bind(7);
-                        hasEmissive = 1;
-                    }
-                }
-                
-                // Set sampler uniform locations
-                shader->setInt("uAlbedoMap", 1);
-                shader->setInt("uNormalMap", 2);
-                shader->setInt("uSpecularMap", 3);
-                shader->setInt("uAOMap", 4);
-                shader->setInt("uRoughnessMap", 5);
-                shader->setInt("uMetallicMap", 6);
-                shader->setInt("uEmissiveMap", 7);
-                
-                // Set texture presence flags
-                shader->setInt("uHasAlbedo", hasAlbedo);
-                shader->setInt("uHasNormal", hasNormal);
-                shader->setInt("uHasSpecular", hasSpecular);
-                shader->setInt("uHasAO", hasAO);
-                shader->setInt("uHasRoughness", hasRoughness);
-                shader->setInt("uHasMetallic", hasMetallic);
-                shader->setInt("uHasEmissive", hasEmissive);
-                shader->setInt("uHasBones", 0);
-                
-                // Set PBR parameters
-                shader->setVec4("uBaseColor", texMat ? texMat->BaseColor : meshRender.Color);
-                shader->setFloat("uMetallicFactor", texMat ? texMat->MetallicFactor : meshRender.Metallic);
-                shader->setFloat("uRoughnessFactor", texMat ? texMat->RoughnessFactor : meshRender.Roughness);
-                shader->setFloat("uReflectance", meshRender.Reflectance);
-                shader->setFloat("uAOFactor", meshRender.AO);
-                shader->setFloat("uShininess", 32.0f);
-                
-                // Submit to scene renderer
-                sceneRenderer.Submit(meshRender.vertex_array, modelMaterial_, transform.WorldMatrix,
-                                     meshRender.CastShadows, meshRender.ReceiveShadows, 1.0f, texMat);
-            }
+            // Submit to scene renderer - it will handle texture binding and uniforms
+            sceneRenderer.Submit(meshRender.vertex_array, modelMaterial_, transform.WorldMatrix,
+                                 meshRender.CastShadows, meshRender.ReceiveShadows, 1.0f, texMat,
+                                 meshRender.EmissiveColor, meshRender.EmissiveFactor);
         }
     }
 

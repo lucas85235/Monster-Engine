@@ -14,11 +14,29 @@
 layout(location = 0) out vec4 color;
 
 in vec3 v_Color;
+in vec2 v_TexCoord;
 in vec3 v_ViewPos;
 in vec3 v_Normal;
 in vec3 v_FragPos;
 in vec4 v_LightSpacePos;
 in float f_SpecularStrenght;
+
+// PBR Texture Uniforms
+uniform sampler2D uAlbedoMap;
+uniform sampler2D uNormalMap;
+uniform sampler2D uMetallicMap;
+uniform sampler2D uRoughnessMap;
+uniform sampler2D uAOMap;
+uniform sampler2D uEmissiveMap;
+
+// Texture presence flags
+uniform int uHasAlbedo;
+uniform int uHasNormal;
+uniform int uHasMetallic;
+uniform int uHasRoughness;
+uniform int uHasAO;
+uniform int uHasEmissive;
+uniform float uNormalScale;
 
 // Light Uniforms
 uniform vec3 uLightDirection;
@@ -169,14 +187,59 @@ float CalculateCascadedShadow(vec3 worldPos, float viewDepth, vec3 normal, vec3 
 void main() {
     vec3 normal = normalize(v_Normal);
     
+    // Sample normal map if available
+    if (uHasNormal == 1) {
+        // Compute TBN matrix from derivatives
+        vec3 dPosdx = dFdx(v_FragPos);
+        vec3 dPosdy = dFdy(v_FragPos);
+        vec2 dTexdx = dFdx(v_TexCoord);
+        vec2 dTexdy = dFdy(v_TexCoord);
+        
+        vec3 tangent = normalize(dPosdx * dTexdy.y - dPosdy * dTexdx.y);
+        vec3 bitangent = normalize(dPosdy * dTexdx.x - dPosdx * dTexdy.x);
+        mat3 TBN = mat3(tangent, bitangent, normal);
+        
+        vec3 normalMapValue = texture(uNormalMap, v_TexCoord).rgb * 2.0 - 1.0;
+        normalMapValue.xy *= uNormalScale > 0.0 ? uNormalScale : 1.0;
+        normal = normalize(TBN * normalMapValue);
+    }
+    
     // Build MaterialInputs
-    // If v_Color is white (1,1,1) - which is the default instance color - use uBaseColor uniform
-    // Otherwise use the per-instance color from v_Color
     MaterialInputs material = initMaterialInputs();
+    
+    // Base color: texture -> instance color -> uniform
+    vec4 albedo = vec4(1.0);
+    if (uHasAlbedo == 1) {
+        albedo = texture(uAlbedoMap, v_TexCoord);
+        albedo.rgb = pow(albedo.rgb, vec3(2.2)); // sRGB to linear
+    }
     vec3 baseColor = (v_Color == vec3(1.0)) ? uBaseColor.rgb : v_Color;
-    material.baseColor = vec4(baseColor, 1.0);
-    material.metallic = uMetallicFactor;
-    material.roughness = uRoughnessFactor > 0.0 ? uRoughnessFactor : 0.5;
+    material.baseColor = vec4(baseColor * albedo.rgb, albedo.a);
+    
+    // Metallic
+    if (uHasMetallic == 1) {
+        material.metallic = texture(uMetallicMap, v_TexCoord).r * uMetallicFactor;
+    } else {
+        material.metallic = uMetallicFactor;
+    }
+    
+    // Roughness
+    if (uHasRoughness == 1) {
+        material.roughness = texture(uRoughnessMap, v_TexCoord).r * (uRoughnessFactor > 0.0 ? uRoughnessFactor : 1.0);
+    } else {
+        material.roughness = uRoughnessFactor > 0.0 ? uRoughnessFactor : 0.5;
+    }
+    
+    // AO from texture
+    if (uHasAO == 1) {
+        material.ambientOcclusion = texture(uAOMap, v_TexCoord).r;
+    }
+    
+    // Emissive
+    if (uHasEmissive == 1) {
+        material.emissive = vec4(pow(texture(uEmissiveMap, v_TexCoord).rgb, vec3(2.2)), 1.0);
+    }
+    
     material.reflectance = uReflectance > 0.0 ? uReflectance : 0.5;
     material.clearCoat = uClearCoat;
     material.clearCoatRoughness = uClearCoatRoughness;

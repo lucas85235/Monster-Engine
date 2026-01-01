@@ -23,7 +23,6 @@ class MeshFactory {
     static Mesh CreateCylinder(float radius = 0.5f, float height = 1.0f, int segments = 16);
 
    private:
-    // Helper functions
-    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float r, float g,
-                          float b);
+    // Helper: adds position(3) + uv(2) per vertex
+    static void addVertex(std::vector<float>& vertices, float x, float y, float z, float u, float v);
 };

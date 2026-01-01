@@ -48,6 +48,9 @@ class Texture {
     int GetChannels() const { return channels_; }
     bool IsValid() const { return id_ != 0; }
 
+   public:
+    void SetFromGLHandle(uint32_t glHandle, int width, int height, int channels, const std::string& debugName);
+    
    private:
     bool LoadFromFile(const std::string& path);
     bool LoadFromMemory(const uint8_t* data, uint32_t width, uint32_t height, uint8_t channels);

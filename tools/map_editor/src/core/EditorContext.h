@@ -38,6 +38,9 @@ public:
     EntityManager& GetEntityManager() { return *entityManager_; }
     MapDocument& GetDocument() { return *document_; }
     
+    // Save map with compiled materials (handles material binary generation)
+    bool SaveMapWithCompiledMaterials(const std::string& mapPath);
+    
     // Editor state
     SelectionManager& GetSelection() { return selection_; }
     GizmoController& GetGizmo() { return gizmo_; }
@@ -61,9 +64,20 @@ public:
     void RemoveMaterial(int index);
     bool LoadMaterial(const std::string& path);
     bool SaveMaterial(int index, const std::string& path);
+    bool SaveMaterialToPath(const std::string& materialName, const std::string& absolutePath);
     void ClearMaterials();
     
     const std::vector<EditorMaterialData>& GetMaterials() const { return materials_; }
+    
+    // Apply materials to all entities that have custom materials assigned
+    // Call this after loading a map to recreate TextureMaterial on entities
+    void ApplyMaterialsToLoadedEntities();
+    
+    // Load a compiled material from binary path
+    bool LoadCompiledMaterial(const std::string& absolutePath);
+    
+    // Load compiled materials from a map file (uses entity compiledMaterialPath)
+    void LoadCompiledMaterialsFromMap(const std::string& assetsBasePath);
 
 private:
     EventBus eventBus_;

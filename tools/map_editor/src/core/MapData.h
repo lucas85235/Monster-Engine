@@ -64,6 +64,7 @@ struct MapEntityData {
     
     // Material reference
     std::string  materialName;
+    std::string  compiledMaterialPath;  // Path to compiled .mstmat binary (self-contained)
     bool         hasCustomMaterial = false;
 };
 
@@ -80,7 +81,7 @@ struct MapDirectionalLightData {
 
 struct MapData {
     static constexpr uint32_t MAGIC   = 0x4D53544D;  // "MSTM"
-    static constexpr uint32_t VERSION = 5;           // Bumped for material support
+    static constexpr uint32_t VERSION = 6;           // Bumped for compiled material paths
 
     std::string                mapName;
     std::vector<MapEntityData> entities;

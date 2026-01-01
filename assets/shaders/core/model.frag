@@ -282,9 +282,29 @@ void main() {
     // 1. Sample/compute normal
     vec3 normal;
     if (uHasNormal == 1) {
+        // Check if TBN is valid (primitives without tangent data will have zero vectors)
+        bool hasTangent = length(v_TBN[0]) > 0.1 && length(v_TBN[1]) > 0.1;
+        
         vec3 normalMapValue = texture(uNormalMap, v_TexCoord).rgb * 2.0 - 1.0;
         normalMapValue.xy *= uNormalScale;
-        normal = normalize(v_TBN * normalMapValue);
+        
+        if (hasTangent) {
+            // Use vertex-provided TBN matrix
+            normal = normalize(v_TBN * normalMapValue);
+        } else {
+            // Fallback: compute TBN from screen-space derivatives (for primitives)
+            vec3 dPosdx = dFdx(v_FragPos);
+            vec3 dPosdy = dFdy(v_FragPos);
+            vec2 dTexdx = dFdx(v_TexCoord);
+            vec2 dTexdy = dFdy(v_TexCoord);
+            
+            vec3 N = normalize(v_Normal);
+            vec3 T = normalize(dPosdx * dTexdy.y - dPosdy * dTexdx.y);
+            vec3 B = normalize(dPosdy * dTexdx.x - dPosdx * dTexdy.x);
+            mat3 TBN = mat3(T, B, N);
+            
+            normal = normalize(TBN * normalMapValue);
+        }
     } else {
         normal = normalize(v_Normal);
     }

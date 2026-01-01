@@ -18,6 +18,8 @@
 #include "engine/renderer/SSAOPass.h"
 #include "engine/renderer/BloomPass.h"
 #include "engine/renderer/TonemappingPass.h"
+#include "engine/renderer/FXAAPass.h"
+#include "engine/renderer/ColorGradingPass.h"
 
 namespace {
 constexpr const char* kShadowVertexSource = R"(#version 330 core
@@ -268,9 +270,11 @@ void SceneRenderer::BeginFrame() {
         // Initialize post-process pipeline with passes
         if (postProcessPipeline_ && !postProcessPipeline_->IsInitialized()) {
             postProcessPipeline_->AddPass<BloomPass>();  // HDR bloom effect
+            postProcessPipeline_->AddPass<FXAAPass>();   // Anti-aliasing
+            postProcessPipeline_->AddPass<ColorGradingPass>();  // Color adjustments
             postProcessPipeline_->AddPass<TonemappingPass>();  // Final HDR->LDR conversion
             postProcessPipeline_->Init(screenWidth_, screenHeight_);
-            SE_LOG_INFO("[PostProcess] Pipeline initialized with Bloom, Tonemapping");
+            SE_LOG_INFO("[PostProcess] Pipeline initialized with Bloom, FXAA, ColorGrading, Tonemapping");
         }
         
         // Initialize standalone SSAO pass (generates AO texture for scene shaders)

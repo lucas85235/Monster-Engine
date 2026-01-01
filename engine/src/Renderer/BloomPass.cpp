@@ -138,7 +138,11 @@ void BloomPass::Execute(GLuint inputTexture, GLuint outputFBO) {
 
     // 4. Composite bloom with original
     glBindFramebuffer(GL_FRAMEBUFFER, outputFBO);
+    // IMPORTANT: Restore viewport to full resolution after mip chain operations
+    // The mip chain changes viewport to progressively smaller sizes, so we must
+    // restore it for the composite output. Pipeline will adjust for final output.
     glViewport(0, 0, width_, height_);
+    glClear(GL_COLOR_BUFFER_BIT);
     
     compositeShader_->bind();
     compositeShader_->setInt("uSceneTexture", 0);

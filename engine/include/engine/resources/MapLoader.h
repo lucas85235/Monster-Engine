@@ -69,6 +69,8 @@ class MapLoader {
         // Version 5+ fields (material support)
         bool          hasCustomMaterial = false;
         std::string   materialName;
+        // Version 6+ fields (compiled material path)
+        std::string   compiledMaterialPath;
     };
 
     static bool ReadString(std::ifstream& file, std::string& str);

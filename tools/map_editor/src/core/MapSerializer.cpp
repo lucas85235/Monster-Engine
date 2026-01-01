@@ -103,6 +103,8 @@ void MapSerializer::WriteEntity(std::ofstream& file, const MapEntityData& entity
     file.write(reinterpret_cast<const char*>(&hasCustomMaterial), sizeof(hasCustomMaterial));
     if (entity.hasCustomMaterial) {
         WriteString(file, entity.materialName);
+        // Version 6+: Compiled material path (self-contained binary)
+        WriteString(file, entity.compiledMaterialPath);
     }
 }
 
@@ -253,11 +255,16 @@ bool MapSerializer::ReadEntity(std::ifstream& file, MapEntityData& entity, uint3
         entity.hasCustomMaterial = (hasCustomMaterial != 0);
         if (entity.hasCustomMaterial) {
             if (!ReadString(file, entity.materialName)) return false;
+            // Version 6+: Compiled material path
+            if (version >= 6) {
+                if (!ReadString(file, entity.compiledMaterialPath)) return false;
+            }
         }
     } else {
         // Default for older maps
         entity.hasCustomMaterial = false;
         entity.materialName.clear();
+        entity.compiledMaterialPath.clear();
     }
 
     return !file.fail();

@@ -34,6 +34,7 @@ class PrimitiveFactory {
         
         // Material assignment
         std::string   materialName;
+        std::string   compiledMaterialPath;  // Path to compiled .mstmat binary (self-contained)
         bool          hasCustomMaterial = false;
     };
 

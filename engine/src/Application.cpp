@@ -140,23 +140,28 @@ int Application::Run() {
         // Begin debug profiling frame
         SE_DEBUG_TOOLS_FRAME_BEGIN();
 
+        // IMPORTANT: Update viewport BEFORE BeginFrame
+        // BeginFrame reads GL_VIEWPORT to determine HDR framebuffer size.
+        // We must ensure glViewport reflects the actual framebuffer size first.
+        int width, height;
+        glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
+        if (width > 0 && height > 0) {
+            glViewport(0, 0, width, height);
+            if (window_->GetWidth() != static_cast<uint32_t>(width) ||
+                window_->GetHeight() != static_cast<uint32_t>(height)) {
+                window_->SetWidth(width);
+                window_->SetHeight(height);
+            }
+        }
+
         {
             SE_PROFILE_SCOPE("BeginFrame");
             renderer_->BeginFrame();
         }
 
-        int width, height;
-        glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
-
         {
             SE_PROFILE_SCOPE("Clear");
             renderer_->Clear();
-        }
-
-        if (window_->GetWidth() != static_cast<uint32_t>(width) ||
-            window_->GetHeight() != static_cast<uint32_t>(height)) {
-            window_->SetWidth(width);
-            window_->SetHeight(height);
         }
 
         {

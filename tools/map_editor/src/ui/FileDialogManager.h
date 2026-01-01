@@ -64,7 +64,7 @@ private:
     DialogCallback textureCallback_;
     
     std::string fileExtension_ = ".mstmap";
-    std::vector<std::string> textureExtensions_ = {".png", ".jpg", ".jpeg", ".tga", ".bmp", ".hdr"};
+    std::vector<std::string> textureExtensions_ = {".png", ".jpg", ".jpeg", ".tga", ".bmp", ".hdr", ".psd"};
 };
 
 }  // namespace mst

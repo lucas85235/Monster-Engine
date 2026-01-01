@@ -146,7 +146,7 @@ void FileDialogManager::RenderOpenTextureDialog() {
         }
         
         // Filter info
-        ImGui::TextDisabled("Showing: PNG, JPG, TGA, BMP, HDR");
+        ImGui::TextDisabled("Showing: PNG, JPG, TGA, BMP, HDR, PSD");
         ImGui::Separator();
         
         // File list

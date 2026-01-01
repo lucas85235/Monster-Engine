@@ -6,6 +6,8 @@
 #include "core/MaterialSerializer.h"
 #include "ui/FileDialogManager.h"
 #include "engine/Log.h"
+#include "engine/renderer/Texture.h"
+#include "engine/resources/TextureManager.h"
 
 namespace mst {
 
@@ -219,8 +221,30 @@ void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material, Edito
             changed |= ImGui::Checkbox("##use", &useTexture);
             ImGui::SameLine();
             
-            // Thumbnail placeholder (click to open dialog)
-            if (ImGui::Button("##thumb", ImVec2(32, 32))) {
+            // Display texture thumbnail using ImGui::Image if texture exists
+            bool clicked = false;
+            if (!path.empty() && useTexture) {
+                auto tex = se::TextureManager::Load(path);
+                if (tex && tex->IsValid()) {
+                    ImTextureID texId = (ImTextureID)(intptr_t)tex->GetId();
+                    if (ImGui::ImageButton("##thumb", texId, ImVec2(32, 32))) {
+                        clicked = true;
+                    }
+                } else {
+                    // Texture failed to load - show placeholder
+                    if (ImGui::Button("?", ImVec2(32, 32))) {
+                        clicked = true;
+                    }
+                }
+            } else {
+                // No texture - show empty placeholder
+                if (ImGui::Button("##thumb", ImVec2(32, 32))) {
+                    clicked = true;
+                }
+            }
+            
+            // Open file dialog when thumbnail is clicked
+            if (clicked) {
                 pendingTexturePath_ = &path;
                 pendingTextureUse_ = &useTexture;
                 if (auto* fdm = context.GetFileDialogs()) {
@@ -236,6 +260,7 @@ void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material, Edito
                     });
                 }
             }
+            
             if (ImGui::IsItemHovered() && !path.empty()) {
                 ImGui::SetTooltip("%s", path.c_str());
             } else if (ImGui::IsItemHovered()) {
@@ -363,6 +388,47 @@ void MaterialEditorPanel::RenderActions(EditorContext& context) {
     if (!material) return;
 
     ImGui::BeginGroup();
+    
+    // Primary save button
+    if (ImGui::Button("Save")) {
+        if (!material->filePath.empty()) {
+            // Save to existing path
+            if (MaterialSerializer::Save(*material, material->filePath)) {
+                material->isDirty = false;
+                SE_LOG_INFO("MaterialEditor: Saved material to '{}'", material->filePath);
+            } else {
+                SE_LOG_ERROR("MaterialEditor: Failed to save material to '{}'", material->filePath);
+            }
+        } else {
+            // Open save dialog for new material
+            if (auto* fdm = context.GetFileDialogs()) {
+                fdm->ShowSaveDialog([this, material](const FileDialogResult& result) {
+                    if (result.confirmed && !result.fullPath.empty()) {
+                        std::string path = result.fullPath;
+                        // Ensure .mstmat extension
+                        if (path.find(".mstmat") == std::string::npos) {
+                            path += ".mstmat";
+                        }
+                        if (MaterialSerializer::Save(*material, path)) {
+                            material->filePath = path;
+                            material->isDirty = false;
+                            SE_LOG_INFO("MaterialEditor: Saved material to '{}'", path);
+                        } else {
+                            SE_LOG_ERROR("MaterialEditor: Failed to save material to '{}'", path);
+                        }
+                    }
+                });
+            }
+        }
+    }
+    if (ImGui::IsItemHovered()) {
+        if (material->filePath.empty()) {
+            ImGui::SetTooltip("Save material binary (will prompt for location)");
+        } else {
+            ImGui::SetTooltip("Save to: %s", material->filePath.c_str());
+        }
+    }
+    ImGui::SameLine();
     
     if (ImGui::Button("Duplicate")) {
         context.DuplicateMaterial(selectedMaterialIndex_);

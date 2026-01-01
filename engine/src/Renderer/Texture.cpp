@@ -204,4 +204,13 @@ bool Texture::LoadFromMemory(const uint8_t* data, uint32_t width, uint32_t heigh
     return true;
 }
 
+void Texture::SetFromGLHandle(uint32_t glHandle, int width, int height, int channels, const std::string& debugName) {
+    Release();
+    id_ = glHandle;
+    width_ = width;
+    height_ = height;
+    channels_ = channels;
+    path_ = debugName;
+}
+
 }  // namespace se
