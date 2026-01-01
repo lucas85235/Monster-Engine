@@ -32,17 +32,18 @@ std::shared_ptr<VertexArray> MeshManager::CreateVertexArrayFromMesh(const Mesh& 
     std::vector<float>        vertices = mesh.getVertices();
     std::vector<unsigned int> indices  = mesh.getIndices();
 
-    SE_LOG_INFO("Creating VertexArray from mesh: {} vertices, {} indices", vertices.size() / 9,
+    SE_LOG_INFO("Creating VertexArray from mesh: {} vertices, {} indices", vertices.size() / 8,
                 indices.size());
 
     // Create vertex buffer - os dados agora estão em variáveis locais
     auto vertexBuffer = std::make_shared<VertexBuffer>(
         vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(float)));
 
-    // Layout: position (3) + color (3) + normal (3)
+    // Layout: position (3) + normal (3) + uv (2) = 8 floats per vertex
+    // This matches model.vert: a_Position(0), a_Normal(1), a_TexCoord(2)
     vertexBuffer->SetLayout(BufferLayout({{ShaderDataType::Float3, "a_Position"},
-                                          {ShaderDataType::Float3, "a_Color"},
-                                          {ShaderDataType::Float3, "a_Normal"}}));
+                                          {ShaderDataType::Float3, "a_Normal"},
+                                          {ShaderDataType::Float2, "a_TexCoord"}}));
 
     // Create index buffer
     auto indexBuffer =

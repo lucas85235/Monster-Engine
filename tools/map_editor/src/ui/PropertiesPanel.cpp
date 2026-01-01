@@ -2,11 +2,15 @@
 
 #include <imgui.h>
 
+#include "core/EditorContext.h"
 #include "engine/ecs/SimpleComponents.h"
+#include "engine/renderer/TextureMaterial.h"
+#include "engine/resources/TextureManager.h"
+#include "engine/Log.h"
 
 namespace mst {
 
-void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo) {
+void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo, EditorContext& context) {
     ImGui::Begin("Properties");
 
     RenderGizmoControls(gizmo);
@@ -46,10 +50,15 @@ void PropertiesPanel::Render(SelectionManager& selection, GizmoController& gizmo
 
     ImGui::Separator();
 
-    // Editor metadata
+    // Editor metadata (collision)
     if (entity.HasComponent<PrimitiveFactory::EditorMetadata>()) {
         auto& metadata = entity.GetComponent<PrimitiveFactory::EditorMetadata>();
         RenderEditorMetadata(metadata);
+        
+        ImGui::Separator();
+        
+        // Material assignment - pass entity to apply to MeshRenderComponent
+        RenderMaterial(metadata, context, entity);
     }
 
     ImGui::Separator();
@@ -144,6 +153,141 @@ void PropertiesPanel::RenderEditorMetadata(PrimitiveFactory::EditorMetadata& met
     }
 }
 
+void PropertiesPanel::RenderMaterial(PrimitiveFactory::EditorMetadata& metadata, EditorContext& context, se::Entity entity) {
+    if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Checkbox("Use Custom Material", &metadata.hasCustomMaterial);
+        
+        if (metadata.hasCustomMaterial) {
+            // Build combo items from material library
+            const auto& materials = context.GetMaterials();
+            
+            if (materials.empty()) {
+                ImGui::TextDisabled("No materials available");
+                if (ImGui::Button("Create Material")) {
+                    context.CreateNewMaterial();
+                }
+            } else {
+                // Find current selection index
+                int currentIndex = -1;
+                for (size_t i = 0; i < materials.size(); ++i) {
+                    if (materials[i].name == metadata.materialName) {
+                        currentIndex = static_cast<int>(i);
+                        break;
+                    }
+                }
+                
+                // Capture previous state BEFORE combo changes it
+                int previousIndex = currentIndex;
+                
+                // Material dropdown
+                if (ImGui::BeginCombo("##MaterialCombo", 
+                    currentIndex >= 0 ? materials[currentIndex].name.c_str() : "(None)")) {
+                    for (size_t i = 0; i < materials.size(); ++i) {
+                        ImGui::PushID(static_cast<int>(i));
+                        bool isSelected = (currentIndex == static_cast<int>(i));
+                        if (ImGui::Selectable(materials[i].name.c_str(), isSelected)) {
+                            metadata.materialName = materials[i].name;
+                            currentIndex = static_cast<int>(i);
+                        }
+                        if (isSelected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::PopID();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("Material");
+                
+                // Detect if combo selection changed this frame
+                bool selectionChanged = (currentIndex != previousIndex);
+                
+                // Also check if material is not yet applied to the mesh component
+                bool needsInitialLoad = false;
+                bool materialModified = false;
+                if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
+                    auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                    needsInitialLoad = (meshRender.customTextureMaterial == nullptr && metadata.hasCustomMaterial);
+                    // Detect if material was modified in Material Editor
+                    materialModified = materials[currentIndex].isDirty;
+                }
+                
+                // Apply material to MeshRenderComponent on change, initial load, or when modified
+                if (currentIndex >= 0 && entity.HasComponent<se::MeshRenderComponent>()) {
+                    auto& mat = const_cast<EditorMaterialData&>(materials[currentIndex]);
+                    auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                    
+                    if (selectionChanged || needsInitialLoad || materialModified) {
+                        // Apply PBR params from material to MeshRenderComponent
+                        meshRender.UseCustomPBR = true;
+                        meshRender.Metallic = mat.metallic;
+                        meshRender.Roughness = mat.roughness;
+                        meshRender.Reflectance = mat.reflectance;
+                        meshRender.AO = mat.ao;
+                        meshRender.Color = mat.baseColor;
+                        meshRender.EmissiveColor = mat.emissiveColor;
+                        meshRender.EmissiveFactor = mat.emissiveFactor;
+                        
+                        // Create TextureMaterial using cached TextureManager (no per-frame loading)
+                        auto texMat = std::make_shared<se::TextureMaterial>();
+                        texMat->BaseColor = mat.baseColor;
+                        texMat->MetallicFactor = mat.metallic;
+                        texMat->RoughnessFactor = mat.roughness;
+                        
+                        // Load textures using TextureManager (cached - fast lookup)
+                        if (mat.useAlbedoTexture && !mat.albedoTexturePath.empty()) {
+                            texMat->Albedo = se::TextureManager::Load(mat.albedoTexturePath);
+                        }
+                        if (mat.useNormalTexture && !mat.normalTexturePath.empty()) {
+                            texMat->Normal = se::TextureManager::Load(mat.normalTexturePath);
+                        }
+                        if (mat.useMetallicTexture && !mat.metallicTexturePath.empty()) {
+                            texMat->Metallic = se::TextureManager::Load(mat.metallicTexturePath);
+                        }
+                        if (mat.useRoughnessTexture && !mat.roughnessTexturePath.empty()) {
+                            texMat->Roughness = se::TextureManager::Load(mat.roughnessTexturePath);
+                        }
+                        if (mat.useAOTexture && !mat.aoTexturePath.empty()) {
+                            texMat->AO = se::TextureManager::Load(mat.aoTexturePath);
+                        }
+                        if (mat.useEmissiveTexture && !mat.emissiveTexturePath.empty()) {
+                            texMat->Emissive = se::TextureManager::Load(mat.emissiveTexturePath);
+                        }
+                        
+                        meshRender.customTextureMaterial = texMat;
+                        
+                        // Clear dirty flag after applying to this entity
+                        mat.isDirty = false;
+                        
+                        SE_LOG_INFO("PropertiesPanel: Applied material '{}' to entity (modified={})", 
+                                    mat.name, materialModified);
+                    }
+                    
+                    // Quick preview of selected material (UI only, no loading)
+                    ImGui::TextDisabled("Metallic: %.2f  Roughness: %.2f", mat.metallic, mat.roughness);
+                    if (mat.HasAnyTexture()) {
+                        ImGui::TextDisabled("Textures: %s%s%s%s%s%s",
+                            mat.useAlbedoTexture ? "A" : "",
+                            mat.useNormalTexture ? "N" : "",
+                            mat.useMetallicTexture ? "M" : "",
+                            mat.useRoughnessTexture ? "R" : "",
+                            mat.useAOTexture ? "O" : "",
+                            mat.useEmissiveTexture ? "E" : "");
+                    }
+                }
+            }
+        } else {
+            ImGui::TextDisabled("Using default material");
+            
+            // Reset custom PBR if disabled
+            if (entity.HasComponent<se::MeshRenderComponent>()) {
+                auto& meshRender = entity.GetComponent<se::MeshRenderComponent>();
+                meshRender.UseCustomPBR = false;
+            }
+        }
+    }
+}
+
 void PropertiesPanel::RenderGizmoControls(GizmoController& gizmo) {
     if (ImGui::CollapsingHeader("Gizmo", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Text("Operation: %s", gizmo.GetOperationName());
@@ -170,3 +314,4 @@ void PropertiesPanel::RenderGizmoControls(GizmoController& gizmo) {
 }
 
 }  // namespace mst
+

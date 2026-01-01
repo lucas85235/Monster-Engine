@@ -47,6 +47,11 @@ se::Entity EntityManager::CreateFromData(const MapEntityData& data) {
         metadata.colliderHeight = data.colliderHeight;
         metadata.rigidbodyType = data.rigidbodyType;
         metadata.mass = data.mass;
+        
+        // Material reference (version 5+/6+)
+        metadata.hasCustomMaterial = data.hasCustomMaterial;
+        metadata.materialName = data.materialName;
+        metadata.compiledMaterialPath = data.compiledMaterialPath;
     }
     
     eventBus_.Publish(EntityCreatedEvent{entity});
@@ -157,6 +162,11 @@ MapEntityData EntityManager::SerializeEntity(se::Entity entity) const {
         data.colliderHeight = metadata.colliderHeight;
         data.rigidbodyType = metadata.rigidbodyType;
         data.mass = metadata.mass;
+        
+        // Material reference (version 5+/6+)
+        data.hasCustomMaterial = metadata.hasCustomMaterial;
+        data.materialName = metadata.materialName;
+        data.compiledMaterialPath = metadata.compiledMaterialPath;
     }
     
     if (entity.HasComponent<se::MeshRenderComponent>()) {

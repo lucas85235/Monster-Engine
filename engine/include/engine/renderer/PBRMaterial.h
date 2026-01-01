@@ -11,10 +11,9 @@ namespace se {
 class Texture;
 struct TextureMaterial;
 
-/**
- * PBR Material Parameters following Filament's Standard Model.
- * These are the artist-friendly parameters exposed to the user.
- */
+// DEPRECATED: Use MaterialDefinition instead
+// This struct is kept for backward compatibility during migration
+// See: engine/include/engine/renderer/MaterialDefinition.h
 struct PBRMaterialParams {
     // Core parameters
     Vector4 BaseColor{1.0f, 1.0f, 1.0f, 1.0f};  // Base color (linear RGBA)
@@ -71,20 +70,23 @@ struct IBLData {
     
     // Initialize with default outdoor lighting
     void SetDefaultOutdoor() {
-        // Outdoor SH approximation - strong ambient to fill shadows realistically
-        // L00 is the dominant ambient term - needs to be bright enough to fill shadow areas
-        SphericalHarmonics[0] = Vector3(2.0f, 2.0f, 2.2f);   // L00 (dominant ambient - very bright)
-        SphericalHarmonics[1] = Vector3(0.0f, 0.0f, 0.0f);   // L1-1
-        SphericalHarmonics[2] = Vector3(0.6f, 0.7f, 0.9f);   // L10 (sky up contribution - blue tint)
-        SphericalHarmonics[3] = Vector3(0.0f, 0.0f, 0.0f);   // L11
-        SphericalHarmonics[4] = Vector3(0.0f, 0.0f, 0.0f);   // L2-2
-        SphericalHarmonics[5] = Vector3(0.0f, 0.0f, 0.0f);   // L2-1
-        SphericalHarmonics[6] = Vector3(0.2f, 0.15f, 0.1f);  // L20 (ground bounce - warm brown)
-        SphericalHarmonics[7] = Vector3(0.0f, 0.0f, 0.0f);   // L21
-        SphericalHarmonics[8] = Vector3(0.0f, 0.0f, 0.0f);   // L22
-        Intensity = 1.5f;  // Increased intensity for shadow fill
-        SkyColor = Vector3(0.9f, 0.95f, 1.0f);   // Bright sky fallback
-        GroundColor = Vector3(0.4f, 0.35f, 0.3f); // Warm ground fallback
+        // Physically-based outdoor SH approximation (clear sky with sun)
+        // Using balanced LDR values to avoid washed-out appearance
+        // L00: DC term (average environment color - moderate for balanced lighting)
+        SphericalHarmonics[0] = Vector3(0.5f, 0.55f, 0.65f);
+        // L1-1, L10, L11: Linear terms (directional variation)
+        SphericalHarmonics[1] = Vector3(0.05f, 0.05f, 0.06f);  // Side light (subtle)
+        SphericalHarmonics[2] = Vector3(0.3f, 0.35f, 0.45f);   // Sky up - blue tint
+        SphericalHarmonics[3] = Vector3(0.02f, 0.02f, 0.02f);  // Minimal horizontal
+        // L2-2, L2-1, L20, L21, L22: Quadratic terms (color bleeding)
+        SphericalHarmonics[4] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[5] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[6] = Vector3(0.15f, 0.12f, 0.08f);  // Ground bounce - warm
+        SphericalHarmonics[7] = Vector3(0.0f, 0.0f, 0.0f);
+        SphericalHarmonics[8] = Vector3(0.0f, 0.0f, 0.0f);
+        Intensity = 0.8f;
+        SkyColor = Vector3(0.5f, 0.55f, 0.65f);
+        GroundColor = Vector3(0.25f, 0.22f, 0.18f);
     }
     
     // Initialize with default indoor lighting

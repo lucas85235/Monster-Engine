@@ -41,8 +41,8 @@ ColliderDebugRenderer::~ColliderDebugRenderer() {
 
 void ColliderDebugRenderer::CreateShader() {
     fs::path assetsPath = fs::current_path() / "assets";
-    fs::path vertPath = assetsPath / "shaders" / "collider_debug.vert";
-    fs::path fragPath = assetsPath / "shaders" / "collider_debug.frag";
+    fs::path vertPath = assetsPath / "shaders" / "utility" / "collider_debug.vert";
+    fs::path fragPath = assetsPath / "shaders" / "utility" / "collider_debug.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("ColliderDebugRenderer: Shaders not found at {}", vertPath.string());

@@ -15,6 +15,11 @@
 #include "engine/renderer/TextureMaterial.h"
 #include "engine/renderer/Texture.h"
 #include "engine/renderer/SSGIPass.h"
+#include "engine/renderer/SSAOPass.h"
+#include "engine/renderer/BloomPass.h"
+#include "engine/renderer/TonemappingPass.h"
+#include "engine/renderer/FXAAPass.h"
+#include "engine/renderer/ColorGradingPass.h"
 
 namespace {
 constexpr const char* kShadowVertexSource = R"(#version 330 core
@@ -115,7 +120,7 @@ void SceneRenderer::Init() {
     
     // Load G-Buffer shaders (may fail if files don't exist, handle gracefully)
     try {
-        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer.vert", "assets/shaders/gbuffer.frag");
+        gbufferShader_ = Shader::CreateFromFiles("assets/shaders/deferred/gbuffer.vert", "assets/shaders/deferred/gbuffer.frag");
         SE_LOG_INFO("G-Buffer shader loaded");
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Error loading gbuffer shader: {}", e.what());
@@ -123,7 +128,7 @@ void SceneRenderer::Init() {
     }
     
     try {
-        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/gbuffer_instanced.vert", "assets/shaders/gbuffer_instanced.frag");
+        gbufferInstancedShader_ = Shader::CreateFromFiles("assets/shaders/deferred/gbuffer_instanced.vert", "assets/shaders/deferred/gbuffer_instanced.frag");
         SE_LOG_INFO("G-Buffer instanced shader loaded");
     } catch (const std::exception& e) {
         SE_LOG_ERROR("Error loading gbuffer instanced shader: {}", e.what());
@@ -140,6 +145,10 @@ void SceneRenderer::Init() {
     // Initialize Cascaded Shadow Maps
     csm_ = std::make_unique<CascadedShadowMap>();
     csm_->Init(2048);  // 2048x2048 per cascade
+    
+    // Initialize Post-Processing Pipeline (will add passes on first frame)
+    postProcessPipeline_ = std::make_unique<PostProcessPipeline>();
+    SE_LOG_INFO("Post-process pipeline created (lazy init)");
     
     initialized_ = true;
 }
@@ -174,10 +183,118 @@ void SceneRenderer::Shutdown() {
         ssgiPass_.reset();
     }
     
+    if (postProcessPipeline_) {
+        postProcessPipeline_->Shutdown();
+        postProcessPipeline_.reset();
+    }
+    
+    DestroyHDRFramebuffer();
+    
     gbufferShader_.reset();
     occlusionCuller_.Shutdown();
     DestroyShadowResources();
     initialized_ = false;
+}
+
+void SceneRenderer::BeginFrame() {
+    SE_PROFILE_SCOPE("SceneRenderer::BeginFrame");
+    
+    // Get viewport dimensions (needed by other code)
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    int width = viewport[2];
+    int height = viewport[3];
+    
+    // Store original FBO to restore later (used by FinishFrame)
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &originalFBO_);
+    storedViewport_[0] = viewport[0];
+    storedViewport_[1] = viewport[1];
+    storedViewport_[2] = viewport[2];
+    storedViewport_[3] = viewport[3];
+    
+    // Lazy initialization of resources when viewport dimensions change
+    if (width > 0 && height > 0 && (screenWidth_ != width || screenHeight_ != height)) {
+        screenWidth_ = width;
+        screenHeight_ = height;
+        
+        // Resize existing resources
+        if (gbuffer_ && gbuffer_->IsInitialized()) {
+            gbuffer_->Resize(width, height);
+        }
+        
+        // Resize SSGI if already initialized
+        if (ssgiPass_ && ssgiPass_->IsInitialized()) {
+            ssgiPass_->Resize(width, height);
+        }
+        
+        // Resize HDR framebuffer if it exists
+        if (hdrFBO_ != 0) {
+            DestroyHDRFramebuffer();
+        }
+        
+        // Resize post-process pipeline
+        if (postProcessPipeline_ && postProcessPipeline_->IsInitialized()) {
+            postProcessPipeline_->Resize(width, height);
+        }
+        
+        // Resize SSAO pass if already initialized
+        if (ssaoPass_) {
+            ssaoPass_->Resize(width, height);
+        }
+    } else if (width > 0 && height > 0) {
+        // Just update screen size if no resize needed
+        screenWidth_ = width;
+        screenHeight_ = height;
+    }
+    
+    // Initialize GBuffer if needed but not yet initialized
+    if (width > 0 && height > 0 && gbuffer_ && !gbuffer_->IsInitialized()) {
+        gbuffer_->Init(width, height);
+        SE_LOG_INFO("[GBuffer] Lazy init: {}x{}", width, height);
+    }
+    
+    // Initialize SSGI if enabled but not yet initialized
+    if (width > 0 && height > 0 && ssgiPass_ && ssgiPass_->IsEnabled() && !ssgiPass_->IsInitialized()) {
+        ssgiPass_->Init(width, height);
+        SE_LOG_INFO("[SSGI] Lazy init: {}x{}", width, height);
+    }
+    
+    // Initialize HDR framebuffer and post-process pipeline if enabled
+    if (postProcessEnabled_ && width > 0 && height > 0) {
+        // Create HDR FBO if not yet initialized
+        if (hdrFBO_ == 0) {
+            InitHDRFramebuffer();
+            SE_LOG_INFO("[PostProcess] HDR FBO initialized: {}x{}", width, height);
+        }
+        
+        // Initialize post-process pipeline with passes
+        if (postProcessPipeline_ && !postProcessPipeline_->IsInitialized()) {
+            postProcessPipeline_->AddPass<BloomPass>();  // HDR bloom effect
+            postProcessPipeline_->AddPass<FXAAPass>();   // Anti-aliasing
+            postProcessPipeline_->AddPass<ColorGradingPass>();  // Color adjustments
+            postProcessPipeline_->AddPass<TonemappingPass>();  // Final HDR->LDR conversion
+            postProcessPipeline_->Init(screenWidth_, screenHeight_);
+            SE_LOG_INFO("[PostProcess] Pipeline initialized with Bloom, FXAA, ColorGrading, Tonemapping");
+        }
+        
+        // Initialize standalone SSAO pass (generates AO texture for scene shaders)
+        if (ssaoEnabled_ && !ssaoPass_) {
+            ssaoPass_ = std::make_unique<SSAOPass>();
+            ssaoPass_->Init(screenWidth_, screenHeight_);
+            SE_LOG_INFO("[SSAO] Standalone pass initialized: {}x{}", screenWidth_, screenHeight_);
+        }
+        
+        // Bind HDR FBO for scene rendering - all rendering until FinishFrame goes here
+        if (hdrFBO_ != 0) {
+            // Save the current (external) FBO and viewport before binding HDR FBO
+            glGetIntegerv(GL_FRAMEBUFFER_BINDING, &originalFBO_);
+            glGetIntegerv(GL_VIEWPORT, storedViewport_);
+            
+            glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO_);
+            glViewport(0, 0, screenWidth_, screenHeight_);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        }
+    }
 }
 
 void SceneRenderer::BeginScene(const Camera& camera, const Matrix4& projection) {
@@ -235,45 +352,11 @@ void SceneRenderer::EndScene() {
         RenderCSMPass();  // Render cascaded shadow maps
     }
     
-    // Auto-initialize Radiance Cascades and G-Buffer if needed (lazy initialization)
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    int width = viewport[2];
-    int height = viewport[3];
-    
-    if (width > 0 && height > 0 && (screenWidth_ != width || screenHeight_ != height)) {
-        screenWidth_ = width;
-        screenHeight_ = height;
-        
-        // Resize existing resources
-        if (gbuffer_ && gbuffer_->IsInitialized()) {
-            gbuffer_->Resize(width, height);
-        }
-        
-        // Resize SSGI if already initialized
-        if (ssgiPass_ && ssgiPass_->IsInitialized()) {
-            ssgiPass_->Resize(width, height);
-        }
-    }
-    
-    // Always initialize GBuffer if needed but not yet initialized (independent of size change)
-    if (width > 0 && height > 0 && gbuffer_ && !gbuffer_->IsInitialized()) {
-        gbuffer_->Init(width, height);
-        screenWidth_ = width;
-        screenHeight_ = height;
-        printf("[GBuffer] Lazy init: %dx%d\n", width, height);
-    }
-    
-    // Always initialize SSGI if enabled but not yet initialized (independent of size change)
-    if (width > 0 && height > 0 && ssgiPass_ && ssgiPass_->IsEnabled() && !ssgiPass_->IsInitialized()) {
-        ssgiPass_->Init(width, height);
-        printf("[SSGI] Lazy init: %dx%d\n", width, height);
-    }
-    
-    // Step 1: Render scene to G-Buffer (for emissive data)
+    // Step 1: Render scene to G-Buffer (for GI and SSAO)
     bool needGBuffer = (radianceCascades_ && radianceCascades_->IsEnabled()) ||
                        (sparseRC_ && sparseRC_->IsEnabled()) ||
-                       (ssgiPass_ && ssgiPass_->IsReady());
+                       (ssgiPass_ && ssgiPass_->IsReady()) ||
+                       (ssaoEnabled_ && ssaoPass_);
     
     if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
         SE_PROFILE_SCOPE("GBufferPass");
@@ -321,8 +404,25 @@ void SceneRenderer::EndScene() {
                 sceneData_.CameraPosition
             );
         }
+        
+        // Execute standalone SSAO pass (generates AO texture for scene shaders)
+        if (ssaoEnabled_ && ssaoPass_ && ssaoPass_->IsEnabled()) {
+            SE_PROFILE_SCOPE("SSAO");
+            
+            ssaoPass_->SetDepthTexture(gbuffer_->GetDepthTexture());
+            ssaoPass_->SetNormalTexture(gbuffer_->GetNormalTexture());
+            ssaoPass_->SetProjectionMatrix(sceneData_.ProjectionMatrix);
+            ssaoPass_->SetViewMatrix(sceneData_.ViewMatrix);
+            
+            // Execute SSAO (renders to internal FBO)
+            ssaoPass_->Execute(0, 0);  // Input not used, output not used (uses internal FBOs)
+            
+            // Cache the blurred AO texture for scene shaders
+            ssaoTexture_ = ssaoPass_->GetAOTexture();
+        } else {
+            ssaoTexture_ = 0;  // No SSAO available
+        }
     }
-    
 
     // Step 2: Execute Radiance Cascades with G-Buffer data
     if (radianceCascades_ && radianceCascades_->IsEnabled()) {
@@ -395,6 +495,57 @@ void SceneRenderer::EndScene() {
     if (sparseRC_ && sparseRC_->IsEnabled()) {
         glm::mat4 viewProj = sceneData_.ProjectionMatrix * sceneData_.ViewMatrix;
         sparseRC_->RenderDebug(viewProj);
+    }
+    
+    // Note: SkinnedModels are rendered by RenderSystem AFTER EndScene
+    // Post-processing is executed in FinishFrame() after all rendering is complete
+}
+
+void SceneRenderer::FinishFrame() {
+    SE_PROFILE_SCOPE("SceneRenderer::FinishFrame");
+    
+    bool usePostProcess = postProcessEnabled_ && postProcessPipeline_ && 
+                          postProcessPipeline_->IsInitialized() && hdrFBO_ != 0;
+    
+    if (usePostProcess) {
+        // Unbind HDR framebuffer (post-process reads from it)
+        glBindFramebuffer(GL_FRAMEBUFFER, originalFBO_);
+        glViewport(storedViewport_[0], storedViewport_[1], storedViewport_[2], storedViewport_[3]);
+        
+        // Set SSAO textures if GBuffer is available
+        auto* ssaoPass = postProcessPipeline_->GetPass<SSAOPass>();
+        if (ssaoPass && gbuffer_ && gbuffer_->IsInitialized()) {
+            ssaoPass->SetDepthTexture(gbuffer_->GetDepthTexture());
+            ssaoPass->SetNormalTexture(gbuffer_->GetNormalTexture());
+            ssaoPass->SetProjectionMatrix(sceneData_.ProjectionMatrix);
+            ssaoPass->SetViewMatrix(sceneData_.ViewMatrix);
+        }
+        
+        // Temporarily disable Bloom when debug mode is active
+        auto* bloomPass = postProcessPipeline_->GetPass<BloomPass>();
+        bool bloomWasEnabled = bloomPass ? bloomPass->IsEnabled() : false;
+        if (bloomPass && debugMode_ > 0) {
+            bloomPass->SetEnabled(false);
+        }
+        
+        // Execute all post-process passes - output to original (external) FBO
+        // Pass the target viewport dimensions for correct final output size
+        postProcessPipeline_->Execute(hdrColorTexture_, 0, originalFBO_, 
+                                       storedViewport_[2], storedViewport_[3]);
+        
+        // Restore viewport for any subsequent rendering (grid, gizmos, etc.)
+        
+        // Restore Bloom state
+        if (bloomPass) {
+            bloomPass->SetEnabled(bloomWasEnabled);
+        }
+        
+        // Clean up texture bindings to prevent interference with next frame
+        for (int i = 0; i < 8; ++i) {
+            glActiveTexture(GL_TEXTURE0 + i);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+        glActiveTexture(GL_TEXTURE0);
     }
 }
 
@@ -475,6 +626,51 @@ void SceneRenderer::SubmitSkinnedForShadow(
 void SceneRenderer::SetOcclusionCullingEnabled(bool enabled) {
     occlusionCullingEnabled_ = enabled;
     occlusionCuller_.SetEnabled(enabled);
+}
+
+void SceneRenderer::SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArray,
+                                  const std::shared_ptr<Material>& material,
+                                  const Matrix4& transform,
+                                  const PBRMaterialParams& pbrParams,
+                                  bool castsShadows, bool receiveShadows,
+                                  const std::shared_ptr<TextureMaterial>& textureMaterial) {
+    Submission submission;
+    submission.vertex_array    = vertexArray;
+    submission.material        = material;
+    submission.Transform       = transform;
+    submission.CastsShadows    = castsShadows;
+    submission.ReceiveShadows  = receiveShadows;
+    submission.EmissiveColor   = pbrParams.EmissiveColor;
+    submission.EmissiveFactor  = pbrParams.EmissiveFactor;
+    
+    // Per-object PBR override
+    submission.UseCustomPBR    = true;
+    submission.BaseColor       = pbrParams.BaseColor;
+    submission.Metallic        = pbrParams.Metallic;
+    submission.Roughness       = pbrParams.Roughness;
+    submission.Reflectance     = pbrParams.Reflectance;
+    submission.AO              = pbrParams.AO;
+    
+    // Texture material for PBR textures
+    submission.textureMaterial = textureMaterial;
+
+    // Extract position from transform
+    submission.Center = Vector3(transform[3]);
+
+    // Create stable ObjectId based on position hash
+    auto hashFloat      = [](float f) -> uint32_t { return *reinterpret_cast<uint32_t*>(&f); };
+    submission.ObjectId = hashFloat(submission.Center.x) ^ (hashFloat(submission.Center.y) << 8) ^
+                          (hashFloat(submission.Center.z) << 16);
+    if (submission.ObjectId == 0) submission.ObjectId = 1;
+
+    // Calculate bounding radius considering scale
+    float scaleX   = glm::length(Vector3(transform[0]));
+    float scaleY   = glm::length(Vector3(transform[1]));
+    float scaleZ   = glm::length(Vector3(transform[2]));
+    float maxScale = glm::max(glm::max(scaleX, scaleY), scaleZ);
+    submission.BoundingRadius = 0.866f * maxScale;  // Unit cube bounding sphere
+
+    sceneData_.Submissions.emplace_back(std::move(submission));
 }
 
 void SceneRenderer::SetDirectionalLight(const DirectionalLightData& light) {
@@ -821,6 +1017,18 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        shader->setInt("uDebugMode", debugMode_);
+        
+        // Bind SSAO texture if available
+        if (ssaoTexture_ != 0) {
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, ssaoTexture_);
+            shader->setInt("uSSAOTexture", 11);
+            shader->setInt("uHasSSAO", 1);
+            shader->setVec2("uScreenSize", glm::vec2(screenWidth_, screenHeight_));
+        } else {
+            shader->setInt("uHasSSAO", 0);
+        }
 
         // Bind PBR texture uniforms if TextureMaterial is present
         auto texMat = submission.textureMaterial;
@@ -940,6 +1148,37 @@ void SceneRenderer::RenderScenePass() {
             shader->setFloat("uThickness", globalMaterialOverride_->Thickness);
             shader->setFloat("uTransmission", globalMaterialOverride_->Transmission);
             shader->setFloat("uIOR", globalMaterialOverride_->IOR);
+        } else if (submission.UseCustomPBR) {
+            // Per-object PBR override from Material Editor assignment
+            shader->setInt("uHasAlbedo", 0);
+            shader->setInt("uHasNormal", 0);
+            shader->setInt("uHasMetallic", 0);
+            shader->setInt("uHasRoughness", 0);
+            shader->setInt("uHasAO", 0);
+            shader->setInt("uHasEmissive", 0);
+            shader->setInt("uHasMetallicRoughness", 0);
+            
+            shader->setVec4("uBaseColor", submission.BaseColor);
+            shader->setFloat("uMetallicFactor", submission.Metallic);
+            shader->setFloat("uRoughnessFactor", submission.Roughness);
+            shader->setFloat("uReflectance", submission.Reflectance);
+            shader->setFloat("uAOFactor", submission.AO);
+            shader->setVec3("uEmissiveColor", submission.EmissiveColor);
+            shader->setFloat("uEmissiveFactor", submission.EmissiveFactor);
+            shader->setFloat("uNormalScale", 1.0f);
+            
+            // Default advanced PBR for per-object
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uAnisotropyDirection", glm::vec3(1.0f, 0.0f, 0.0f));
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
+            shader->setVec3("uSubsurfaceColor", glm::vec3(0.0f));
+            shader->setFloat("uSubsurfacePower", 0.0f);
+            shader->setFloat("uThickness", 0.0f);
+            shader->setFloat("uTransmission", 0.0f);
+            shader->setFloat("uIOR", 1.5f);
         } else {
             // Default advanced PBR values
             shader->setFloat("uClearCoat", 0.0f);
@@ -1104,6 +1343,18 @@ void SceneRenderer::RenderScenePass() {
             sceneData_.ShadowsEnabled && sceneData_.directional_light.Active ? 1.0f : 0.0f);
         shader->setFloat("uAOStrength", sceneData_.AOStrength);
         shader->setFloat("uAORadius", sceneData_.AORadius);
+        shader->setInt("uDebugMode", debugMode_);
+        
+        // Bind SSAO texture if available
+        if (ssaoTexture_ != 0) {
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_2D, ssaoTexture_);
+            shader->setInt("uSSAOTexture", 11);
+            shader->setInt("uHasSSAO", 1);
+            shader->setVec2("uScreenSize", glm::vec2(screenWidth_, screenHeight_));
+        } else {
+            shader->setInt("uHasSSAO", 0);
+        }
         
         // Apply global material override if set (for PBR testing)
         if (globalMaterialOverride_) {
@@ -1118,7 +1369,17 @@ void SceneRenderer::RenderScenePass() {
             shader->setVec3("uSheenColor", globalMaterialOverride_->SheenColor);
             shader->setFloat("uSheenRoughness", globalMaterialOverride_->SheenRoughness);
         } else {
+            // Set default PBR values when no global override
             shader->setInt("uUseBaseColorOverride", 0);
+            shader->setVec4("uBaseColor", glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+            shader->setFloat("uMetallicFactor", 0.0f);
+            shader->setFloat("uRoughnessFactor", 0.9f);  // Nearly matte surfaces by default
+            shader->setFloat("uReflectance", 0.5f);
+            shader->setFloat("uClearCoat", 0.0f);
+            shader->setFloat("uClearCoatRoughness", 0.0f);
+            shader->setFloat("uAnisotropy", 0.0f);
+            shader->setVec3("uSheenColor", glm::vec3(0.0f));
+            shader->setFloat("uSheenRoughness", 0.0f);
         }
         
         // IBL for instanced
@@ -1370,8 +1631,8 @@ void SceneRenderer::InitSkybox() {
     
     namespace fs = std::filesystem;
     fs::path assetsPath = fs::current_path() / "assets";
-    fs::path vertPath = assetsPath / "shaders" / "skybox.vert";
-    fs::path fragPath = assetsPath / "shaders" / "skybox.frag";
+    fs::path vertPath = assetsPath / "shaders" / "environment" / "skybox.vert";
+    fs::path fragPath = assetsPath / "shaders" / "environment" / "skybox.frag";
     
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_WARN("[Skybox] Shaders not found, skybox disabled");
@@ -1583,6 +1844,52 @@ void SceneRenderer::RenderCSMPass() {
 void SceneRenderer::SetCSMSplitLambda(float lambda) {
     if (csm_) {
         csm_->SetSplitLambda(lambda);
+    }
+}
+
+void SceneRenderer::InitHDRFramebuffer() {
+    if (hdrFBO_ != 0) return;  // Already initialized
+    
+    SE_LOG_INFO("[SceneRenderer] Creating HDR framebuffer {}x{}", screenWidth_, screenHeight_);
+    
+    glGenFramebuffers(1, &hdrFBO_);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO_);
+    
+    // Color attachment (HDR)
+    glGenTextures(1, &hdrColorTexture_);
+    glBindTexture(GL_TEXTURE_2D, hdrColorTexture_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, screenWidth_, screenHeight_, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, hdrColorTexture_, 0);
+    
+    // Depth attachment (renderbuffer)
+    glGenRenderbuffers(1, &hdrDepthRBO_);
+    glBindRenderbuffer(GL_RENDERBUFFER, hdrDepthRBO_);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, screenWidth_, screenHeight_);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, hdrDepthRBO_);
+    
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        SE_LOG_ERROR("[SceneRenderer] HDR framebuffer incomplete!");
+    }
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void SceneRenderer::DestroyHDRFramebuffer() {
+    if (hdrColorTexture_) {
+        glDeleteTextures(1, &hdrColorTexture_);
+        hdrColorTexture_ = 0;
+    }
+    if (hdrDepthRBO_) {
+        glDeleteRenderbuffers(1, &hdrDepthRBO_);
+        hdrDepthRBO_ = 0;
+    }
+    if (hdrFBO_) {
+        glDeleteFramebuffers(1, &hdrFBO_);
+        hdrFBO_ = 0;
     }
 }
 

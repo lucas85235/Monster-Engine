@@ -12,6 +12,7 @@ MenuBarActions MainMenuBar::Render() {
         RenderEditMenu(actions);
         RenderCreateMenu(actions);
         RenderViewMenu(actions);
+        RenderToolsMenu(actions);
 
         ImGui::EndMainMenuBar();
     }
@@ -123,4 +124,14 @@ void MainMenuBar::RenderViewMenu(MenuBarActions& actions) {
     }
 }
 
+void MainMenuBar::RenderToolsMenu(MenuBarActions& actions) {
+    if (ImGui::BeginMenu("Tools")) {
+        if (ImGui::MenuItem("Material Editor", "M")) {
+            actions.openMaterialEditor = true;
+        }
+        ImGui::EndMenu();
+    }
+}
+
 }  // namespace mst
+

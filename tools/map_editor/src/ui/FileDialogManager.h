@@ -29,20 +29,24 @@ public:
     
     void ShowSaveDialog(DialogCallback callback);
     void ShowOpenDialog(DialogCallback callback);
+    void ShowOpenTextureDialog(DialogCallback callback);
     
     void Render(EditorContext& ctx);
     
-    bool IsDialogOpen() const { return showSave_ || showOpen_; }
+    bool IsDialogOpen() const { return showSave_ || showOpen_ || showOpenTexture_; }
 
 private:
     void RenderSaveDialog();
     void RenderOpenDialog();
+    void RenderOpenTextureDialog();
     void RenderFileBrowser(bool isSaveMode);
     void RefreshDirectory();
     void NavigateTo(const std::filesystem::path& path);
+    bool MatchesFilter(const std::string& filename) const;
     
     bool showSave_ = false;
     bool showOpen_ = false;
+    bool showOpenTexture_ = false;
     
     char fileName_[256] = "untitled";
     std::filesystem::path currentPath_;
@@ -57,8 +61,10 @@ private:
     
     DialogCallback saveCallback_;
     DialogCallback openCallback_;
+    DialogCallback textureCallback_;
     
     std::string fileExtension_ = ".mstmap";
+    std::vector<std::string> textureExtensions_ = {".png", ".jpg", ".jpeg", ".tga", ".bmp", ".hdr", ".psd"};
 };
 
 }  // namespace mst

@@ -41,7 +41,7 @@ void Character::SetupPhysics() {
     CapsuleCollider collider;
     collider.Height = physicsConfig_.height;
     collider.Radius = physicsConfig_.radius;
-    GetEntity().GetScene()->GetPhysicsSystem()->GetDebugDrawer()->SetMode(se::PhysicsDebugDraw::DebugDrawMode::Wireframe);
+    GetEntity().GetScene()->GetPhysicsSystem()->GetDebugDrawer()->SetMode(se::PhysicsDebugDraw::DebugDrawMode::None);
     GetEntity().AddComponent<CapsuleCollider>(collider);
 
     // Now add the rigidbody - it will detect the CapsuleCollider

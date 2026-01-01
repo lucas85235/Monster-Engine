@@ -26,9 +26,17 @@ void FileDialogManager::ShowOpenDialog(DialogCallback callback) {
     RefreshDirectory();
 }
 
+void FileDialogManager::ShowOpenTextureDialog(DialogCallback callback) {
+    showOpenTexture_ = true;
+    textureCallback_ = std::move(callback);
+    selectedIndex_ = -1;
+    RefreshDirectory();
+}
+
 void FileDialogManager::Render(EditorContext& ctx) {
     if (showSave_) RenderSaveDialog();
     if (showOpen_) RenderOpenDialog();
+    if (showOpenTexture_) RenderOpenTextureDialog();
 }
 
 void FileDialogManager::RefreshDirectory() {
@@ -41,9 +49,12 @@ void FileDialogManager::RefreshDirectory() {
             fe.isDirectory = entry.is_directory();
             fe.size = fe.isDirectory ? 0 : entry.file_size();
             
-            // For open dialog, only show .mstmap files and directories
-            if (!fe.isDirectory && showOpen_) {
-                if (entry.path().extension() != fileExtension_) {
+            // Apply appropriate filter based on dialog type
+            if (!fe.isDirectory) {
+                if (showOpen_ && entry.path().extension() != fileExtension_) {
+                    continue;
+                }
+                if (showOpenTexture_ && !MatchesFilter(fe.name)) {
                     continue;
                 }
             }
@@ -59,6 +70,17 @@ void FileDialogManager::RefreshDirectory() {
     } catch (const std::exception& e) {
         SE_LOG_ERROR("FileDialogManager: Failed to read directory: {}", e.what());
     }
+}
+
+bool FileDialogManager::MatchesFilter(const std::string& filename) const {
+    std::filesystem::path p(filename);
+    std::string ext = p.extension().string();
+    // Convert to lowercase for comparison
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    for (const auto& texExt : textureExtensions_) {
+        if (ext == texExt) return true;
+    }
+    return false;
 }
 
 void FileDialogManager::NavigateTo(const std::filesystem::path& path) {
@@ -100,6 +122,109 @@ void FileDialogManager::RenderOpenDialog() {
     if (!showOpen_ && openCallback_) {
         openCallback_(FileDialogResult{});
         openCallback_ = nullptr;
+    }
+}
+
+void FileDialogManager::RenderOpenTextureDialog() {
+    ImGui::OpenPopup("Select Texture");
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(600, 450), ImGuiCond_FirstUseEver);
+    
+    if (ImGui::BeginPopupModal("Select Texture", &showOpenTexture_)) {
+        // Current path display and navigation
+        ImGui::Text("Location:");
+        ImGui::SameLine();
+        std::string pathStr = currentPath_.string();
+        ImGui::TextWrapped("%s", pathStr.c_str());
+        
+        ImGui::SameLine(ImGui::GetWindowWidth() - 80);
+        if (ImGui::Button("Up")) {
+            if (currentPath_.has_parent_path() && currentPath_.parent_path() != currentPath_) {
+                NavigateTo(currentPath_.parent_path());
+            }
+        }
+        
+        // Filter info
+        ImGui::TextDisabled("Showing: PNG, JPG, TGA, BMP, HDR, PSD");
+        ImGui::Separator();
+        
+        // File list
+        ImVec2 listSize(0, -50);
+        if (ImGui::BeginChild("TextureList", listSize, true)) {
+            for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+                const auto& entry = entries_[i];
+                
+                const char* icon = entry.isDirectory ? "[DIR] " : "      ";
+                std::string label = icon + entry.name;
+                
+                bool isSelected = (selectedIndex_ == i);
+                if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick)) {
+                    selectedIndex_ = i;
+                    
+                    if (ImGui::IsMouseDoubleClicked(0)) {
+                        if (entry.isDirectory) {
+                            NavigateTo(currentPath_ / entry.name);
+                        } else {
+                            // Double-click on texture = select it
+                            FileDialogResult result;
+                            result.confirmed = true;
+                            result.filename = entry.name;
+                            result.fullPath = (currentPath_ / entry.name).string();
+                            
+                            if (textureCallback_) {
+                                textureCallback_(result);
+                                textureCallback_ = nullptr;
+                            }
+                            showOpenTexture_ = false;
+                            ImGui::CloseCurrentPopup();
+                        }
+                    }
+                }
+            }
+        }
+        ImGui::EndChild();
+        
+        ImGui::Separator();
+        
+        // Selected file display
+        if (selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(entries_.size()) && !entries_[selectedIndex_].isDirectory) {
+            ImGui::Text("Selected: %s", entries_[selectedIndex_].name.c_str());
+        } else {
+            ImGui::TextDisabled("No texture selected");
+        }
+        
+        // Action buttons
+        bool canConfirm = selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(entries_.size()) && !entries_[selectedIndex_].isDirectory;
+        
+        if (!canConfirm) ImGui::BeginDisabled();
+        if (ImGui::Button("Select", ImVec2(120, 0))) {
+            FileDialogResult result;
+            result.confirmed = true;
+            result.filename = entries_[selectedIndex_].name;
+            result.fullPath = (currentPath_ / result.filename).string();
+            
+            if (textureCallback_) {
+                textureCallback_(result);
+                textureCallback_ = nullptr;
+            }
+            showOpenTexture_ = false;
+            ImGui::CloseCurrentPopup();
+        }
+        if (!canConfirm) ImGui::EndDisabled();
+        
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            showOpenTexture_ = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::EndPopup();
+    }
+    
+    if (!showOpenTexture_ && textureCallback_) {
+        textureCallback_(FileDialogResult{});
+        textureCallback_ = nullptr;
     }
 }
 

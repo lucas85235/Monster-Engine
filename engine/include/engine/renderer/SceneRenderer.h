@@ -15,7 +15,9 @@
 #include "engine/renderer/SceneVoxelizer.h"
 #include "engine/renderer/SparseRadianceCascades.h"
 #include "engine/renderer/SSGIPass.h"
+#include "engine/renderer/SSAOPass.h"
 #include "engine/renderer/CascadedShadowMap.h"
+#include "engine/renderer/PostProcessPipeline.h"
 #include "engine/renderer/VertexArray.h"
 
 namespace se {
@@ -57,8 +59,11 @@ class SceneRenderer {
     void Init();
     void Shutdown();
 
+    // Frame lifecycle: BeginFrame -> BeginScene -> (rendering) -> EndScene -> FinishFrame
+    void BeginFrame();   // Binds HDR FBO if post-process enabled
     void BeginScene(const Camera& camera, const Matrix4& projection);
     void EndScene();
+    void FinishFrame();  // Executes post-process pipeline
 
     void Submit(const std::shared_ptr<VertexArray>& vertexArray,
                 const std::shared_ptr<Material>& material, const Matrix4& transform = Matrix4(1.0f),
@@ -79,7 +84,14 @@ class SceneRenderer {
         const Matrix4& transform,
         const std::vector<Matrix4>& boneMatrices,
         bool hasBones);
-
+    
+    // Submit with per-object PBR parameters (for objects with custom materials)
+    void SubmitWithPBR(const std::shared_ptr<VertexArray>& vertexArray,
+                       const std::shared_ptr<Material>& material,
+                       const Matrix4& transform,
+                       const PBRMaterialParams& pbrParams,
+                       bool castsShadows = true, bool receiveShadows = true,
+                       const std::shared_ptr<TextureMaterial>& textureMaterial = nullptr);
 
     struct DirectionalLightData {
         Vector3 Direction{0.0f, -1.0f, 0.0f};
@@ -178,6 +190,10 @@ class SceneRenderer {
     void SetVisualizeCascades(bool enabled) { visualizeCascades_ = enabled; }
     bool IsVisualizeCascadesEnabled() const { return visualizeCascades_; }
     void SetCSMSplitLambda(float lambda);
+    
+    // Debug visualization modes: 0=off, 1=AO, 2=Normals, 3=Roughness, 4=Metallic
+    void SetDebugMode(int mode) { debugMode_ = mode; }
+    int GetDebugMode() const { return debugMode_; }
 
    private:
     struct Submission {
@@ -192,6 +208,14 @@ class SceneRenderer {
         std::shared_ptr<TextureMaterial> textureMaterial;  // PBR texture data
         Vector3                      EmissiveColor{0.0f, 0.0f, 0.0f};  // Emissive for GI
         float                        EmissiveFactor = 0.0f;             // Emission intensity
+        
+        // Per-object PBR material override
+        bool                         UseCustomPBR = false;
+        Vector4                      BaseColor{1.0f, 1.0f, 1.0f, 1.0f};
+        float                        Metallic = 0.0f;
+        float                        Roughness = 0.5f;
+        float                        Reflectance = 0.5f;
+        float                        AO = 1.0f;
     };
 
     struct SceneData {
@@ -211,7 +235,7 @@ class SceneRenderer {
         float                   AmbientStrength = 0.2f;
         float                   AOStrength      = 0.5f;
         float                   AORadius        = 1.0f;
-        float                   Exposure        = 1.5f;  // HDR exposure (>1 brighter)
+        float                   Exposure        = 1.0f;  // HDR exposure (1.0 = neutral)
         bool                    ShadowsEnabled  = true;
         Vector3                 CameraPosition{0.0f};    // For GI occlusion
         const Camera*           CurrentCamera = nullptr; // For CSM
@@ -291,7 +315,34 @@ class SceneRenderer {
     std::unique_ptr<CascadedShadowMap> csm_;
     bool csmEnabled_ = true;
     bool visualizeCascades_ = false;
+    int debugMode_ = 0;  // 0=off, 1=AO, 2=Normals, 3=Roughness, 4=Metallic
     void RenderCSMPass();
+    
+    // Post-Processing Pipeline
+    std::unique_ptr<PostProcessPipeline> postProcessPipeline_;
+    bool postProcessEnabled_ = true;
+    
+    // Screen-Space Ambient Occlusion (standalone, not in post-process pipeline)
+    std::unique_ptr<SSAOPass> ssaoPass_;
+    bool ssaoEnabled_ = true;
+    GLuint ssaoTexture_ = 0;  // Cached texture from ssaoPass_
+    
+    // HDR Scene Framebuffer (for post-processing input)
+    GLuint hdrFBO_ = 0;
+    GLuint hdrColorTexture_ = 0;
+    GLuint hdrDepthRBO_ = 0;
+    void InitHDRFramebuffer();
+    void DestroyHDRFramebuffer();
+    
+    // Frame state for post-process restoration
+    GLint originalFBO_ = 0;
+    GLint storedViewport_[4] = {0, 0, 0, 0};
+    
+public:
+    // Post-process access
+    PostProcessPipeline* GetPostProcessPipeline() { return postProcessPipeline_.get(); }
+    void SetPostProcessEnabled(bool enabled) { postProcessEnabled_ = enabled; }
+    bool IsPostProcessEnabled() const { return postProcessEnabled_; }
 };
 
 }  // namespace se

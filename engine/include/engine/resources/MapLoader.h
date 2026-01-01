@@ -66,6 +66,11 @@ class MapLoader {
         // Version 4+ fields
         Vector3       emissiveColor{0.0f, 0.0f, 0.0f};
         float         emissiveFactor = 0.0f;
+        // Version 5+ fields (material support)
+        bool          hasCustomMaterial = false;
+        std::string   materialName;
+        // Version 6+ fields (compiled material path)
+        std::string   compiledMaterialPath;
     };
 
     static bool ReadString(std::ifstream& file, std::string& str);

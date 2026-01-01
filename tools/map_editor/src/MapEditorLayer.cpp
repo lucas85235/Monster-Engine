@@ -1,5 +1,7 @@
 #include "MapEditorLayer.h"
 
+#include <filesystem>
+
 #include <glad/glad.h>
 #include <ImGuizmo.h>
 #include <imgui.h>
@@ -20,6 +22,7 @@ void MapEditorLayer::OnAttach() {
     SE_LOG_INFO("MapEditorLayer::OnAttach");
     
     context_ = CreateScope<EditorContext>();
+    context_->SetFileDialogManager(&fileDialogs_);
     
     viewportPanel_ = CreateScope<ViewportPanel>();
     statusBarPanel_ = CreateScope<StatusBarPanel>();
@@ -93,7 +96,7 @@ void MapEditorLayer::OnImGuiRender() {
     }
     
     if (propertiesVisible_) {
-        propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo());
+        propertiesPanel_.Render(context_->GetSelection(), context_->GetGizmo(), *context_);
     }
     
     if (viewportVisible_) {
@@ -107,6 +110,9 @@ void MapEditorLayer::OnImGuiRender() {
     }
     
     fileDialogs_.Render(*context_);
+    
+    // Material Editor Panel (separate window)
+    materialEditorPanel_.Render(*context_);
 }
 
 void MapEditorLayer::SetupEventHandlers() {
@@ -225,7 +231,14 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
                 context_->GetSelection().ClearSelection();
                 context_->GetDocument().Open(result.fullPath);
                 context_->GetCommandSystem().Clear();
-                SE_LOG_INFO("Opened map: {}", result.fullPath);
+                
+                // Load compiled materials from binary files and apply to entities
+                // Assets base path is two directories up from the map file (maps/ folder)
+                std::filesystem::path mapPath(result.fullPath);
+                std::string assetsBase = mapPath.parent_path().parent_path().string();
+                context_->LoadCompiledMaterialsFromMap(assetsBase);
+                
+                SE_LOG_INFO("Opened map with compiled materials: {}", result.fullPath);
             }
         });
     }
@@ -234,8 +247,9 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
         fileDialogs_.ShowSaveDialog([this](const FileDialogResult& result) {
             if (result.confirmed) {
                 context_->GetDocument().SetMapName(result.filename);
-                context_->GetDocument().SaveAs(result.fullPath);
-                SE_LOG_INFO("Saved map: {}", result.fullPath);
+                // Use SaveMapWithCompiledMaterials to compile and save material binaries
+                context_->SaveMapWithCompiledMaterials(result.fullPath);
+                SE_LOG_INFO("Saved map with compiled materials: {}", result.fullPath);
             }
         });
     }
@@ -295,6 +309,10 @@ void MapEditorLayer::ProcessMenuActions(const MenuBarActions& actions) {
     
     if (actions.resetCamera) {
         context_->GetCamera().FocusOnPoint({0.0f, 0.0f, 0.0f});
+    }
+    
+    if (actions.openMaterialEditor) {
+        materialEditorPanel_.ToggleVisible();
     }
 }
 

@@ -10,7 +10,10 @@
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/ecs/SkinnedModelComponent.h"
+#include "engine/renderer/InstancedMesh.h"
 #include "engine/renderer/Material.h"
+#include "engine/renderer/MaterialInstance.h"
+#include "engine/renderer/PBRMaterial.h"
 #include "engine/renderer/SceneRenderer.h"
 #include "engine/renderer/Texture.h"
 #include "engine/renderer/TextureMaterial.h"
@@ -64,8 +67,8 @@ void RenderSystem::EnsureInstancedMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "instanced.vert";
-    fs::path fragPath = assetsPath / "shaders" / "instanced.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "instanced.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "instanced.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Instanced shaders not found at: {}", vertPath.string());
@@ -98,8 +101,8 @@ void RenderSystem::EnsureModelMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "model.vert";
-    fs::path fragPath = assetsPath / "shaders" / "model.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "model.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "model.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Model shaders not found at: {}", vertPath.string());
@@ -132,8 +135,8 @@ void RenderSystem::EnsureSkinnedMaterial() {
         return;
     }
 
-    fs::path vertPath = assetsPath / "shaders" / "skinned_model.vert";
-    fs::path fragPath = assetsPath / "shaders" / "skinned_model.frag";
+    fs::path vertPath = assetsPath / "shaders" / "core" / "skinned_model.vert";
+    fs::path fragPath = assetsPath / "shaders" / "core" / "skinned_model.frag";
 
     if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
         SE_LOG_ERROR("Skinned model shaders not found at: {}", vertPath.string());
@@ -209,6 +212,9 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         break;  // Only use first enabled light
     }
 
+    // Begin frame rendering (binds HDR FBO if post-process is enabled)
+    sceneRenderer.BeginFrame();
+    
     // Begin scene rendering
     glm::mat4 projection = camera.getProjectionMatrix(aspectRatio);
     sceneRenderer.BeginScene(camera, projection);
@@ -231,6 +237,13 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     int skippedCount = 0;
 
     // Group entities by (VertexArray, Material) for instancing
+    // Entities with customTextureMaterial are stored separately for individual rendering
+    struct TexturedMeshData {
+        TransformComponent* transform;
+        MeshRenderComponent* meshRender;
+    };
+    std::vector<TexturedMeshData> texturedMeshes;
+    
     for (auto entity : view) {
         auto& transform  = view.get<TransformComponent>(entity);
         auto& meshRender = view.get<MeshRenderComponent>(entity);
@@ -245,14 +258,14 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
             continue;
         }
 
-        // Emissive objects must be rendered individually to pass their emissive properties
-        if (meshRender.EmissiveFactor > 0.0f) {
-            sceneRenderer.Submit(meshRender.vertex_array, meshRender.material, 
-                                 transform.WorldMatrix, true, true, 1.0f, nullptr,
-                                 meshRender.EmissiveColor, meshRender.EmissiveFactor);
+        // Check if this mesh has custom textures - render individually instead of batching
+        if (meshRender.customTextureMaterial && meshRender.customTextureMaterial->HasAnyTexture()) {
+            texturedMeshes.push_back({&transform, &meshRender});
             continue;
         }
 
+        // All MeshRenderComponent entities without custom textures use instanced batching
+        // Color and emissive properties are stored in InstanceData
         InstanceBatchKey key{meshRender.vertex_array.get(), meshRender.material.get()};
 
         // Cache shared_ptrs and properties on first encounter for this batch
@@ -267,10 +280,29 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         InstanceData instanceData;
         instanceData.Transform = transform.WorldMatrix;
-        instanceData.Color     = meshRender.Color;  // Use per-entity color
+        // Always pass the component color - shader uses uBaseColor if this is white (1,1,1)
+        instanceData.Color = meshRender.Color;
 
         instanceBatches_[key].push_back(instanceData);
     }
+    
+    // Render textured primitives (entities with customTextureMaterial) individually
+    // These are submitted to SceneRenderer and rendered with model.frag which handles textures
+    // Note: This requires primitives to have compatible vertex layout with model.vert
+    EnsureModelMaterial();
+    if (modelMaterial_ && !texturedMeshes.empty()) {
+        for (const auto& data : texturedMeshes) {
+            auto& transform = *data.transform;
+            auto& meshRender = *data.meshRender;
+            auto texMat = meshRender.customTextureMaterial;
+            
+            // Submit to scene renderer - it will handle texture binding and uniforms
+            sceneRenderer.Submit(meshRender.vertex_array, modelMaterial_, transform.WorldMatrix,
+                                 meshRender.CastShadows, meshRender.ReceiveShadows, 1.0f, texMat,
+                                 meshRender.EmissiveColor, meshRender.EmissiveFactor);
+        }
+    }
+
 
     // Process entities with ModelComponent (3D models loaded from files)
     auto modelView = scene.GetAllEntitiesWith<TransformComponent, ModelComponent>();
@@ -341,44 +373,53 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                     shader->setInt("uHasBones", 0);
                 }
                 
-                // Set texture uniforms
-                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
-                
-                if (texMat) {
-                    if (texMat->HasAlbedo()) {
-                        texMat->Albedo->Bind(1);
-                        hasAlbedo = 1;
+                // Use MaterialInstance if available (new unified system)
+                auto matInstance = submesh.GetMaterialInstance();
+                if (matInstance) {
+                    matInstance->Bind(shader.get());
+                    if (shouldLog) {
+                        SE_LOG_INFO("RenderSystem: Using MaterialInstance for submesh '{}'", submesh.GetName());
                     }
-                    if (texMat->HasNormal()) {
-                        texMat->Normal->Bind(2);
-                        hasNormal = 1;
+                } else {
+                    // Fallback to legacy TextureMaterial binding
+                    int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+                    
+                    if (texMat) {
+                        if (texMat->HasAlbedo()) {
+                            texMat->Albedo->Bind(1);
+                            hasAlbedo = 1;
+                        }
+                        if (texMat->HasNormal()) {
+                            texMat->Normal->Bind(2);
+                            hasNormal = 1;
+                        }
+                        if (texMat->HasSpecular()) {
+                            texMat->Specular->Bind(3);
+                            hasSpecular = 1;
+                        }
+                        if (texMat->HasAO()) {
+                            texMat->AO->Bind(4);
+                            hasAO = 1;
+                        }
                     }
-                    if (texMat->HasSpecular()) {
-                        texMat->Specular->Bind(3);
-                        hasSpecular = 1;
+                    
+                    shader->setInt("uAlbedoMap", 1);
+                    shader->setInt("uNormalMap", 2);
+                    shader->setInt("uSpecularMap", 3);
+                    shader->setInt("uAOMap", 4);
+                    
+                    shader->setInt("uHasAlbedo", hasAlbedo);
+                    shader->setInt("uHasNormal", hasNormal);
+                    shader->setInt("uHasSpecular", hasSpecular);
+                    shader->setInt("uHasAO", hasAO);
+                    
+                    shader->setVec4("uBaseColor", texMat ? texMat->BaseColor : glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
+                    shader->setFloat("uShininess", texMat ? texMat->Shininess : 32.0f);
+                    
+                    if (shouldLog && texMat) {
+                        SE_LOG_INFO("RenderSystem PBR: submesh='{}' animated={} albedo={} normal={} spec={} ao={}",
+                                    submesh.GetName(), hasAnimator, hasAlbedo, hasNormal, hasSpecular, hasAO);
                     }
-                    if (texMat->HasAO()) {
-                        texMat->AO->Bind(4);
-                        hasAO = 1;
-                    }
-                }
-                
-                shader->setInt("uAlbedoMap", 1);
-                shader->setInt("uNormalMap", 2);
-                shader->setInt("uSpecularMap", 3);
-                shader->setInt("uAOMap", 4);
-                
-                shader->setInt("uHasAlbedo", hasAlbedo);
-                shader->setInt("uHasNormal", hasNormal);
-                shader->setInt("uHasSpecular", hasSpecular);
-                shader->setInt("uHasAO", hasAO);
-                
-                shader->setVec4("uBaseColor", texMat ? texMat->BaseColor : glm::vec4(0.7f, 0.7f, 0.7f, 1.0f));
-                shader->setFloat("uShininess", texMat ? texMat->Shininess : 32.0f);
-                
-                if (shouldLog && texMat) {
-                    SE_LOG_INFO("RenderSystem PBR: submesh='{}' animated={} albedo={} normal={} spec={} ao={}",
-                                submesh.GetName(), hasAnimator, hasAlbedo, hasNormal, hasSpecular, hasAO);
                 }
             }
             
@@ -488,63 +529,69 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         for (const auto& mesh : skinnedComp.model->GetMeshes()) {
             auto texMat = mesh.GetMaterial();
             
-            // Reset texture flags
-            int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
-            int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
-            
-            if (texMat) {
-                if (texMat->HasAlbedo()) {
-                    texMat->Albedo->Bind(1);
-                    hasAlbedo = 1;
-                }
-                if (texMat->HasNormal()) {
-                    texMat->Normal->Bind(2);
-                    hasNormal = 1;
-                }
-                if (texMat->HasSpecular()) {
-                    texMat->Specular->Bind(3);
-                    hasSpecular = 1;
-                }
-                if (texMat->HasAO()) {
-                    texMat->AO->Bind(4);
-                    hasAO = 1;
-                }
-                if (texMat->HasRoughness()) {
-                    texMat->Roughness->Bind(5);
-                    hasRoughness = 1;
-                }
-                if (texMat->HasMetallic()) {
-                    texMat->Metallic->Bind(6);
-                    hasMetallic = 1;
-                }
-                if (texMat->HasEmissive()) {
-                    texMat->Emissive->Bind(7);
-                    hasEmissive = 1;
+            // Use MaterialInstance if available (new unified system)
+            auto matInstance = mesh.GetMaterialInstance();
+            if (matInstance) {
+                matInstance->Bind(shader.get());
+            } else {
+                // Fallback to legacy TextureMaterial binding
+                int hasAlbedo = 0, hasNormal = 0, hasSpecular = 0, hasAO = 0;
+                int hasRoughness = 0, hasMetallic = 0, hasEmissive = 0;
+                
+                if (texMat) {
+                    if (texMat->HasAlbedo()) {
+                        texMat->Albedo->Bind(1);
+                        hasAlbedo = 1;
+                    }
+                    if (texMat->HasNormal()) {
+                        texMat->Normal->Bind(2);
+                        hasNormal = 1;
+                    }
+                    if (texMat->HasSpecular()) {
+                        texMat->Specular->Bind(3);
+                        hasSpecular = 1;
+                    }
+                    if (texMat->HasAO()) {
+                        texMat->AO->Bind(4);
+                        hasAO = 1;
+                    }
+                    if (texMat->HasRoughness()) {
+                        texMat->Roughness->Bind(5);
+                        hasRoughness = 1;
+                    }
+                    if (texMat->HasMetallic()) {
+                        texMat->Metallic->Bind(6);
+                        hasMetallic = 1;
+                    }
+                    if (texMat->HasEmissive()) {
+                        texMat->Emissive->Bind(7);
+                        hasEmissive = 1;
+                    }
+                    
+                    shader->setVec4("uBaseColor", texMat->BaseColor);
+                    shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
+                    shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
+                    shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
                 }
                 
-                shader->setVec4("uBaseColor", texMat->BaseColor);
-                shader->setFloat("uMetallicFactor", texMat->MetallicFactor);
-                shader->setFloat("uRoughnessFactor", texMat->RoughnessFactor);
-                shader->setVec3("uEmissiveColor", texMat->EmissiveColor);
+                // Set sampler uniform locations
+                shader->setInt("uAlbedoMap", 1);
+                shader->setInt("uNormalMap", 2);
+                shader->setInt("uSpecularMap", 3);
+                shader->setInt("uAOMap", 4);
+                shader->setInt("uRoughnessMap", 5);
+                shader->setInt("uMetallicMap", 6);
+                shader->setInt("uEmissiveMap", 7);
+                
+                // Set texture presence flags
+                shader->setInt("uHasAlbedo", hasAlbedo);
+                shader->setInt("uHasNormal", hasNormal);
+                shader->setInt("uHasSpecular", hasSpecular);
+                shader->setInt("uHasAO", hasAO);
+                shader->setInt("uHasRoughness", hasRoughness);
+                shader->setInt("uHasMetallic", hasMetallic);
+                shader->setInt("uHasEmissive", hasEmissive);
             }
-            
-            // Set sampler uniform locations
-            shader->setInt("uAlbedoMap", 1);
-            shader->setInt("uNormalMap", 2);
-            shader->setInt("uSpecularMap", 3);
-            shader->setInt("uAOMap", 4);
-            shader->setInt("uRoughnessMap", 5);
-            shader->setInt("uMetallicMap", 6);
-            shader->setInt("uEmissiveMap", 7);
-            
-            // Set texture presence flags
-            shader->setInt("uHasAlbedo", hasAlbedo);
-            shader->setInt("uHasNormal", hasNormal);
-            shader->setInt("uHasSpecular", hasSpecular);
-            shader->setInt("uHasAO", hasAO);
-            shader->setInt("uHasRoughness", hasRoughness);
-            shader->setInt("uHasMetallic", hasMetallic);
-            shader->setInt("uHasEmissive", hasEmissive);
             
             mesh.Draw();
             
@@ -590,46 +637,41 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
         if (!material || !va) continue;
 
-        if (instances.size() == 1) {
-            // Single instance - use normal submit with emissive properties
-            sceneRenderer.Submit(va, material, instances[0].Transform, true, true, 1.0f, nullptr, 
-                                 resources.emissiveColor, resources.emissiveFactor);
-        } else {
-            // Multiple instances - use instanced rendering
-            instancedObjects += static_cast<uint32_t>(instances.size());
+        // Always use instanced rendering - even for single instances
+        // This ensures consistent shader path (instanced.frag) for all objects
+        instancedObjects += static_cast<uint32_t>(instances.size());
 
-            // Get or create InstancedMesh for this batch
-            auto it = instancedMeshCache_.find(key);
-            if (it == instancedMeshCache_.end()) {
-                // Create new InstancedMesh with capacity for growth
-                uint32_t maxInstances =
-                    std::max(static_cast<uint32_t>(instances.size() * 2), 1000u);
-                auto instancedMesh = std::make_shared<InstancedMesh>(va, maxInstances);
-                it                 = instancedMeshCache_.emplace(key, instancedMesh).first;
-                SE_LOG_INFO("Created InstancedMesh for batch with capacity {}", maxInstances);
-            }
+        // Get or create InstancedMesh for this batch
+        auto it = instancedMeshCache_.find(key);
+        if (it == instancedMeshCache_.end()) {
+            // Create new InstancedMesh with capacity for growth
+            uint32_t maxInstances =
+                std::max(static_cast<uint32_t>(instances.size() * 2), 1000u);
+            auto instancedMesh = std::make_shared<InstancedMesh>(va, maxInstances);
+            it                 = instancedMeshCache_.emplace(key, instancedMesh).first;
+            SE_LOG_INFO("Created InstancedMesh for batch with capacity {}", maxInstances);
+        }
 
-            auto& instancedMesh = it->second;
+        auto& instancedMesh = it->second;
 
-            // Check if we need to resize
-            if (instances.size() > instancedMesh->GetMaxInstances()) {
-                uint32_t newMax = static_cast<uint32_t>(instances.size() * 2);
-                instancedMesh   = std::make_shared<InstancedMesh>(va, newMax);
-                it->second      = instancedMesh;
-                SE_LOG_INFO("Resized InstancedMesh to capacity {}", newMax);
-            }
+        // Check if we need to resize
+        if (instances.size() > instancedMesh->GetMaxInstances()) {
+            uint32_t newMax = static_cast<uint32_t>(instances.size() * 2);
+            instancedMesh   = std::make_shared<InstancedMesh>(va, newMax);
+            it->second      = instancedMesh;
+            SE_LOG_INFO("Resized InstancedMesh to capacity {}", newMax);
+        }
 
-            // Upload instance data and draw
-            instancedMesh->SetInstances(instances);
+        // Upload instance data and draw
+        instancedMesh->SetInstances(instances);
 
-            // Ensure we have the instanced material loaded
-            EnsureInstancedMaterial();
+        // Ensure we have the instanced material loaded
+        EnsureInstancedMaterial();
 
-            // Submit to SceneRenderer for instanced rendering (use instanced material for proper
-            // shader)
-            if (instancedMaterial_) {
-                sceneRenderer.SubmitInstanced(instancedMesh, instancedMaterial_, true, true);
-            }
+        // Submit to SceneRenderer for instanced rendering (use instanced material for proper
+        // shader)
+        if (instancedMaterial_) {
+            sceneRenderer.SubmitInstanced(instancedMesh, instancedMaterial_, true, true);
         }
     }
 
@@ -650,6 +692,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     }
 
     sceneRenderer.EndScene();
+    sceneRenderer.FinishFrame();  // Execute post-processing after all rendering is complete
 }
 
 }  // namespace se

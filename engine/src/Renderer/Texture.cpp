@@ -122,4 +122,95 @@ void Texture::Release() {
     }
 }
 
+std::shared_ptr<Texture> Texture::CreateFromMemory(
+    const uint8_t* data,
+    uint32_t width,
+    uint32_t height,
+    uint8_t channels,
+    const std::string& debugName
+) {
+    if (!data || width == 0 || height == 0 || channels == 0) {
+        SE_LOG_ERROR("Texture: Invalid parameters for CreateFromMemory");
+        return nullptr;
+    }
+    
+    auto texture = std::make_shared<Texture>();
+    texture->path_ = debugName;
+    
+    if (!texture->LoadFromMemory(data, width, height, channels)) {
+        return nullptr;
+    }
+    
+    return texture;
+}
+
+bool Texture::LoadFromMemory(const uint8_t* data, uint32_t width, uint32_t height, uint8_t channels) {
+    width_ = static_cast<int>(width);
+    height_ = static_cast<int>(height);
+    channels_ = static_cast<int>(channels);
+    
+    GLenum internalFormat = GL_RGBA8;
+    GLenum dataFormat = GL_RGBA;
+    
+    switch (channels) {
+        case 4:
+            internalFormat = GL_RGBA8;
+            dataFormat = GL_RGBA;
+            break;
+        case 3:
+            internalFormat = GL_RGB8;
+            dataFormat = GL_RGB;
+            break;
+        case 2:
+            internalFormat = GL_RG8;
+            dataFormat = GL_RG;
+            break;
+        case 1:
+            internalFormat = GL_R8;
+            dataFormat = GL_RED;
+            break;
+        default:
+            SE_LOG_WARN("Texture: Unsupported channel count {} for memory texture, treating as RGBA", channels);
+            internalFormat = GL_RGBA8;
+            dataFormat = GL_RGBA;
+            break;
+    }
+    
+    glGenTextures(1, &id_);
+    if (id_ == 0) {
+        SE_LOG_ERROR("Texture: Failed to generate OpenGL texture for memory data");
+        return false;
+    }
+    
+    glBindTexture(GL_TEXTURE_2D, id_);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width_, height_, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    float maxAniso = 0.0f;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &maxAniso);
+    if (maxAniso > 1.0f) {
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, std::min(maxAniso, 8.0f));
+    }
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    SE_LOG_INFO("Texture: Created from memory '{}' ({}x{}, {} channels)", path_, width_, height_, channels_);
+    return true;
+}
+
+void Texture::SetFromGLHandle(uint32_t glHandle, int width, int height, int channels, const std::string& debugName) {
+    Release();
+    id_ = glHandle;
+    width_ = width;
+    height_ = height;
+    channels_ = channels;
+    path_ = debugName;
+}
+
 }  // namespace se
