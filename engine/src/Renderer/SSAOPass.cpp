@@ -104,9 +104,11 @@ void SSAOPass::Execute(GLuint inputTexture, GLuint outputFBO) {
     ssaoShader_->setFloat("uIntensity", intensity_);
     ssaoShader_->setInt("uKernelSize", kernelSize_);
 
+    // Use cached uniform locations (gathered during Init)
     for (int i = 0; i < kernelSize_; ++i) {
-        std::string uniformName = "uSamples[" + std::to_string(i) + "]";
-        ssaoShader_->setVec3(uniformName.c_str(), ssaoKernel_[i]);
+        if (kernelLocations_[i] >= 0) {
+            glUniform3fv(kernelLocations_[i], 1, &ssaoKernel_[i].x);
+        }
     }
 
     glActiveTexture(GL_TEXTURE0);
@@ -163,6 +165,17 @@ void SSAOPass::GenerateKernel() {
         sample *= scale;
         
         ssaoKernel_.push_back(sample);
+    }
+    
+    // Cache uniform locations to avoid string formatting in Execute()
+    kernelLocations_.clear();
+    kernelLocations_.reserve(kernelSize_);
+    if (ssaoShader_) {
+        for (int i = 0; i < kernelSize_; ++i) {
+            char uniformName[32];
+            snprintf(uniformName, sizeof(uniformName), "uSamples[%d]", i);
+            kernelLocations_.push_back(ssaoShader_->getUniformLocation(uniformName));
+        }
     }
 }
 

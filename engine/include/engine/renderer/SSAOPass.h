@@ -62,6 +62,9 @@ private:
     float bias_ = 0.025f;
     int kernelSize_ = 32;
     int blurSize_ = 4;
+    
+    // Cached kernel uniform locations (avoid string allocation per frame)
+    std::vector<int> kernelLocations_;
 
     GLuint quadVAO_ = 0;
     GLuint quadVBO_ = 0;

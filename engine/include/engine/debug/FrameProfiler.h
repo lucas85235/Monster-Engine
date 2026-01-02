@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DebugConfig.h"
+#include <cstdint>
 
 #if SE_ENABLE_PROFILER
 
@@ -86,7 +87,9 @@ private:
 
 } // namespace se::debug
 
-// Profiler color palette (from Legit Profiler)
+#endif // SE_ENABLE_PROFILER
+
+// Profiler color palette (always defined - used even in Release for consistency)
 namespace ProfilerColors {
     constexpr uint32_t Turquoise   = 0xFF9CBC1A;
     constexpr uint32_t Emerald     = 0xFF71CC2E;
@@ -97,6 +100,8 @@ namespace ProfilerColors {
     constexpr uint32_t Alizarin    = 0xFF3C4CE7; // Red
     constexpr uint32_t Clouds      = 0xFFF1F0EC;
 }
+
+#if SE_ENABLE_PROFILER
 
 // Macro magic for unique variable names
 #define SE_PROFILER_CONCAT_IMPL(a, b) a##b

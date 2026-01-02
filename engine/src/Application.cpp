@@ -8,9 +8,11 @@
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/core/Time.h"
+#include "engine/debug/DebugConfig.h"
 #include "engine/debug/DebugTools.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
+#include "engine/perf/PerfOverlay.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -57,10 +59,12 @@ Application::Application(const ApplicationSpecification& specification) {
     // Set default clear color
     renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
-    // Create and attach ImGui layer with app name for per-app ini file
+    // Create and attach ImGui layer with app name for per-app ini file (Debug only)
+#if SE_DEBUG
     imguiLayer_ = std::make_shared<ImGuiLayer>(specification.Name);
     imguiLayer_->SetWindow(window_->GetNativeWindow());
     imguiLayer_->OnAttach();
+#endif
 
     // Register event listeners with the new EventBus
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
@@ -89,8 +93,13 @@ Application::Application(const ApplicationSpecification& specification) {
 Application::~Application() {
     SE_LOG_INFO("Shutting down Simple Engine");
 
-    // Detach ImGui
+    // Detach ImGui (Debug only)
+#if SE_DEBUG
     if (imguiLayer_) { imguiLayer_->OnDetach(); }
+#endif
+    
+    // Shutdown performance overlay
+    perf::PerfOverlay::Shutdown();
 
     // Cleanup layers
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
@@ -173,13 +182,18 @@ int Application::Run() {
             SE_PROFILE_SCOPE_COLOR("Layers Render", ProfilerColors::Emerald);
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
         }
+        
+        // Update and render performance overlay (works in both Debug and Release)
+        perf::PerfOverlay::Update(timestep);
+        perf::PerfOverlay::Render();
 
         {
             SE_PROFILE_SCOPE_COLOR("EndFrame", ProfilerColors::Clouds);
             renderer_->EndFrame();
         }
 
-        // ImGui rendering
+        // ImGui rendering (Debug only)
+#if SE_DEBUG
         {
             SE_PROFILE_SCOPE_COLOR("ImGui", ProfilerColors::SunFlower);
             
@@ -203,6 +217,7 @@ int Application::Run() {
                 imguiLayer_->End();
             }
         }
+#endif
         
         // End debug profiling frame
         SE_DEBUG_TOOLS_FRAME_END();
