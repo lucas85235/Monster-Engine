@@ -1,0 +1,182 @@
+Vers+úo do MSBuild 17.14.23+b0019275e para .NET Framework
+
+  Checking File Globs
+  BulletCollision.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\BulletCollision.lib
+  BulletDynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\BulletDynamics.lib
+  glad.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\glad.lib
+  glfw.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\glfw3.lib
+  ImGui.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\ImGui.lib
+  ImGuizmo.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\ImGuizmo.lib
+  LinearMath.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\LinearMath.lib
+  zlibstatic.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\zlibstatic.lib
+  assimp.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\third_party\assimp\lib\Release\assimp-vc143-mt.lib
+  freetype.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\freetype.lib
+  rmlui_core.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Release\rmlui.lib
+  rmlui_debugger.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Release\rmlui_debugger.lib
+  spdlog.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\spdlog.lib
+  stb.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Release\stb.lib
+  UIBoxContainer.cpp
+  UIContainer.cpp
+  UIControl.cpp
+  UISystem.cpp
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2143: erro de sintaxe: '}' ausente antes de 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2059: erro de sintaxe: 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(67,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2143: erro de sintaxe: '}' ausente antes de 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2059: erro de sintaxe: 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(67,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2059: erro de sintaxe: '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2143: erro de sintaxe: '}' ausente antes de 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2143: erro de sintaxe: '}' ausente antes de 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2059: erro de sintaxe: 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(66,5): error C2059: erro de sintaxe: 'constante' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(67,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(67,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2059: erro de sintaxe: '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2143: erro de sintaxe: ';' ausente antes de '{' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2059: erro de sintaxe: '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2447: '{': faltando cabe+ºalho de fun+º+úo (lista formal de estilo antigo?) [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2059: erro de sintaxe: '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2143: erro de sintaxe: ';' ausente antes de '{' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UITypes.h(125,1): error C2143: erro de sintaxe: ';' ausente antes de '}' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2447: '{': faltando cabe+ºalho de fun+º+úo (lista formal de estilo antigo?) [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2143: erro de sintaxe: ';' ausente antes de '{' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2143: erro de sintaxe: ';' ausente antes de '{' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2447: '{': faltando cabe+ºalho de fun+º+úo (lista formal de estilo antigo?) [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\InputEvent.h(6,18): error C2447: '{': faltando cabe+ºalho de fun+º+úo (lista formal de estilo antigo?) [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,26): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,26): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,42): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIBoxContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,42): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,26): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,26): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,42): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UIControl.h(138,42): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIContainer.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UIControl.cpp(5,10): error C1083: N+úo +® poss+¡vel abrir arquivo incluir: 'glm/gtc/matrix_transform.hpp': No such file or directory [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UIControl.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UISystem.h(66,19): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\include\engine\ui\native\UISystem.h(66,35): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(124,19): error C4430: faltando especificador de tipo - int assumido. Observa+º+úo: C++ n+úo suporta default-int [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(124,35): error C2143: erro de sintaxe: ',' ausente antes de '&' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(128,9): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(128,39): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(134,59): error C2589: 'constante': token inv+ílido no lado direito de '::' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(153,10): error C2059: erro de sintaxe: ';' [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(155,61): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(155,29): error C2064: o termo n+úo pode ser avaliado como uma fun+º+úo recebendo 1 argumentos [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+      C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(155,29):
+      classe n+úo define um 'operator()' ou um operador de convers+úo definida pelo usu+írio para um ponteiro para fun+º+úo ou refer+¬ncia para fun+º+úo que receba o n+¦mero adequado de argumentos
+      C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(155,29):
+      ao tentar corresponder a lista de argumentos '(se::ui::UIControl *)'
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(158,29): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(161,17): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(167,9): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(168,34): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+C:\Users\rapha\_PROJECTS\SimpleEngine\engine\src\engine\ui\native\UISystem.cpp(171,12): error C2065: 'inputEvent': identificador n+úo declarado [C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\simple_engine.vcxproj]
+  (compilando o arquivo fonte '../../engine/src/engine/ui/native/UISystem.cpp')
+  
+

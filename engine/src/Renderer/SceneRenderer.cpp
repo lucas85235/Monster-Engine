@@ -197,7 +197,7 @@ void SceneRenderer::Shutdown() {
 }
 
 void SceneRenderer::BeginFrame() {
-    SE_PROFILE_SCOPE("SceneRenderer::BeginFrame");
+    SE_PROFILE_SCOPE_COLOR("SceneRenderer::BeginFrame", ProfilerColors::Clouds);
     
     // Get viewport dimensions (needed by other code)
     GLint viewport[4];
@@ -347,7 +347,7 @@ void SceneRenderer::EndScene() {
     SE_PROFILE_SCOPE("SceneRenderer::EndScene");
     
     if (sceneData_.ShadowsEnabled) { 
-        SE_PROFILE_SCOPE("ShadowPass");
+        SE_PROFILE_GPU_COLOR("ShadowPass", ProfilerColors::Amethyst);
         RenderShadowPass();
         RenderCSMPass();  // Render cascaded shadow maps
     }
@@ -359,12 +359,12 @@ void SceneRenderer::EndScene() {
                        (ssaoEnabled_ && ssaoPass_);
     
     if (gbuffer_ && gbuffer_->IsInitialized() && needGBuffer) {
-        SE_PROFILE_SCOPE("GBufferPass");
+        SE_PROFILE_GPU_COLOR("GBufferPass", ProfilerColors::Carrot);
         RenderGBufferPass();
         
         // Voxelize from GBuffer for world-space GI
         if (sparseRC_ && sparseRC_->IsEnabled() && voxelizer_ && voxelizer_->IsInitialized()) {
-            SE_PROFILE_SCOPE("Voxelize");
+            SE_PROFILE_GPU_COLOR("Voxelize", ProfilerColors::Alizarin);
             voxelizer_->VoxelizeFromGBuffer(
                 gbuffer_->GetPositionTexture(),
                 gbuffer_->GetAlbedoTexture(),
@@ -374,7 +374,7 @@ void SceneRenderer::EndScene() {
         
         // Execute SSGI if enabled
         if (ssgiPass_ && ssgiPass_->IsReady()) {
-            SE_PROFILE_SCOPE("SSGI");
+            SE_PROFILE_GPU_COLOR("SSGI", ProfilerColors::PeterRiver);
             
             // Ensure G-Buffer textures are fully written before compute shader reads them
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_FRAMEBUFFER_BARRIER_BIT);
@@ -407,7 +407,7 @@ void SceneRenderer::EndScene() {
         
         // Execute standalone SSAO pass (generates AO texture for scene shaders)
         if (ssaoEnabled_ && ssaoPass_ && ssaoPass_->IsEnabled()) {
-            SE_PROFILE_SCOPE("SSAO");
+            SE_PROFILE_GPU_COLOR("SSAO", ProfilerColors::Turquoise);
             
             ssaoPass_->SetDepthTexture(gbuffer_->GetDepthTexture());
             ssaoPass_->SetNormalTexture(gbuffer_->GetNormalTexture());
@@ -426,7 +426,7 @@ void SceneRenderer::EndScene() {
 
     // Step 2: Execute Radiance Cascades with G-Buffer data
     if (radianceCascades_ && radianceCascades_->IsEnabled()) {
-        SE_PROFILE_SCOPE("RadianceCascades");
+        SE_PROFILE_GPU_COLOR("RadianceCascades", ProfilerColors::SunFlower);
         uint32_t sceneColorTex = 0;
         uint32_t sceneDepthTex = sceneData_.ShadowDepthTexture;
         uint32_t scenePositionTex = 0;
@@ -464,7 +464,7 @@ void SceneRenderer::EndScene() {
     frameNumber++;
     
     if (sparseRC_ && sparseRC_->IsEnabled()) {
-        SE_PROFILE_SCOPE("SparseRC");
+        SE_PROFILE_GPU_COLOR("SparseRC", ProfilerColors::Amethyst);
         // Provide GBuffer access
         if (gbuffer_ && gbuffer_->IsInitialized()) {
             sparseRC_->SetGBufferPass(gbuffer_.get());
@@ -480,13 +480,13 @@ void SceneRenderer::EndScene() {
     
     // Step 3: Render final scene with GI applied
     {
-        SE_PROFILE_SCOPE("ScenePass");
+        SE_PROFILE_GPU_COLOR("ScenePass", ProfilerColors::Emerald);
         RenderScenePass();
     }
     
     // Step 3.5: Render skybox (after scene, uses depth test LEQUAL trick)
     {
-        SE_PROFILE_SCOPE("Skybox");
+        SE_PROFILE_GPU_COLOR("Skybox", ProfilerColors::PeterRiver);
         InitSkybox();
         RenderSkybox();
     }

@@ -232,6 +232,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     batchResources_.clear();
 
     // Get all entities with TransformComponent and MeshRenderComponent
+    SE_PROFILE_SCOPE_COLOR("RenderSystem::MeshRender", ProfilerColors::Turquoise);
     auto view = scene.GetAllEntitiesWith<TransformComponent, MeshRenderComponent>();
 
     int skippedCount = 0;
@@ -305,6 +306,8 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
 
 
     // Process entities with ModelComponent (3D models loaded from files)
+    {
+    SE_PROFILE_SCOPE_COLOR("RenderSystem::ModelRender", ProfilerColors::SunFlower);
     auto modelView = scene.GetAllEntitiesWith<TransformComponent, ModelComponent>();
     for (auto entity : modelView) {
         auto& transform = modelView.get<TransformComponent>(entity);
@@ -430,8 +433,11 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
                                  modelComp.CastShadows, modelComp.ReceiveShadows, 1.0f, texMat);
         }
     }
+    } // End ModelComponent scope
 
     // Process entities with SkinnedModelComponent (animated models with bone data in vertices)
+    {
+    SE_PROFILE_SCOPE_COLOR("RenderSystem::SkinnedRender", ProfilerColors::Alizarin);
     auto skinnedView = scene.GetAllEntitiesWith<TransformComponent, SkinnedModelComponent>();
     for (auto entity : skinnedView) {
         auto& transform = skinnedView.get<TransformComponent>(entity);
@@ -617,8 +623,11 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
         }
         skinnedDebugCount++;
     }
+    } // End SkinnedModelComponent scope
 
     // Process batches
+    {
+    SE_PROFILE_SCOPE_COLOR("RenderSystem::Batching", ProfilerColors::Emerald);
     uint32_t batchCount       = 0;
     uint32_t instancedObjects = 0;
 
@@ -690,6 +699,7 @@ void RenderSystem::Render(Scene& scene, const Camera& camera, float aspectRatio)
     for (const auto& [key, instances] : instanceBatches_) {
         lastFrameInstanceCounts_[key] = instances.size();
     }
+    } // End Batching scope
 
     sceneRenderer.EndScene();
     sceneRenderer.FinishFrame();  // Execute post-processing after all rendering is complete
