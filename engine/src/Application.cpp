@@ -155,42 +155,53 @@ int Application::Run() {
         }
 
         {
-            SE_PROFILE_SCOPE("BeginFrame");
+            SE_PROFILE_SCOPE_COLOR("BeginFrame", ProfilerColors::Clouds);
             renderer_->BeginFrame();
         }
 
         {
-            SE_PROFILE_SCOPE("Clear");
+            SE_PROFILE_SCOPE_COLOR("Clear", ProfilerColors::Clouds);
             renderer_->Clear();
         }
 
         {
-            SE_PROFILE_SCOPE("Layers Update");
+            SE_PROFILE_SCOPE_COLOR("Layers Update", ProfilerColors::Turquoise);
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
         }
 
         {
-            SE_PROFILE_SCOPE("Layers Render");
+            SE_PROFILE_SCOPE_COLOR("Layers Render", ProfilerColors::Emerald);
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
         }
 
         {
-            SE_PROFILE_SCOPE("EndFrame");
+            SE_PROFILE_SCOPE_COLOR("EndFrame", ProfilerColors::Clouds);
             renderer_->EndFrame();
         }
 
         // ImGui rendering
         {
-            SE_PROFILE_SCOPE("ImGui");
-            imguiLayer_->Begin();
+            SE_PROFILE_SCOPE_COLOR("ImGui", ProfilerColors::SunFlower);
+            
+            {
+                SE_PROFILE_SCOPE_COLOR("ImGui::Begin", ProfilerColors::Carrot);
+                imguiLayer_->Begin();
+            }
 
-            // Let layers draw their ImGui
-            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
+            {
+                SE_PROFILE_SCOPE_COLOR("ImGui::Layers", ProfilerColors::Alizarin);
+                // Let layers draw their ImGui
+                for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
+            }
             
             // Render debug tools (only in Debug builds)
+            // Note: This includes the profiler itself - timing here is recursive
             SE_DEBUG_TOOLS_RENDER();
 
-            imguiLayer_->End();
+            {
+                SE_PROFILE_SCOPE_COLOR("ImGui::End", ProfilerColors::Amethyst);
+                imguiLayer_->End();
+            }
         }
         
         // End debug profiling frame

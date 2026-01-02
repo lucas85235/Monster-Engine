@@ -1,127 +1,153 @@
 # MonsterEngine Wiki
 
-Welcome to the MonsterEngine documentation. This wiki covers the internal architecture, how to create new content, and how to extend the engine.
-
-## Table of Contents
-1. [Architecture Overview](#architecture-overview)
-2. [Core Modules](#core-modules)
-3. [Developer Guides](#developer-guides)
+Welcome to the MonsterEngine documentation. This wiki provides comprehensive coverage of the engine's architecture, systems, and how to use them effectively.
 
 ---
 
-## Architecture Overview
+## Quick Links
 
-MonsterEngine follows a **Layered Architecture**. The `Application` class maintains a `LayerStack`. Every frame, the application iterates through this stack to update and render each layer.
-
-### The Application Loop
-1. **Poll Events**: Input and window events are gathered.
-2. **Update Layers**: `OnUpdate(timestep)` is called for each layer.
-3. **Render Layers**: `OnRender()` is called for each layer.
-4. **ImGui Render**: `OnImGuiRender()` is called for debug UI.
-5. **Swap Buffers**: The frame is presented to the screen.
-
-For visual diagrams of this flow, see [Architecture Diagrams](Architecture.md).
+| Category | Description |
+|----------|-------------|
+| [Architecture](Architecture.md) | High-level engine architecture and diagrams |
+| [Getting Started](tutorials/GettingStarted.md) | Build your first application |
 
 ---
 
-## Core Modules
+## Core Systems
 
-### 1. Renderer
-The renderer is designed to be stateless from the user's perspective. You `Submit` geometry and materials, and the `SceneRenderer` handles the sorting, batching (future), and drawing.
+### [Application & Core](core/Application.md)
+The engine entry point, layer system, and application lifecycle.
+- [Application](core/Application.md) - Main engine loop and layer management
+- [Window](core/Window.md) - GLFW window integration
+- [Time](core/Time.md) - Frame timing and delta time
+- [Profiling](core/Profiling.md) - Performance profiler and metrics
+- [ThreadPool](core/ThreadPool.md) - Async task execution
 
-- **SceneRenderer**: High-level renderer that handles lights, shadows, and scene submission.
-- **Renderer**: Low-level wrapper around OpenGL commands.
-- **Material**: Defines the shader and uniforms for an object.
-
-### 2. Entity Component System (ECS)
-We use `entt` for our ECS.
-- **Scene**: Contains the `entt::registry`.
-- **Entity**: A lightweight wrapper around an `entt::entity` handle and the `Scene`.
-- **Components**: Pure data structs (e.g., `TransformComponent`, `MeshRenderComponent`).
-- **Systems**: Logic is typically implemented in `OnUpdate` functions within layers or dedicated system classes.
-
-### 3. Input System
-The `InputManager` provides a polled input interface.
-- `InputManager::Get().IsKeyDown(Key::A)`
-- `InputManager::Get().GetMousePosition()`
+### [Entity Component System](ecs/Overview.md)
+entt-based ECS for game object management.
+- [Overview](ecs/Overview.md) - ECS architecture
+- [Scene](ecs/Scene.md) - Scene lifecycle and settings
+- [Entity](ecs/Entity.md) - Entity creation and management
+- [Components](ecs/Components.md) - Built-in components reference
+- [Systems](ecs/Systems.md) - RenderSystem, AnimationSystem
+- [Scripting](ecs/Scripting.md) - Component-based scripting
 
 ---
 
-## Developer Guides
+## Rendering
 
-### Creating a New Layer
-Layers are the primary way to add game logic or tools.
+### [Renderer Overview](renderer/Overview.md)
+PBR rendering pipeline with modern graphics techniques.
+- [SceneRenderer](renderer/SceneRenderer.md) - Main rendering pipeline
+- [Materials](renderer/Materials.md) - PBR material system
+- [Shadows](renderer/Shadows.md) - Cascaded Shadow Maps
+- [IBL](renderer/IBL.md) - Image-Based Lighting
+- [Culling](renderer/Culling.md) - Frustum and occlusion culling
+- [Instancing](renderer/Instancing.md) - GPU instanced rendering
+
+### [Post-Processing](postprocess/Overview.md)
+Full post-processing pipeline with extensible pass system.
+- [Overview](postprocess/Overview.md) - Pipeline architecture
+- [Bloom](postprocess/Bloom.md) - HDR bloom effect
+- [SSAO](postprocess/SSAO.md) - Screen-space ambient occlusion
+- [SSGI](postprocess/SSGI.md) - Screen-space global illumination
+- [FXAA](postprocess/FXAA.md) - Fast approximate anti-aliasing
+- [Color Grading](postprocess/ColorGrading.md) - Color adjustments
+- [Tonemapping](postprocess/Tonemapping.md) - HDR to LDR mapping
+- [How to Add New Pass](postprocess/HowToAddNewPass.md) - Extension guide
+
+---
+
+## Game Systems
+
+### [Physics](physics/Overview.md)
+Bullet Physics integration for 3D rigid body simulation.
+- [Overview](physics/Overview.md) - Physics architecture
+- [PhysicsSystem](physics/PhysicsSystem.md) - Configuration and lifecycle
+- [Rigidbodies](physics/Rigidbodies.md) - Rigid body components
+- [Colliders](physics/Colliders.md) - Collision shapes
+- [Raycasting](physics/Raycasting.md) - Ray queries
+- [Debug Draw](physics/DebugDraw.md) - Physics visualization
+
+### [Animation](animation/Overview.md)
+Skeletal animation with crossfade blending.
+- [Overview](animation/Overview.md) - Animation architecture
+- [Animator](animation/Animator.md) - Playback and blending
+- [AnimationClip](animation/AnimationClip.md) - Clip format
+- [Skinned Models](animation/SkinnedModels.md) - Model loading
+- [Bone Attachments](animation/BoneAttachments.md) - Attach objects to bones
+
+### [UI System](ui/Overview.md)
+Godot-style retained mode UI framework.
+- [Overview](ui/Overview.md) - UI architecture
+- [UIControl](ui/UIControl.md) - Base control class
+- [Widgets](ui/Widgets.md) - Button, Label, Slider, etc.
+- [Containers](ui/Containers.md) - Layout containers
+- [Theming](ui/Theming.md) - Visual theming
+- [HUD](ui/HUD.md) - HUD controller
+
+---
+
+## Input & Events
+
+### [Input](input/InputManager.md)
+Polled input system for keyboard and mouse.
+- [InputManager](input/InputManager.md) - Input querying
+- [Key Codes](input/KeyCodes.md) - Key code reference
+
+### [Events](events/EventBus.md)
+Type-safe event system for decoupled communication.
+- [EventBus](events/EventBus.md) - Event dispatching
+- [EventChannel](events/EventChannel.md) - Typed channels
+- [Built-in Events](events/BuiltInEvents.md) - Window and input events
+
+---
+
+## Resources
+
+### [Resource Management](resources/Overview.md)
+Asset loading and caching systems.
+- [Model Loading](resources/ModelLoading.md) - 3D model import
+- [Textures](resources/Textures.md) - Texture management
+- [Shaders](resources/Shaders.md) - Shader system
+- [Material Library](resources/MaterialLibrary.md) - Material management
+- [Map Loading](resources/MapLoading.md) - Level file format
+
+---
+
+## Tutorials
+
+Step-by-step guides for common tasks:
+
+1. [Getting Started](tutorials/GettingStarted.md) - Create your first app
+2. [Creating a Layer](tutorials/CreatingALayer.md) - Game logic layers
+3. [Adding Entities](tutorials/AddingEntities.md) - ECS workflow
+4. [Custom Components](tutorials/CustomComponents.md) - Extend the ECS
+5. [Adding Post-Process Pass](tutorials/AddingPostProcessPass.md) - Extend rendering
+6. [Using Physics](tutorials/UsingPhysics.md) - Physics integration
+
+---
+
+## Engine Namespace
+
+All engine code lives under the `se` namespace:
 
 ```cpp
-#include "engine/Layer.h"
+#include <Engine.h>
 
-class MyGameLayer : public se::Layer {
-public:
-    MyGameLayer() : Layer("MyGameLayer") {}
+// Create application
+se::ApplicationSpecification spec;
+spec.Name = "MyGame";
+spec.WindowWidth = 1920;
+spec.WindowHeight = 1080;
 
-    void OnAttach() override {
-        // Initialize resources
-    }
-
-    void OnUpdate(float ts) override {
-        // Update logic
-    }
-
-    void OnEvent(se::Event& event) override {
-        // Handle events
-    }
-};
-
-// In your Application setup:
-PushLayer<MyGameLayer>();
+se::Application app(spec);
+app.PushLayer<MyGameLayer>();
+return app.Run();
 ```
 
-### Creating Components and Entities
+---
 
-To create a new entity and add components:
+## Version
 
-```cpp
-// 1. Create Entity
-se::Entity myEntity = activeScene->CreateEntity("Player");
-
-// 2. Add Transform Component
-auto& transform = myEntity.AddComponent<se::TransformComponent>();
-transform.Translation = {0.0f, 5.0f, 0.0f};
-
-// 3. Add Mesh Component
-auto& mesh = myEntity.AddComponent<se::MeshRenderComponent>();
-mesh.Mesh = se::MeshFactory::Cube();
-mesh.Material = std::make_shared<se::Material>(shader);
-```
-
-### Creating a New Component
-Define a struct in a header file (e.g., `Components.h` or a new file).
-
-```cpp
-struct HealthComponent {
-    float Health = 100.0f;
-    float MaxHealth = 100.0f;
-};
-```
-
-Then you can immediately use it:
-```cpp
-myEntity.AddComponent<HealthComponent>();
-```
-
-### Creating a New System
-Systems can be simple functions or classes that iterate over views.
-
-```cpp
-void HealthSystem::OnUpdate(se::Scene* scene, float dt) {
-    auto view = scene->GetAllEntitiesWith<TransformComponent, HealthComponent>();
-    
-    for (auto entity : view) {
-        auto [transform, health] = view.get<TransformComponent, HealthComponent>(entity);
-        
-        if (health.Health <= 0) {
-            // Handle death
-        }
-    }
-}
-```
+Current Engine Version: See `ENGINE_VERSION` file.

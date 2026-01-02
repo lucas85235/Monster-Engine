@@ -12,8 +12,6 @@ using namespace se;
 class Character;
 class CameraController;
 
-
-
 struct MovementInputConfig {
     std::string moveForward = "MoveForward";
     std::string moveRight   = "MoveRight";
@@ -26,8 +24,6 @@ struct CameraInputBindings {
     std::string cameraRotateX = "CameraRotateX";
     std::string cameraRotateY = "CameraRotateY";
 };
-
-
 
 class CharacterController : public Component {
 public:

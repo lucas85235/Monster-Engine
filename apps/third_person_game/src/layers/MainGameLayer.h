@@ -9,6 +9,10 @@
 #include "engine/ecs/Scene.h"
 #include "engine/renderer/Material.h"
 
+// Native UI System
+#include "engine/ui/native/UISystem.h"
+#include "engine/ui/native/hud/HUDController.h"
+
 namespace FirstGame {
 class MainGameLayer : public se::Layer {
 public:
@@ -26,10 +30,18 @@ public:
 
 private:
     void ImguiDebug();
+    void SetupHUD();
 
     se::Entity        character_entity_;
     se::Scope<se::Scene>  scene_;
     se::Ref<se::Material> material_;
     se::Entity    lightEntity_;
+    
+    // HUD System
+    std::unique_ptr<se::ui::HUDController> hudController_;
+    
+    // Demo state
+    float demoHealth_ = 100.0f;
+    bool animateHealth_ = false;
 };
 } // namespace FirstGame

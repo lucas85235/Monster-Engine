@@ -115,6 +115,9 @@ namespace ProfilerColors {
 #define SE_PROFILE_GPU(name) \
     ::se::debug::ScopedGpuTask SE_PROFILER_CONCAT(_profiler_gpu_, __LINE__)(name, ProfilerColors::Amethyst)
 
+#define SE_PROFILE_GPU_COLOR(name, color) \
+    ::se::debug::ScopedGpuTask SE_PROFILER_CONCAT(_profiler_gpu_, __LINE__)(name, color)
+
 #else // SE_ENABLE_PROFILER
 
 // Release build - all macros expand to nothing (zero overhead)
@@ -122,5 +125,6 @@ namespace ProfilerColors {
 #define SE_PROFILE_SCOPE(name)
 #define SE_PROFILE_SCOPE_COLOR(name, color)
 #define SE_PROFILE_GPU(name)
+#define SE_PROFILE_GPU_COLOR(name, color)
 
 #endif // SE_ENABLE_PROFILER

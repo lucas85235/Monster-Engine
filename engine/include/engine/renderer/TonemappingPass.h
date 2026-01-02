@@ -39,8 +39,8 @@ private:
 
     std::shared_ptr<Shader> tonemapShader_;
 
-    float exposure_ = 1.0f;
-    float gamma_ = 2.2f;
+    float exposure_ = 0.898f;
+    float gamma_ = 1.161f;
     TonemapOperator tonemapOp_ = TonemapOperator::ACES;
 
     GLuint quadVAO_ = 0;

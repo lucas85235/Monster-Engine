@@ -1,0 +1,41 @@
+﻿Vers├úo do MSBuild 17.14.23+b0019275e para .NET Framework
+
+  Checking File Globs
+  Copying assets directory
+  Assets changed, copying to binary dir...
+  Copying assets directory for map_editor
+  Copying assets to map_editor binary dir...
+  Copying assets directory
+  Assets changed, copying to binary dir...
+  Bullet3Collision.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Collision_Debug.lib
+  Bullet3Common.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Common_Debug.lib
+  Bullet3Dynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Dynamics_Debug.lib
+  Bullet3Geometry.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\Bullet3Geometry_Debug.lib
+  BulletCollision.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletCollision_Debug.lib
+  BulletDynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletDynamics_Debug.lib
+  BulletInverseDynamics.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletInverseDynamics_Debug.lib
+  BulletSoftBody.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\BulletSoftBody_Debug.lib
+  glad.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\glad_Debug.lib
+  glfw.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\glfw3_Debug.lib
+  ImGui.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\ImGui_Debug.lib
+  ImGuizmo.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\ImGuizmo_Debug.lib
+  LinearMath.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\LinearMath_Debug.lib
+  zlibstatic.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\zlibstaticd.lib
+  assimp.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\engine\third_party\assimp\lib\Debug\assimp-vc143-mt_Debug.lib
+  freetype.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\freetyped.lib
+  imnodes.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\imnodes_Debug.lib
+  rmlui_core.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Debug\rmlui_Debug.lib
+  rmlui_debugger.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\Debug\rmlui_debugger_Debug.lib
+  spdlog.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\spdlogd.lib
+  stb.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\stb_Debug.lib
+  UISystem.cpp
+  simple_engine.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\lib\Debug\simple_engine_Debug.lib
+  map_editor.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\tools\map_editor\Debug\map_editor.exe
+  ssgi_test.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\apps\ssgi_test\Debug\ssgi_test.exe
+  game.cpp
+  MainGameLayer.cpp
+  third_person_game.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\apps\third_person_game\Debug\third_person_game.exe
+  ui_editor.vcxproj -> C:\Users\rapha\_PROJECTS\SimpleEngine\build\tools\ui_editor\Debug\ui_editor.exe
+  Copying assets directory for ui_editor
+  Copying assets to ui_editor output dir...
+

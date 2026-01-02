@@ -119,6 +119,7 @@ target_include_directories(simple_engine PUBLIC
         ${bullet_DIR}/src
         ${assimp_DIR}/include
         ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
+        ${freetype_DIR}/include
         ${third_party_dir}/legit-profiler
 )
 

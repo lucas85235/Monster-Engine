@@ -15,8 +15,14 @@
 #include "engine/resources/MeshManager.h"
 #include "engine/resources/MapLoader.h"
 #include "engine/renderer/IBLProcessor.h"
-#include <imgui.h>
 
+// Native UI System
+#include "engine/ui/native/widgets/hud/UICrosshair.h"
+#include "engine/ui/native/widgets/hud/UIHealthBar.h"
+#include "engine/ui/native/widgets/hud/UIAbilitySlot.h"
+#include "engine/debug/FrameProfiler.h"
+
+#include <imgui.h>
 #include <filesystem>
 
 
@@ -83,6 +89,60 @@ void MainGameLayer::ImguiDebug() {
         if (pipeline) {
             ImGui::Separator();
             pipeline->RenderUI();
+        }
+    }
+    
+    ImGui::End();
+    
+    // HUD Demo Controls
+    ImGui::Begin("HUD Controls");
+    
+    if (hudController_) {
+        ImGui::Text("HUD Demo");
+        ImGui::Separator();
+        
+        // Health control
+        if (ImGui::SliderFloat("Health", &demoHealth_, 0.0f, 100.0f)) {
+            hudController_->SetHealth(demoHealth_);
+        }
+        
+        ImGui::Checkbox("Animate Health", &animateHealth_);
+        
+        ImGui::Separator();
+        
+        // Crosshair controls
+        if (auto* crosshair = hudController_->GetCrosshair()) {
+            ImGui::Text("Crosshair");
+            
+            static float crosshairLength = 10.0f;
+            static float crosshairThickness = 2.0f;
+            static float crosshairGap = 3.0f;
+            static glm::vec4 crosshairColor = {1.0f, 1.0f, 1.0f, 0.9f};
+            
+            bool crosshairChanged = false;
+            crosshairChanged |= ImGui::SliderFloat("Line Length", &crosshairLength, 4.0f, 30.0f);
+            crosshairChanged |= ImGui::SliderFloat("Thickness", &crosshairThickness, 1.0f, 6.0f);
+            crosshairChanged |= ImGui::SliderFloat("Gap", &crosshairGap, 0.0f, 15.0f);
+            crosshairChanged |= ImGui::ColorEdit4("Color##Crosshair", &crosshairColor.x);
+            
+            if (crosshairChanged) {
+                hudController_->SetCrosshairSize(crosshairLength, crosshairThickness, crosshairGap);
+                hudController_->SetCrosshairColor(crosshairColor);
+            }
+        }
+        
+        ImGui::Separator();
+        
+        // Ability slot controls
+        ImGui::Text("Ability Slots");
+        for (size_t i = 0; i < 3; ++i) {
+            if (auto* slot = hudController_->GetAbilitySlot(i)) {
+                std::string label = "Cooldown " + std::to_string(i + 1);
+                static float cooldowns[3] = {0.0f, 0.0f, 0.0f};
+                if (ImGui::SliderFloat(label.c_str(), &cooldowns[i], 0.0f, 1.0f)) {
+                    hudController_->SetAbilityCooldown(i, cooldowns[i]);
+                }
+            }
         }
     }
     
@@ -165,9 +225,14 @@ void MainGameLayer::OnAttach() {
     }
     
     SE_LOG_INFO("[MainGameLayer] Scene initialized with IBL and CSM");
+    
+    // Initialize HUD
+    SetupHUD();
 }
 
 void MainGameLayer::OnDetach() {
+    hudController_.reset();
+    se::ui::Shutdown();
     Application::Get().SetActiveScene(nullptr);
     Layer::OnDetach();
 }
@@ -175,6 +240,28 @@ void MainGameLayer::OnDetach() {
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
     scene_->OnUpdate(ts);
+    
+    // Poll UI input (engine handles hit testing, hover, events)
+    se::ui::PollInput();
+    
+    // Animate health for demo
+    if (animateHealth_ && hudController_) {
+        static float healthDir = -1.0f;
+        demoHealth_ += healthDir * ts * 20.0f;
+        
+        if (demoHealth_ <= 0.0f) {
+            demoHealth_ = 0.0f;
+            healthDir = 1.0f;
+        } else if (demoHealth_ >= 100.0f) {
+            demoHealth_ = 100.0f;
+            healthDir = -1.0f;
+        }
+        
+        hudController_->SetHealth(demoHealth_);
+    }
+    
+    // Update native UI layout
+    se::ui::Update();
     
     // Debug visualization mode hotkeys (F1-F7)
     auto& renderer = se::Application::Get().GetRenderer().GetSceneRenderer();
@@ -191,11 +278,48 @@ void MainGameLayer::OnUpdate(float ts) {
 void MainGameLayer::OnRender() {
     Layer::OnRender();
     scene_->OnRender();
+    
+    // Render native UI (engine handles retained-mode, canvas, etc.)
+    se::ui::Render();
 }
 
 void MainGameLayer::OnImGuiRender() {
     Layer::OnImGuiRender();
     ImguiDebug();
+}
+
+void MainGameLayer::SetupHUD() {
+    auto& window = se::Application::Get().GetWindow();
+    float viewportW = static_cast<float>(window.GetWidth());
+    float viewportH = static_cast<float>(window.GetHeight());
+    
+    // Initialize UI system
+    se::ui::Initialize(viewportW, viewportH);
+    
+    // Create HUD controller
+    hudController_ = std::make_unique<se::ui::HUDController>();
+    hudController_->Initialize(viewportW, viewportH);
+    
+    // Configure initial state
+    hudController_->SetHealth(100.0f, 100.0f);
+    hudController_->SetAbilitySlotCount(3);
+    
+    // Set up ability slots
+    hudController_->SetAbilityKeyLabel(0, "1");
+    hudController_->SetAbilityKeyLabel(1, "2");
+    hudController_->SetAbilityKeyLabel(2, "SHIFT");
+    
+    // Get root and set in UI system
+    se::ui::SetRoot(hudController_->GetRoot());
+    
+    // Register resize callback to update HUD positioning
+    se::ui::SetOnResizeCallback([this](float width, float height) {
+        if (hudController_) {
+            hudController_->OnViewportResize(width, height);
+        }
+    });
+    
+    SE_LOG_INFO("[MainGameLayer] HUD setup complete with crosshair, health bar, and ability slots");
 }
 
 } // namespace FirstGame

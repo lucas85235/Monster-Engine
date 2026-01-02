@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Layer.h"
+#include "engine/Camera.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/Entity.h"
 #include "engine/renderer/Material.h"
@@ -8,8 +9,6 @@
 
 #include <memory>
 #include <glm.hpp>
-
-class Camera;
 
 namespace SSGITest {
 

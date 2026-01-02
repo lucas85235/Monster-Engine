@@ -157,7 +157,7 @@ namespace ImGuiUtils
       float markerRigthRectMargin = 3.0f;
       float markerRightRectHeight = 10.0f;
       float markerRightRectSpacing = 4.0f;
-      float nameOffset = 50.0f;
+      float nameOffset = 55.0f;  // Increased for better text alignment
       glm::vec2 textMargin = glm::vec2(5.0f, -3.0f);
 
       auto &currFrame = frames[GetCurrFrameIndex(frameIndexOffset)];
@@ -358,7 +358,7 @@ namespace ImGuiUtils
 
       std::stringstream title;
       title.precision(2);
-      title << std::fixed << "Legit profiler [" << 1.0f / avgFrameTime << "fps\t" << " cpu: " << cpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f << "ms gpu: " << gpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f << "ms]###ProfilerWindow";
+      title << std::fixed << "Legit profiler [" << 1.0f / avgFrameTime << "fps  cpu: " << cpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f << "ms  gpu: " << gpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f << "ms]###ProfilerWindow";
       //###AnimatedTitle
       ImGui::Begin(title.str().c_str(), 0, ImGuiWindowFlags_NoScrollbar);
       /*if (ImGui::BeginMenuBar())
@@ -372,12 +372,28 @@ namespace ImGuiUtils
 
       int sizeMargin = int(ImGui::GetStyle().ItemSpacing.y);
       int maxGraphHeight = 300;
-      int availableGraphHeight = (int(canvasSize.y) - sizeMargin) / 2;
+      int availableGraphHeight = (int(canvasSize.y) - sizeMargin * 3) / 2;  // Account for section labels
       int graphHeight = std::min(maxGraphHeight, availableGraphHeight);
-      int legendWidth = 200;
+      int legendWidth = 300;  // Increased from 200 for longer task names
       int graphWidth = int(canvasSize.x) - legendWidth;
+      
+      // GPU Section Header
+      ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "GPU");
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "(%.2f ms)", gpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f);
       gpuGraph.RenderTimings(graphWidth, legendWidth, graphHeight, frameOffset, maxFrameTime);
+      
+      // Separator between GPU and CPU
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      
+      // CPU Section Header
+      ImGui::TextColored(ImVec4(0.4f, 0.6f, 1.0f, 1.0f), "CPU");
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "(%.2f ms)", cpuGraph.GetTotalTaskTime(frameOffset) * 1000.0f);
       cpuGraph.RenderTimings(graphWidth, legendWidth, graphHeight, frameOffset, maxFrameTime);
+      
       if (graphHeight * 2 + sizeMargin + sizeMargin < canvasSize.y)
       {
         ImGui::Columns(2);
