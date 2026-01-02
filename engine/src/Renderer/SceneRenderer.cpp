@@ -92,6 +92,16 @@ void main() {
     gl_Position = uLightSpaceMatrix * uModel * localPos;
 }
 )";
+
+// Pre-computed uniform names to avoid string allocations in render loop
+constexpr const char* kCascadeMatrixNames[4] = {
+    "uCascadeMatrices[0]", "uCascadeMatrices[1]",
+    "uCascadeMatrices[2]", "uCascadeMatrices[3]"
+};
+constexpr const char* kCascadeSplitNames[4] = {
+    "uCascadeSplits[0]", "uCascadeSplits[1]",
+    "uCascadeSplits[2]", "uCascadeSplits[3]"
+};
 }  // namespace
 
 namespace se {
@@ -1263,12 +1273,10 @@ void SceneRenderer::RenderScenePass() {
             glBindTexture(GL_TEXTURE_2D_ARRAY, csm_->GetTextureArray());
             shader->setInt("uShadowCascades", 12);
             
-            // Cascade matrices and split depths
+            // Cascade matrices and split depths (using pre-computed names)
             for (int i = 0; i < CASCADE_COUNT; i++) {
-                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
-                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
-                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
-                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+                shader->setMat4(kCascadeMatrixNames[i], csm_->GetCascadeMatrix(i));
+                shader->setFloat(kCascadeSplitNames[i], csm_->GetCascadeSplit(i));
             }
             
             shader->setInt("uVisualizeCascades", visualizeCascades_ ? 1 : 0);
@@ -1419,10 +1427,8 @@ void SceneRenderer::RenderScenePass() {
             shader->setInt("uShadowCascades", 12);
             
             for (int i = 0; i < CASCADE_COUNT; i++) {
-                std::string matName = "uCascadeMatrices[" + std::to_string(i) + "]";
-                std::string splitName = "uCascadeSplits[" + std::to_string(i) + "]";
-                shader->setMat4(matName.c_str(), csm_->GetCascadeMatrix(i));
-                shader->setFloat(splitName.c_str(), csm_->GetCascadeSplit(i));
+                shader->setMat4(kCascadeMatrixNames[i], csm_->GetCascadeMatrix(i));
+                shader->setFloat(kCascadeSplitNames[i], csm_->GetCascadeSplit(i));
             }
         } else {
             shader->setInt("uUseCSM", 0);
@@ -1461,12 +1467,6 @@ void SceneRenderer::RenderScenePass() {
         shader->setInt("uHasGI", hasGI);
         shader->setFloat("uGIIntensity", giIntensity);
 
-        // Debug log for instanced path
-        static int instGiLogCount = 0;
-        if (instGiLogCount++ < 10) {
-            printf("[Instanced] GI Binding: hasGI=%d, giTex=%u, giIntensity=%.2f\n", 
-                hasGI, ssgiPass_ ? ssgiPass_->GetRadianceTexture() : 0, giIntensity);
-        }
         // Single draw call for all instances in this batch
         instanced.instancedMesh->DrawWithoutMaterial();
 

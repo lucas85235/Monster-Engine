@@ -1,11 +1,11 @@
 #pragma once
 
 #include "DebugConfig.h"
+#include "FrameProfiler.h"  // Always include for SE_PROFILE_* macros (they expand to nothing in Release)
 
 #if SE_ENABLE_DEBUG_TOOLS
 
 #include "IDebugTool.h"
-#include "FrameProfiler.h"
 
 #include <memory>
 #include <vector>
