@@ -44,16 +44,16 @@ private:
     GLuint quadVBO_ = 0;
     
     // Settings
-    float exposure_ = 1.0f;
-    float contrast_ = 1.0f;
-    float saturation_ = 1.0f;
-    float brightness_ = 0.0f;
+    float exposure_ = 0.898f;
+    float contrast_ = 1.103f;
+    float saturation_ = 0.988f;
+    float brightness_ = 0.021f;
     float temperature_ = 0.0f;
     float tint_ = 0.0f;
-    float shadows_ = 0.0f;
-    float highlights_ = 0.0f;
-    float vignetteIntensity_ = 0.0f;
-    float vignetteFalloff_ = 0.5f;
+    float shadows_ = -0.001f;
+    float highlights_ = 0.011f;
+    float vignetteIntensity_ = 0.726f;
+    float vignetteFalloff_ = 0.347f;
 };
 
 } // namespace se

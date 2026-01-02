@@ -45,10 +45,10 @@ private:
     std::vector<BloomMip> mipChain_;
     static constexpr int MIP_COUNT = 6;
 
-    float threshold_ = 1.0f;
-    float softKnee_ = 0.5f;
-    float intensity_ = 0.5f;
-    float filterRadius_ = 0.005f;
+    float threshold_ = 1.612f;
+    float softKnee_ = 0.084f;
+    float intensity_ = 0.088f;
+    float filterRadius_ = 0.001f;
 
     GLuint quadVAO_ = 0;
     GLuint quadVBO_ = 0;

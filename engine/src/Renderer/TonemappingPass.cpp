@@ -76,7 +76,7 @@ void TonemappingPass::Execute(GLuint inputTexture, GLuint outputFBO) {
 }
 
 void TonemappingPass::RenderUI() {
-    ImGui::SliderFloat("Exposure", &exposure_, 0.1f, 5.0f);
+    ImGui::SliderFloat("Exposure##tonemap", &exposure_, 0.1f, 5.0f);
     ImGui::SliderFloat("Gamma", &gamma_, 1.0f, 3.0f);
     
     const char* operators[] = { "ACES", "Reinhard", "Uncharted2", "Neutral", "AgX" };

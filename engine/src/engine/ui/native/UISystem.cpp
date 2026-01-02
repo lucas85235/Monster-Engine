@@ -1,13 +1,35 @@
 #include "engine/ui/native/UISystem.h"
 #include "engine/ui/native/font/UIFontManager.h"
+#include "engine/ui/native/render/UICanvas2D.h"
+#include "engine/Application.h"
+#include "engine/input/InputManager.h"
 #include "engine/Log.h"
+#include "engine/debug/FrameProfiler.h"
+
+namespace {
+    // Helper to get current viewport from window
+    glm::vec2 GetCurrentViewportSize() {
+        auto& window = se::Application::Get().GetWindow();
+        return {static_cast<float>(window.GetWidth()), static_cast<float>(window.GetHeight())};
+    }
+}
 
 namespace se::ui {
 
 namespace {
     UIControl::Ptr rootControl_;
     glm::vec2 viewportSize_{1920.0f, 1080.0f};
+    glm::vec2 lastViewportSize_{1920.0f, 1080.0f};
     UIControl* focusedControl_ = nullptr;
+    
+    // Input tracking state
+    glm::vec2 lastMousePos_{0.0f};
+    bool lastMousePressed_ = false;
+    UIControl* hoveredControl_ = nullptr;
+    bool mouseWasCaptured_ = false;
+    
+    // Resize callback
+    std::function<void(float, float)> onResizeCallback_;
 }
 
 void Initialize(float viewportWidth, float viewportHeight) {
@@ -29,24 +51,24 @@ void Initialize(float viewportWidth, float viewportHeight) {
     auto buttonNormal = std::make_shared<UIStyleBoxFlat>();
     buttonNormal->SetBackgroundColor({0.3f, 0.3f, 0.35f, 1.0f});
     buttonNormal->SetBorderColor({0.5f, 0.5f, 0.55f, 1.0f});
-    buttonNormal->SetBorderWidthAll(1.0f);
-    buttonNormal->SetCornerRadiusAll(4.0f);
+    buttonNormal->SetBorderWidthAll(2.0f);
+    buttonNormal->SetCornerRadiusAll(40.0f);
     buttonNormal->SetContentMarginAll(8.0f);
     defaultTheme->SetStyleBox("Button", "normal", buttonNormal);
     
     auto buttonHover = std::make_shared<UIStyleBoxFlat>();
     buttonHover->SetBackgroundColor({0.4f, 0.4f, 0.45f, 1.0f});
     buttonHover->SetBorderColor({0.6f, 0.6f, 0.65f, 1.0f});
-    buttonHover->SetBorderWidthAll(1.0f);
-    buttonHover->SetCornerRadiusAll(4.0f);
+    buttonHover->SetBorderWidthAll(2.0f);
+    buttonHover->SetCornerRadiusAll(40.0f);
     buttonHover->SetContentMarginAll(8.0f);
     defaultTheme->SetStyleBox("Button", "hover", buttonHover);
     
     auto buttonPressed = std::make_shared<UIStyleBoxFlat>();
     buttonPressed->SetBackgroundColor({0.2f, 0.4f, 0.6f, 1.0f});
     buttonPressed->SetBorderColor({0.3f, 0.5f, 0.7f, 1.0f});
-    buttonPressed->SetBorderWidthAll(1.0f);
-    buttonPressed->SetCornerRadiusAll(4.0f);
+    buttonPressed->SetBorderWidthAll(2.0f);
+    buttonPressed->SetCornerRadiusAll(40.0f);
     buttonPressed->SetContentMarginAll(8.0f);
     defaultTheme->SetStyleBox("Button", "pressed", buttonPressed);
     
@@ -54,7 +76,7 @@ void Initialize(float viewportWidth, float viewportHeight) {
     auto panelStyle = std::make_shared<UIStyleBoxFlat>();
     panelStyle->SetBackgroundColor({0.15f, 0.15f, 0.18f, 1.0f});
     panelStyle->SetBorderColor({0.25f, 0.25f, 0.28f, 1.0f});
-    panelStyle->SetBorderWidthAll(1.0f);
+    panelStyle->SetBorderWidthAll(2.0f);
     defaultTheme->SetStyleBox("Panel", "panel", panelStyle);
     
     // Set default colors
@@ -80,6 +102,18 @@ void Shutdown() {
 }
 
 void Update() {
+    // Auto-detect viewport resize
+    glm::vec2 currentViewport = GetCurrentViewportSize();
+    if (currentViewport != lastViewportSize_) {
+        lastViewportSize_ = currentViewport;
+        Resize(currentViewport.x, currentViewport.y);
+        
+        // Fire callback if registered
+        if (onResizeCallback_) {
+            onResizeCallback_(currentViewport.x, currentViewport.y);
+        }
+    }
+    
     if (!rootControl_) return;
     
     // Process deferred layout updates
@@ -100,31 +134,56 @@ void Update() {
 }
 
 void Render() {
+    SE_PROFILE_SCOPE_COLOR("NativeUI", ProfilerColors::Carrot);
     if (!rootControl_) return;
     
-    // Walk tree and render visible controls
-    std::function<void(UIControl*)> renderControl = [&](UIControl* control) {
-        if (!control->IsVisible()) return;
-        
-        control->Draw();
-        control->ClearRedrawFlag();
-        
-        for (const auto& child : control->GetChildren()) {
-            renderControl(child.get());
+    // Update viewport size dynamically from window
+    viewportSize_ = GetCurrentViewportSize();
+    
+    auto& canvas = UICanvas2D::Get();
+    canvas.SetViewport(viewportSize_.x, viewportSize_.y);
+    
+    // Check if any control needs redraw
+    std::function<bool(UIControl*)> checkNeedsRedraw = [&](UIControl* ctrl) -> bool {
+        if (!ctrl || !ctrl->IsVisible()) return false;
+        if (ctrl->NeedsRedraw()) return true;
+        for (const auto& child : ctrl->GetChildren()) {
+            if (checkNeedsRedraw(child.get())) return true;
         }
+        return false;
     };
     
-    renderControl(rootControl_.get());
+    bool anyNeedsRedraw = checkNeedsRedraw(rootControl_.get());
+    
+    // Regenerate commands only if something changed
+    if (anyNeedsRedraw || !canvas.HasCachedCommands()) {
+        SE_PROFILE_SCOPE_COLOR("NativeUI::BuildCommands", ProfilerColors::Alizarin);
+        canvas.BeginFrame();
+        
+        std::function<void(UIControl*)> drawControl = [&](UIControl* ctrl) {
+            if (!ctrl || !ctrl->IsVisible()) return;
+            ctrl->Draw();
+            ctrl->ClearRedrawFlag();
+            for (const auto& child : ctrl->GetChildren()) {
+                drawControl(child.get());
+            }
+        };
+        
+        drawControl(rootControl_.get());
+        canvas.EndFrame();
+    }
+    
+    {
+        SE_PROFILE_SCOPE_COLOR("NativeUI::Render", ProfilerColors::Amethyst);
+        canvas.Render();
+    }
 }
 
 void SetRoot(UIControl::Ptr root) {
     rootControl_ = std::move(root);
-    
-    if (rootControl_) {
-        // Set root to fill viewport
-        rootControl_->SetAnchorsPreset(LayoutPreset::FULL_RECT);
-        rootControl_->SetSize(viewportSize_);
-    }
+    // Note: we don't modify the root's anchors/size here.
+    // The caller is responsible for positioning.
+    // viewportSize_ is used for hit testing bounds.
 }
 
 UIControl* GetRoot() {
@@ -179,6 +238,108 @@ bool ProcessInput(const InputEvent& inputEvent) {
     }
     
     return inputEvent.IsConsumed();
+}
+
+void PollInput() {
+    if (!rootControl_) return;
+    
+    auto& input = se::InputManager::Get();
+    glm::vec2 mousePos = input.GetMousePosition();
+    bool mousePressed = input.IsMouseButtonDown(0);
+    glm::vec2 mouseDelta = mousePos - lastMousePos_;
+    
+    // Hit test to find control under cursor
+    std::function<UIControl*(UIControl*, const glm::vec2&)> hitTest = 
+        [&hitTest](UIControl* ctrl, const glm::vec2& pos) -> UIControl* {
+        if (!ctrl || !ctrl->IsVisible()) return nullptr;
+        
+        // Check children first (reverse order for front-to-back)
+        const auto& children = ctrl->GetChildren();
+        for (auto it = children.rbegin(); it != children.rend(); ++it) {
+            if (auto* hit = hitTest(it->get(), pos)) {
+                return hit;
+            }
+        }
+        
+        // Check this control
+        glm::vec2 globalPos = ctrl->GetGlobalPosition();
+        glm::vec2 size = ctrl->GetSize();
+        if (pos.x >= globalPos.x && pos.x < globalPos.x + size.x &&
+            pos.y >= globalPos.y && pos.y < globalPos.y + size.y) {
+            if (ctrl->GetMouseFilter() != MouseFilter::MOUSE_IGNORE) {
+                return ctrl;
+            }
+        }
+        return nullptr;
+    };
+    
+    UIControl* newHovered = hitTest(rootControl_.get(), mousePos);
+    
+    // Handle hover state changes
+    if (newHovered != hoveredControl_) {
+        if (hoveredControl_) {
+            hoveredControl_->OnNotification(ControlNotification::MOUSE_EXIT);
+        }
+        if (newHovered) {
+            newHovered->OnNotification(ControlNotification::MOUSE_ENTER);
+        }
+        hoveredControl_ = newHovered;
+    }
+    
+    mouseWasCaptured_ = false;
+    
+    // Generate and dispatch mouse motion events
+    if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f) {
+        auto motionEvent = InputEvent::MouseMotion(mousePos, mouseDelta);
+        if (hoveredControl_) {
+            hoveredControl_->OnInput(motionEvent);
+            if (motionEvent.IsConsumed()) mouseWasCaptured_ = true;
+        }
+    }
+    
+    // Mouse button state changes
+    if (mousePressed && !lastMousePressed_) {
+        auto pressEvent = InputEvent::MouseButtonPressed(MouseButton::LEFT, mousePos);
+        if (hoveredControl_) {
+            hoveredControl_->OnInput(pressEvent);
+            if (pressEvent.IsConsumed()) mouseWasCaptured_ = true;
+        }
+    } else if (!mousePressed && lastMousePressed_) {
+        auto releaseEvent = InputEvent::MouseButtonReleased(MouseButton::LEFT, mousePos);
+        if (hoveredControl_) {
+            hoveredControl_->OnInput(releaseEvent);
+            if (releaseEvent.IsConsumed()) mouseWasCaptured_ = true;
+        }
+    }
+    
+    lastMousePos_ = mousePos;
+    lastMousePressed_ = mousePressed;
+}
+
+void Resize(float viewportWidth, float viewportHeight) {
+    viewportSize_ = {viewportWidth, viewportHeight};
+    
+    if (rootControl_) {
+        rootControl_->SetSize(viewportSize_);
+    }
+    
+    UICanvas2D::Get().SetViewport(viewportWidth, viewportHeight);
+}
+
+UIControl* GetHoveredControl() {
+    return hoveredControl_;
+}
+
+bool WantsMouseCapture() {
+    return mouseWasCaptured_ || hoveredControl_ != nullptr;
+}
+
+glm::vec2 GetViewportSize() {
+    return viewportSize_;
+}
+
+void SetOnResizeCallback(std::function<void(float, float)> callback) {
+    onResizeCallback_ = std::move(callback);
 }
 
 }  // namespace se::ui

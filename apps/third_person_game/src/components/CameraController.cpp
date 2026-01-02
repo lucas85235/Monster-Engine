@@ -101,7 +101,18 @@ void CameraController::UpdateCameraPosition(float dt) {
     if (!springArm_ || !transform_ || !camera_) return;
 
     Vector3 direction = CalculateCameraDirection();
-    Vector3 targetPos = transform_->Position + springArm_->SocketOffset;
+    
+    // Calculate camera right vector (for socket offset in camera space)
+    float yaw = glm::radians(springArm_->Yaw);
+    Vector3 cameraRight = Vector3(std::cos(yaw), 0.0f, -std::sin(yaw));
+    Vector3 cameraUp = Vector3(0.0f, 1.0f, 0.0f);
+    
+    // Apply socket offset in camera local space:
+    // X = camera right, Y = world up, Z is unused (arm direction handles depth)
+    Vector3 worldOffset = cameraRight * springArm_->SocketOffset.x 
+                        + cameraUp * springArm_->SocketOffset.y;
+    
+    Vector3 targetPos = transform_->Position + worldOffset;
 
     // Calculate arm length with collision
     float desiredLength = CalculateArmLengthWithCollision(targetPos, direction);

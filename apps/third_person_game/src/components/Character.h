@@ -10,8 +10,6 @@
 namespace FirstGame {
 using namespace se;
 
-
-
 struct CharacterMovementConfig {
     // Values are per-second (multiply by dt when used)
     float acceleration     = 30.0f;   //  ~30/s for similar feel at 60fps
@@ -27,8 +25,6 @@ struct CharacterPhysicsConfig {
     float radius = 0.2f;
     float mass   = 70.0f;
 };
-
-
 
 class Character : public Component {
 public:

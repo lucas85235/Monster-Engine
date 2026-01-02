@@ -65,4 +65,42 @@ UIControl* GetRoot();
  */
 bool ProcessInput(const InputEvent& inputEvent);
 
+/**
+ * @brief Poll input from InputManager and dispatch to UI controls
+ * 
+ * Reads mouse state from InputManager, performs hit testing,
+ * tracks hover changes (fires MOUSE_ENTER/EXIT), and dispatches events.
+ * Call once per frame before Update().
+ */
+void PollInput();
+
+/**
+ * @brief Resize the UI viewport
+ * @param viewportWidth New viewport width
+ * @param viewportHeight New viewport height
+ */
+void Resize(float viewportWidth, float viewportHeight);
+
+/**
+ * @brief Get the currently hovered control
+ */
+UIControl* GetHoveredControl();
+
+/**
+ * @brief Check if the UI system wants to capture mouse input
+ * @return true if the last mouse event was consumed by UI
+ */
+bool WantsMouseCapture();
+
+/**
+ * @brief Get current viewport size
+ */
+glm::vec2 GetViewportSize();
+
+/**
+ * @brief Set a callback to be invoked when viewport is resized
+ * @param callback Function receiving new width and height
+ */
+void SetOnResizeCallback(std::function<void(float, float)> callback);
+
 }  // namespace se::ui
