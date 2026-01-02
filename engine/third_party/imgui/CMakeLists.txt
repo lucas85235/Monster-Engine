@@ -60,6 +60,9 @@ if(WIN32)
 elseif(UNIX)
     # Enable Position Independent Code for Linux
     set_property(TARGET ImGui PROPERTY POSITION_INDEPENDENT_CODE ON)
+    # Link X11 for GLFW backend (uses XFlush and other X11 functions)
+    find_package(X11 REQUIRED)
+    target_link_libraries(ImGui PUBLIC ${X11_LIBRARIES})
 endif()
 
 # Configuration-specific compile options
