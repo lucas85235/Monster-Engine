@@ -17,6 +17,8 @@
 #include "engine/ui/native/widgets/hud/UICrosshair.h"
 #include "engine/ui/native/widgets/hud/UIHealthBar.h"
 #include "engine/ui/native/widgets/hud/UIAbilitySlot.h"
+#include "engine/ui/native/world/WorldSpaceUIComponent.h"
+#include "engine/ui/native/world/WorldSpaceUIRenderer.h"
 #include "engine/debug/FrameProfiler.h"
 #include "engine/debug/DebugRenderer.h"
 
@@ -401,7 +403,19 @@ void MainGameLayer::SetupEnemy() {
     // Register enemy as navigation agent (excluded from obstacle detection)
     navSystem_->RegisterAgent(enemyEntity_);
     
-    SE_LOG_INFO("[MainGameLayer] Enemy AI setup in DEBUG MODE - use ImGui to control");
+    // Add World Space UI - enemy name above head
+    auto& worldUI = enemyEntity_.AddComponent<se::WorldSpaceUIComponent>();
+    worldUI.offset = {0.0f, 2.5f, 0.0f};  // Above character head
+    worldUI.baseScale = 1.0f;
+    worldUI.scaleByDistance = true;
+    
+    auto nameLabel = worldUI.AddElement<se::WorldSpaceText>();
+    nameLabel->text = "Enemy";
+    nameLabel->color = {1.0f, 0.2f, 0.2f, 1.0f};  // Red
+    nameLabel->fontSize = 18.0f;
+    nameLabel->centered = true;
+    
+    SE_LOG_INFO("[MainGameLayer] Enemy AI setup with World Space UI name label");
 }
 
 
@@ -465,6 +479,9 @@ void MainGameLayer::OnRender() {
     Camera* camera = scene_->GetActiveCamera();
     if (camera) {
         se::DebugRenderer::Get().Flush(*camera);
+        
+        // Render World Space UI (enemy names, health bars, etc.)
+        se::WorldSpaceUIRenderer::Get().Render(*camera, scene_->GetRegistry());
     }
     
     // Render native UI (engine handles retained-mode, canvas, etc.)

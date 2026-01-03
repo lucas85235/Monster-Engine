@@ -640,23 +640,24 @@ void NavigationDebug::RenderNodeCostOverlay(const Camera& camera, const Navigati
     
     const auto& gridSettings = grid->GetSettings();
     
-    // Get camera matrices for world-to-screen projection
-    glm::vec2 screenSize = glm::vec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
-    float aspectRatio = screenSize.x / screenSize.y;
-    glm::mat4 viewProj = camera.getProjectionMatrix(aspectRatio) * camera.getViewMatrix();
-    
-    // Get camera position and find grid cells around it
     glm::vec3 camPos = camera.GetPosition();
     GridCoord camCoord = grid->WorldToGrid(camPos);
     
-    // Only render cells near the camera (performance)
-    int maxCellsToRender = 20;
+    // Render cells around grid center if camera is outside the grid
+    if (!grid->IsValidCoord(camCoord)) {
+        camCoord.x = gridSettings.width / 2;
+        camCoord.z = gridSettings.height / 2;
+    }
+    
+    // Render cells in a small area around camera
+    int maxCellsToRender = 30;
+    float maxRenderDistance = 50.0f;
     int startX = std::max(0, camCoord.x - maxCellsToRender / 2);
     int startZ = std::max(0, camCoord.z - maxCellsToRender / 2);
     int endX = std::min(gridSettings.width, startX + maxCellsToRender);
     int endZ = std::min(gridSettings.height, startZ + maxCellsToRender);
     
-    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    float textScale = 0.8f;
     
     for (int32_t z = startZ; z < endZ; ++z) {
         for (int32_t x = startX; x < endX; ++x) {
@@ -664,55 +665,27 @@ void NavigationDebug::RenderNodeCostOverlay(const Camera& camera, const Navigati
             if (!node) continue;
             
             glm::vec3 worldPos = grid->GridToWorld(x, z);
-            worldPos.y += 0.15f;
+            worldPos.y += 0.2f;  // Lift text slightly above ground
             
-            // Project to screen space
-            glm::vec4 clipPos = viewProj * glm::vec4(worldPos, 1.0f);
-            
-            // Behind camera check
-            if (clipPos.w <= 0.0f) continue;
-            
-            glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
-            
-            // Off-screen check
-            if (ndc.x < -1.0f || ndc.x > 1.0f || ndc.y < -1.0f || ndc.y > 1.0f) continue;
-            
-            // Distance culling - don't render far cells
             float dist = glm::distance(camPos, worldPos);
-            if (dist > 15.0f) continue;
+            if (dist > maxRenderDistance) continue;
             
-            // Convert to screen coordinates
-            glm::vec2 screenPos;
-            screenPos.x = (ndc.x * 0.5f + 0.5f) * screenSize.x;
-            screenPos.y = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenSize.y;
+            // Build text label
+            char cellText[16];
+            glm::vec3 textColor;
             
-            // Show walkability status and grid coordinates
-            char cellText[32];
-            bool walkable = node->IsWalkable();
-            
-            // Show coordinates for obstacles, penalty for walkable
-            if (!walkable) {
+            if (!node->IsWalkable()) {
                 snprintf(cellText, sizeof(cellText), "X");
+                textColor = se::DebugColors::Red;
             } else if (node->penalty > 0.0f) {
                 snprintf(cellText, sizeof(cellText), "+%.0f", node->penalty);
+                textColor = se::DebugColors::Yellow;
             } else {
-                snprintf(cellText, sizeof(cellText), ".");
+                // Skip rendering regular walkable cells to reduce clutter
+                continue;
             }
             
-            // Color: green for walkable, red for obstacle
-            ImU32 textColor = walkable ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
-            
-            ImVec2 textSize = ImGui::CalcTextSize(cellText);
-            ImVec2 textPos = ImVec2(screenPos.x - textSize.x * 0.5f, screenPos.y - textSize.y * 0.5f);
-            
-            // Draw background rect for readability
-            drawList->AddRectFilled(
-                ImVec2(textPos.x - 2, textPos.y - 1),
-                ImVec2(textPos.x + textSize.x + 2, textPos.y + textSize.y + 1),
-                IM_COL32(0, 0, 0, 180)
-            );
-            
-            drawList->AddText(textPos, textColor, cellText);
+            se::DebugRenderer::Get().DrawText3D(worldPos, cellText, textColor, textScale);
         }
     }
 }

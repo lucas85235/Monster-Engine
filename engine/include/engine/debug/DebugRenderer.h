@@ -3,6 +3,7 @@
 #include <glm.hpp>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 // Forward declaration - Camera is in global namespace
@@ -14,6 +15,10 @@ namespace se {
 class Shader;
 class VertexArray;
 class VertexBuffer;
+
+namespace ui {
+    class UIFont;
+}
 
 using Vector3 = glm::vec3;
 using Vector4 = glm::vec4;
@@ -35,6 +40,11 @@ class DebugRenderer {
     void DrawPath(const std::vector<Vector3>& waypoints, const Vector3& color, float waypointSize = 0.15f);
     void DrawSquare(const Vector3& center, float halfSize, const Vector3& color,
                     const Vector3& normal = Vector3(0, 1, 0));
+    
+    // 3D World Text (billboard - always faces camera)
+    void DrawText3D(const Vector3& worldPos, const std::string& text, const Vector3& color, float scale = 1.0f);
+    void DrawPersistentText3D(const Vector3& worldPos, const std::string& text, const Vector3& color, 
+                              float duration, float scale = 1.0f);
 
     // Persistent drawing (remains until duration expires)
     void DrawPersistentLine(const Vector3& from, const Vector3& to, const Vector3& color, float duration);
@@ -71,16 +81,42 @@ class DebugRenderer {
         Vector3 color;
         float remainingTime;
     };
+    
+    struct DebugText {
+        Vector3 position;
+        std::string text;
+        Vector3 color;
+        float scale;
+    };
+    
+    struct PersistentText {
+        Vector3 position;
+        std::string text;
+        Vector3 color;
+        float scale;
+        float remainingTime;
+    };
 
     static constexpr uint32_t kInitialLineCapacity = 2048;
 
     std::vector<DebugLine> lines_;
     std::vector<PersistentLine> persistentLines_;
+    std::vector<DebugText> texts_;
+    std::vector<PersistentText> persistentTexts_;
     
     std::shared_ptr<Shader> shader_;
     std::shared_ptr<VertexArray> vertexArray_;
     std::shared_ptr<VertexBuffer> vertexBuffer_;
     uint32_t bufferCapacity_ = 0;
+    
+    // Text rendering resources
+    std::shared_ptr<Shader> textShader_;
+    std::shared_ptr<ui::UIFont> debugFont_;
+    uint32_t textVao_ = 0;
+    uint32_t textVbo_ = 0;
+    
+    void InitializeTextResources();
+    void RenderTexts(const Camera& camera);
 
     bool enabled_ = true;
     bool initialized_ = false;
@@ -106,6 +142,9 @@ namespace Debug {
     }
     inline void Path(const std::vector<Vector3>& waypoints, const Vector3& color, float waypointSize = 0.15f) {
         DebugRenderer::Get().DrawPath(waypoints, color, waypointSize);
+    }
+    inline void Text3D(const Vector3& pos, const std::string& text, const Vector3& color, float scale = 1.0f) {
+        DebugRenderer::Get().DrawText3D(pos, text, color, scale);
     }
 }  // namespace Debug
 
