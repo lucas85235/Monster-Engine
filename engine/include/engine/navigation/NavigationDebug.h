@@ -42,6 +42,9 @@ struct NavigationDebugSettings {
     bool showOpenList       = false;
     bool showClosedList     = false;
     
+    // Cost visualization (displays G/H/F costs)
+    bool showNodeCosts      = false;
+    
     // Connectivity visualization
     bool showIslands        = false;  // Color cells by island ID
 
@@ -54,6 +57,7 @@ struct NavigationDebugSettings {
     glm::vec3 openListColor     = {0.5f, 0.5f, 1.0f};  // Light blue
     glm::vec3 closedListColor   = {0.5f, 0.2f, 0.5f};  // Purple
 };
+
 
 // Callback for when user requests to move an agent to a location
 using MoveToCallback = std::function<void(const glm::vec3& target)>;
@@ -76,7 +80,7 @@ class NavigationDebug {
     void Render(const Camera& camera, const NavigationGrid* grid);
 
     // Full ImGui debug panel with grid info, agent control, etc.
-    void RenderImGuiPanel(NavigationSystem* navSystem, const glm::vec3& agentPosition);
+    void RenderImGuiPanel(NavigationSystem* navSystem, const glm::vec3& agentPosition, const Camera& camera);
     
     // Simple ImGui section (for embedding in other windows)
     void RenderImGui();
@@ -103,9 +107,11 @@ class NavigationDebug {
     void RenderAgentInfo(const glm::vec3& agentPosition, const NavigationGrid* grid);
     void RenderTargetControl();
     void RenderPathTest(NavigationSystem* navSystem, const glm::vec3& agentPosition);
+    void RenderNodeCostOverlay(const Camera& camera, const NavigationGrid* grid);
     
     // Get color for island ID (deterministic palette)
     glm::vec3 GetIslandColor(int32_t islandId) const;
+
 
     NavigationDebugSettings settings_;
     MoveToCallback moveToCallback_;

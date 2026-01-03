@@ -20,6 +20,7 @@ struct NavigationGridSettings {
     int32_t height     = 100;                // Number of cells in Z
     float   cellSize   = 1.0f;               // Size of each cell in world units
     float   agentHeight = 2.0f;              // Height for obstacle detection raycasts
+    float   agentRadius = 0.5f;              // Agent radius for obstacle expansion
     bool    allowDiagonal = true;            // 8-way vs 4-way movement
 };
 

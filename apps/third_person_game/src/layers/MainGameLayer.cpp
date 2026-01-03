@@ -189,7 +189,10 @@ void MainGameLayer::ImguiDebug() {
             }
         });
         
-        navDebug.RenderImGuiPanel(navSystem_.get(), enemyPos);
+        Camera* camera = scene_->GetActiveCamera();
+        if (camera) {
+            navDebug.RenderImGuiPanel(navSystem_.get(), enemyPos, *camera);
+        }
     }
     
     // HUD Demo Controls
@@ -327,11 +330,14 @@ void MainGameLayer::SetupNavigation() {
     navSystem_->Initialize();
     
     // Create navigation grid - covers -100 to +100 on X and Z
+    // Using 0.5f cell size for higher resolution pathfinding
     se::nav::NavigationGridSettings gridSettings;
     gridSettings.worldOrigin = {-100.0f, 0.0f, -100.0f};
-    gridSettings.width = 200;
-    gridSettings.height = 200;
-    gridSettings.cellSize = 1.0f;
+    gridSettings.width = 400;       // 200 / 0.5 = 400 cells
+    gridSettings.height = 400;
+    gridSettings.cellSize = 0.5f;   // Smaller cells for better path quality
+    gridSettings.agentRadius = 0.8f; // Larger radius for better corner avoidance
+    gridSettings.agentHeight = 1.8f;
     gridSettings.allowDiagonal = true;
     
     navSystem_->CreateGrid(gridSettings);
@@ -339,8 +345,9 @@ void MainGameLayer::SetupNavigation() {
     // Bake static obstacles from physics (now cached - only runs once)
     navSystem_->BakeObstacles();
     
-    SE_LOG_INFO("[MainGameLayer] Navigation grid: 200x200, origin (-100, -100), covers world (-100 to +100)");
+    SE_LOG_INFO("[MainGameLayer] Navigation grid: 400x400 (cell 0.5f), origin (-100, -100), agent radius {:.1f}", gridSettings.agentRadius);
 }
+
 
 void MainGameLayer::SetupPlayer() {
     playerEntity_ = scene_->CreateEntity("Player");

@@ -2,6 +2,11 @@
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/Log.h"
 
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <algorithm>
+
 namespace se {
 namespace nav {
 
@@ -39,7 +44,7 @@ void NavigationGrid::Shutdown() {
 
 void NavigationGrid::BakeObstacles(PhysicsSystem* physics) {
     if (baked_) {
-        SE_LOG_DEBUG("[NavigationGrid] Already baked, skipping (call MarkDirty or RebakeObstacles to rebake)");
+        SE_LOG_DEBUG("[NavigationGrid] Already baked, skipping");
         return;
     }
 
@@ -49,89 +54,207 @@ void NavigationGrid::BakeObstacles(PhysicsSystem* physics) {
         return;
     }
 
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    const size_t nodeCount = nodes_.size();
+    const float rayHeight = 50.0f;
+    const float expectedFloorY = settings_.worldOrigin.y;
+    const float agentHeight = settings_.agentHeight;
+    const float agentRadius = settings_.agentRadius;
+    const float obstacleThreshold = 0.5f;  // Height above floor to consider obstacle (increased from 0.15f)
+    
+    SE_LOG_DEBUG("[NavigationGrid] BakeObstacles: expectedFloorY={:.2f}, agentHeight={:.2f}, threshold={:.2f}",
+                 expectedFloorY, agentHeight, obstacleThreshold);
+    
+    // Reset all nodes to walkable
     for (auto& node : nodes_) {
         node.flags = NodeFlags::Walkable;
     }
 
-    int obstacleCount = 0;
-    int voidCount = 0;
-    int elevatedCount = 0;
-    int blockedCount = 0;
-    int steepCount = 0;
+    // PHASE 1: Build ground detection rays (one per cell)
+    std::vector<RaycastRequest> groundRays;
+    groundRays.reserve(nodeCount);
     
-    float rayHeight = 50.0f;
-    float expectedFloorY = 0.0f;
-    float maxElevation = 0.3f;
-    float agentHeight = 1.8f;
-    float obstacleCheckStart = 0.2f;
-    
-    // Sample offsets within cell (center + 4 corners for diagonal detection)
-    float halfCell = settings_.cellSize * 0.4f;  // Slightly inside edges
-    std::vector<Vector3> sampleOffsets = {
-        {0, 0, 0},                   // Center
-        {-halfCell, 0, -halfCell},   // Corner 1
-        {halfCell, 0, -halfCell},    // Corner 2
-        {-halfCell, 0, halfCell},    // Corner 3
-        {halfCell, 0, halfCell}      // Corner 4
-    };
-
     for (int32_t z = 0; z < settings_.height; ++z) {
         for (int32_t x = 0; x < settings_.width; ++x) {
             Vector3 cellCenter = GridToWorld(x, z);
-            bool isObstacle = false;
-            
-            // Check multiple sample points per cell
-            for (const auto& offset : sampleOffsets) {
-                Vector3 samplePos = cellCenter + offset;
-                
-                // Check for obstacles at agent level from expected floor
-                Vector3 obsStart = Vector3(samplePos.x, expectedFloorY + obstacleCheckStart, samplePos.z);
-                Vector3 obsEnd = Vector3(samplePos.x, expectedFloorY + agentHeight, samplePos.z);
-                Vector3 obsHit, obsNormal;
-                
-                if (physics->Raycast(obsStart, obsEnd, obsHit, obsNormal)) {
-                    isObstacle = true;
-                    blockedCount++;
-                    break;
-                }
-                
-                // Find ground
-                Vector3 rayStart = Vector3(samplePos.x, rayHeight, samplePos.z);
-                Vector3 rayEnd   = Vector3(samplePos.x, -rayHeight, samplePos.z);
-                Vector3 hitPoint, hitNormal;
-                
-                if (!physics->Raycast(rayStart, rayEnd, hitPoint, hitNormal)) {
-                    isObstacle = true;
-                    voidCount++;
-                    break;
-                }
-                
-                // Check for elevated surface
-                if (hitPoint.y > expectedFloorY + maxElevation) {
-                    isObstacle = true;
-                    elevatedCount++;
-                    break;
-                }
-                
-                // Check steep slopes
-                if (hitNormal.y < 0.5f) {
-                    isObstacle = true;
-                    steepCount++;
-                    break;
+            groundRays.push_back({
+                Vector3(cellCenter.x, rayHeight, cellCenter.z),
+                Vector3(cellCenter.x, expectedFloorY - 1.0f, cellCenter.z)
+            });
+        }
+    }
+    
+    // Execute ground raycasts in batch
+    std::vector<RaycastResult> groundResults;
+    physics->RaycastBatch(groundRays, groundResults);
+    
+    // Process ground results and mark obstacles
+    int obstacleCount = 0;
+    int noHitCount = 0;
+    int aboveFloorCount = 0;
+    int steepCount = 0;
+    std::vector<bool> needsObstacleCheck(nodeCount, false);
+    
+    for (size_t i = 0; i < nodeCount; ++i) {
+        const auto& result = groundResults[i];
+        int32_t x = static_cast<int32_t>(i) % settings_.width;
+        int32_t z = static_cast<int32_t>(i) / settings_.width;
+        
+        if (!result.hit) {
+            // No ground = void area
+            SetObstacle(x, z, true);
+            obstacleCount++;
+            noHitCount++;
+            continue;
+        }
+        
+        // Check if hit surface is above floor (obstacle on top of floor)
+        float heightAboveFloor = result.hitPoint.y - expectedFloorY;
+        if (heightAboveFloor > obstacleThreshold) {
+            SetObstacle(x, z, true);
+            obstacleCount++;
+            aboveFloorCount++;
+            // Log first few for debugging
+            if (aboveFloorCount <= 3) {
+                SE_LOG_DEBUG("[NavigationGrid] Cell ({},{}) marked as obstacle: hitY={:.2f}, floorY={:.2f}, diff={:.2f}",
+                             x, z, result.hitPoint.y, expectedFloorY, heightAboveFloor);
+            }
+            continue;
+        }
+        
+        // Check if ground is too steep
+        if (result.hitNormal.y < 0.7f) {
+            SetObstacle(x, z, true);
+            obstacleCount++;
+            steepCount++;
+            continue;
+        }
+        
+        // Cell has valid ground, needs obstacle check above
+        needsObstacleCheck[i] = true;
+    }
+    
+    SE_LOG_DEBUG("[NavigationGrid] Phase 1 results: noHit={}, aboveFloor={}, steep={}, needsCheck={}",
+                 noHitCount, aboveFloorCount, steepCount, nodeCount - obstacleCount);
+    
+    // PHASE 2: Build headroom check rays (only for cells with valid ground)
+    // Use 5-point sampling: center + 4 corners to catch grid-aligned obstacles
+    std::vector<RaycastRequest> headroomRays;
+    std::vector<size_t> headroomIndices;  // Track which original cell each ray belongs to
+    
+    // Pre-compute sample offsets (center + 4 near-edge positions)
+    const float halfCell = settings_.cellSize * 0.5f;
+    const float edgeOffset = halfCell * 0.85f;  // 85% towards edge
+    const Vector3 sampleOffsets[5] = {
+        {0.0f, 0.0f, 0.0f},                     // Center
+        {-edgeOffset, 0.0f, -edgeOffset},       // Near corner
+        { edgeOffset, 0.0f, -edgeOffset},       // Near corner
+        { edgeOffset, 0.0f,  edgeOffset},       // Near corner
+        {-edgeOffset, 0.0f,  edgeOffset}        // Near corner
+    };
+    
+    // Count cells that need checking
+    size_t cellsToCheck = 0;
+    for (size_t i = 0; i < nodeCount; ++i) {
+        if (needsObstacleCheck[i]) cellsToCheck++;
+    }
+    headroomRays.reserve(cellsToCheck * 5);
+    headroomIndices.reserve(cellsToCheck * 5);
+    
+    for (size_t i = 0; i < nodeCount; ++i) {
+        if (!needsObstacleCheck[i]) continue;
+        
+        int32_t x = static_cast<int32_t>(i) % settings_.width;
+        int32_t z = static_cast<int32_t>(i) / settings_.width;
+        Vector3 cellCenter = GridToWorld(x, z);
+        
+        // Add 5 rays per cell
+        for (const auto& offset : sampleOffsets) {
+            Vector3 samplePos = cellCenter + offset;
+            headroomRays.push_back({
+                Vector3(samplePos.x, expectedFloorY + 0.05f, samplePos.z),
+                Vector3(samplePos.x, expectedFloorY + agentHeight, samplePos.z)
+            });
+            headroomIndices.push_back(i);
+        }
+    }
+    
+    // Execute headroom raycasts in batch
+    std::vector<RaycastResult> headroomResults;
+    int headroomHits = 0;
+    if (!headroomRays.empty()) {
+        physics->RaycastBatch(headroomRays, headroomResults);
+        
+        // Track which cells are already marked
+        std::vector<bool> cellMarked(nodeCount, false);
+        
+        for (size_t j = 0; j < headroomResults.size(); ++j) {
+            if (headroomResults[j].hit) {
+                size_t cellIdx = headroomIndices[j];
+                if (!cellMarked[cellIdx]) {
+                    cellMarked[cellIdx] = true;
+                    int32_t x = static_cast<int32_t>(cellIdx) % settings_.width;
+                    int32_t z = static_cast<int32_t>(cellIdx) / settings_.width;
+                    SetObstacle(x, z, true);
+                    obstacleCount++;
+                    headroomHits++;
                 }
             }
-            
-            if (isObstacle) {
-                SetObstacle(x, z, true);
-                obstacleCount++;
+        }
+    }
+    
+    SE_LOG_DEBUG("[NavigationGrid] Phase 2 results: {} cells blocked by headroom check ({} rays)", 
+                 headroomHits, headroomRays.size());
+    
+    // PHASE 3: Agent radius expansion using grid dilation
+    // Mark cells within agentRadius of obstacles as blocked
+    if (agentRadius > 0.01f) {
+        int32_t dilationRadius = static_cast<int32_t>(std::ceil(agentRadius / settings_.cellSize));
+        
+        // Create copy of current obstacle state
+        std::vector<bool> originalObstacles(nodeCount, false);
+        for (size_t i = 0; i < nodeCount; ++i) {
+            originalObstacles[i] = !nodes_[i].IsWalkable();
+        }
+        
+        // Dilate obstacles
+        for (int32_t z = 0; z < settings_.height; ++z) {
+            for (int32_t x = 0; x < settings_.width; ++x) {
+                size_t idx = static_cast<size_t>(CoordToIndex(x, z));
+                if (!originalObstacles[idx]) continue;  // Skip non-obstacles
+                
+                // Mark neighbors within radius
+                for (int32_t dz = -dilationRadius; dz <= dilationRadius; ++dz) {
+                    for (int32_t dx = -dilationRadius; dx <= dilationRadius; ++dx) {
+                        if (dx == 0 && dz == 0) continue;
+                        
+                        int32_t nx = x + dx;
+                        int32_t nz = z + dz;
+                        if (!IsValidCoord(nx, nz)) continue;
+                        
+                        // Check if within circular radius
+                        float dist = std::sqrt(static_cast<float>(dx * dx + dz * dz)) * settings_.cellSize;
+                        if (dist <= agentRadius) {
+                            size_t nIdx = static_cast<size_t>(CoordToIndex(nx, nz));
+                            if (!originalObstacles[nIdx] && nodes_[nIdx].IsWalkable()) {
+                                SetObstacle(nx, nz, true);
+                                obstacleCount++;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
+    auto endTime = std::chrono::high_resolution_clock::now();
+    float elapsedMs = std::chrono::duration<float, std::milli>(endTime - startTime).count();
+
     int walkableCount = static_cast<int>(nodes_.size()) - obstacleCount;
     baked_ = true;
-    SE_LOG_INFO("[NavigationGrid] Baked: {} walkable, {} obstacles ({} blocked, {} elevated, {} void, {} steep)", 
-                walkableCount, obstacleCount, blockedCount, elevatedCount, voidCount, steepCount);
+    SE_LOG_INFO("[NavigationGrid] Baked in {:.1f}ms: {} walkable, {} obstacles (batch raycast)", 
+                elapsedMs, walkableCount, obstacleCount);
 }
 
 

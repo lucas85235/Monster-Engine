@@ -523,4 +523,67 @@ btRigidBody* PhysicsSystem::RaycastHitBodySync(const glm::vec3& start, const glm
                                                glm::vec3& hitPoint, btRigidBody* ignoredBody) {
     return RaycastHitBody(start, end, hitPoint, ignoredBody);
 }
+
+void PhysicsSystem::RaycastBatch(const std::vector<RaycastRequest>& requests,
+                                 std::vector<RaycastResult>& results) {
+    std::lock_guard<std::mutex> lock(physics_mutex_);
+    
+    results.resize(requests.size());
+    
+    if (!dynamics_world_) {
+        for (auto& r : results) {
+            r.hit = false;
+        }
+        return;
+    }
+    
+    for (size_t i = 0; i < requests.size(); ++i) {
+        const auto& req = requests[i];
+        auto& res = results[i];
+        
+        btVector3 btStart(req.start.x, req.start.y, req.start.z);
+        btVector3 btEnd(req.end.x, req.end.y, req.end.z);
+        
+        btCollisionWorld::ClosestRayResultCallback rayCallback(btStart, btEnd);
+        dynamics_world_->rayTest(btStart, btEnd, rayCallback);
+        
+        if (rayCallback.hasHit()) {
+            res.hit = true;
+            res.hitPoint = glm::vec3(rayCallback.m_hitPointWorld.x(),
+                                     rayCallback.m_hitPointWorld.y(),
+                                     rayCallback.m_hitPointWorld.z());
+            res.hitNormal = glm::vec3(rayCallback.m_hitNormalWorld.x(),
+                                      rayCallback.m_hitNormalWorld.y(),
+                                      rayCallback.m_hitNormalWorld.z());
+        } else {
+            res.hit = false;
+        }
+    }
+}
+
+struct AABBOverlapCallback : public btBroadphaseAabbCallback {
+    bool hasOverlap = false;
+    
+    bool process(const btBroadphaseProxy* proxy) override {
+        hasOverlap = true;
+        return false;  // Stop at first hit
+    }
+};
+
+bool PhysicsSystem::OverlapAABB(const glm::vec3& min, const glm::vec3& max) {
+    std::lock_guard<std::mutex> lock(physics_mutex_);
+    
+    if (!dynamics_world_ || !overlapping_pair_cache_broadphase_interface_) {
+        return false;
+    }
+    
+    btVector3 aabbMin(min.x, min.y, min.z);
+    btVector3 aabbMax(max.x, max.y, max.z);
+    
+    AABBOverlapCallback callback;
+    overlapping_pair_cache_broadphase_interface_->aabbTest(aabbMin, aabbMax, callback);
+    
+    return callback.hasOverlap;
+}
 }  // namespace se
+

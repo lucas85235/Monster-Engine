@@ -30,15 +30,25 @@ void NavigationDebug::Render(const Camera& camera, const NavigationGrid* grid) {
     if (settings_.showOpenList || settings_.showClosedList) {
         RenderSearchState(camera, grid);
     }
+    
+    if (settings_.showNodeCosts) {
+        RenderNodeCostOverlay(camera, grid);
+    }
 }
 
-void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::vec3& agentPosition) {
+
+void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::vec3& agentPosition, const Camera& camera) {
     ImGui::Begin("Navigation Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     
     ImGui::Checkbox("Enable Visualization", &settings_.enabled);
     ImGui::Separator();
     
     NavigationGrid* grid = navSystem ? navSystem->GetGrid() : nullptr;
+    
+    // Draw 3D debug visualization using real camera
+    if (settings_.enabled && grid) {
+        Render(camera, grid);
+    }
     
     if (ImGui::CollapsingHeader("Grid Info", ImGuiTreeNodeFlags_DefaultOpen)) {
         RenderGridStats(grid);
@@ -56,6 +66,50 @@ void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::v
         RenderPathTest(navSystem, agentPosition);
     }
     
+    if (ImGui::CollapsingHeader("Node Inspector")) {
+        if (grid && grid->IsInitialized()) {
+            static int inspectX = 0, inspectZ = 0;
+            ImGui::DragInt("Cell X", &inspectX, 0.5f, 0, grid->GetWidth() - 1);
+            ImGui::DragInt("Cell Z", &inspectZ, 0.5f, 0, grid->GetHeight() - 1);
+            
+            const PathNode* node = grid->GetNode(inspectX, inspectZ);
+            if (node) {
+                ImGui::Separator();
+                glm::vec3 worldPos = grid->GridToWorld(inspectX, inspectZ);
+                ImGui::Text("World Pos: (%.2f, %.2f, %.2f)", worldPos.x, worldPos.y, worldPos.z);
+                
+                bool walkable = node->IsWalkable();
+                ImVec4 statusColor = walkable ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.8f, 0.2f, 0.2f, 1.0f);
+                ImGui::TextColored(statusColor, "Walkable: %s", walkable ? "YES" : "NO");
+                
+                ImGui::Text("Flags:");
+                if (HasFlag(node->flags, NodeFlags::Obstacle)) ImGui::BulletText("Obstacle");
+                if (HasFlag(node->flags, NodeFlags::Dynamic)) ImGui::BulletText("Dynamic");
+                if (HasFlag(node->flags, NodeFlags::Water)) ImGui::BulletText("Water");
+                if (HasFlag(node->flags, NodeFlags::Road)) ImGui::BulletText("Road");
+                
+                ImGui::Separator();
+                ImGui::Text("Pathfinding Costs:");
+                ImGui::Text("  G Cost (from start): %.2f", node->gCost);
+                ImGui::Text("  H Cost (heuristic):  %.2f", node->hCost);
+                ImGui::Text("  F Cost (total):      %.2f", node->GetFCost());
+                ImGui::Text("  Penalty:             %.2f", node->penalty);
+                ImGui::Text("  Parent Index:        %d", node->parentIndex);
+                
+                if (grid->HasIslandData()) {
+                    int32_t islandId = grid->GetIslandId(inspectX, inspectZ);
+                    ImGui::Text("  Island ID:           %d", islandId);
+                }
+                
+                DebugRenderer::Get().DrawSphere(worldPos + glm::vec3(0, 0.3f, 0), 0.25f, DebugColors::Magenta, 8);
+            } else {
+                ImGui::TextColored(ImVec4(1, 0, 0, 1), "Invalid cell coordinates");
+            }
+        } else {
+            ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Grid not available");
+        }
+    }
+    
     if (ImGui::CollapsingHeader("Visualization")) {
         ImGui::Text("Grid Visualization");
         ImGui::Checkbox("Show Grid", &settings_.showGrid);
@@ -64,6 +118,7 @@ void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::v
             ImGui::Checkbox("Walkable Cells", &settings_.showWalkableCells);
             ImGui::Checkbox("Obstacles", &settings_.showObstacles);
             ImGui::Checkbox("Dynamic Obstacles", &settings_.showDynamicObstacles);
+            ImGui::Checkbox("Show Node Costs", &settings_.showNodeCosts);
             ImGui::SliderFloat("Grid Opacity", &settings_.gridOpacity, 0.0f, 1.0f);
             ImGui::Unindent();
         }
@@ -77,6 +132,12 @@ void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::v
             ImGui::Checkbox("Path Lines", &settings_.showPathLines);
             ImGui::Unindent();
         }
+        
+        ImGui::Separator();
+        ImGui::Text("Search Debug");
+        ImGui::Checkbox("Show Open List", &settings_.showOpenList);
+        ImGui::Checkbox("Show Closed List", &settings_.showClosedList);
+        ImGui::Checkbox("Show Islands", &settings_.showIslands);
 
         ImGui::Separator();
         ImGui::Text("Colors");
@@ -102,13 +163,25 @@ void NavigationDebug::RenderImGuiPanel(NavigationSystem* navSystem, const glm::v
         }
     }
     
-    // Draw debug visualization
-    if (settings_.enabled && grid) {
-        Render(Camera(), grid);  // Will use DebugRenderer
+    if (ImGui::CollapsingHeader("Statistics")) {
+        if (navSystem) {
+            const auto& stats = navSystem->GetStats();
+            ImGui::Text("Total Requests:     %zu", stats.totalRequests);
+            ImGui::Text("Completed:          %zu", stats.completedRequests);
+            ImGui::Text("Failed:             %zu", stats.failedRequests);
+            ImGui::Text("Pending:            %zu", stats.pendingRequests);
+            ImGui::Text("Cache Hits:         %zu", stats.cacheHits);
+            ImGui::Text("Avg Compute Time:   %.3f ms", stats.avgComputeTimeMs);
+            
+            if (ImGui::Button("Reset Stats")) {
+                navSystem->ResetStats();
+            }
+        }
     }
     
     ImGui::End();
 }
+
 
 void NavigationDebug::RenderGridStats(const NavigationGrid* grid) {
     if (!grid || !grid->IsInitialized()) {
@@ -554,10 +627,92 @@ void NavigationDebug::RenderIslands(const Camera& camera, const NavigationGrid* 
                 worldPos + glm::vec3(-halfCell, 0,  halfCell)
             };
 
-            DebugRenderer::Get().DrawLine(corners[0], corners[1], color);
+        DebugRenderer::Get().DrawLine(corners[0], corners[1], color);
             DebugRenderer::Get().DrawLine(corners[1], corners[2], color);
             DebugRenderer::Get().DrawLine(corners[2], corners[3], color);
             DebugRenderer::Get().DrawLine(corners[3], corners[0], color);
+        }
+    }
+}
+
+void NavigationDebug::RenderNodeCostOverlay(const Camera& camera, const NavigationGrid* grid) {
+    if (!grid || !grid->IsInitialized()) return;
+    
+    const auto& gridSettings = grid->GetSettings();
+    
+    // Get camera matrices for world-to-screen projection
+    glm::vec2 screenSize = glm::vec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+    float aspectRatio = screenSize.x / screenSize.y;
+    glm::mat4 viewProj = camera.getProjectionMatrix(aspectRatio) * camera.getViewMatrix();
+    
+    // Get camera position and find grid cells around it
+    glm::vec3 camPos = camera.GetPosition();
+    GridCoord camCoord = grid->WorldToGrid(camPos);
+    
+    // Only render cells near the camera (performance)
+    int maxCellsToRender = 20;
+    int startX = std::max(0, camCoord.x - maxCellsToRender / 2);
+    int startZ = std::max(0, camCoord.z - maxCellsToRender / 2);
+    int endX = std::min(gridSettings.width, startX + maxCellsToRender);
+    int endZ = std::min(gridSettings.height, startZ + maxCellsToRender);
+    
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    
+    for (int32_t z = startZ; z < endZ; ++z) {
+        for (int32_t x = startX; x < endX; ++x) {
+            const PathNode* node = grid->GetNode(x, z);
+            if (!node) continue;
+            
+            glm::vec3 worldPos = grid->GridToWorld(x, z);
+            worldPos.y += 0.15f;
+            
+            // Project to screen space
+            glm::vec4 clipPos = viewProj * glm::vec4(worldPos, 1.0f);
+            
+            // Behind camera check
+            if (clipPos.w <= 0.0f) continue;
+            
+            glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
+            
+            // Off-screen check
+            if (ndc.x < -1.0f || ndc.x > 1.0f || ndc.y < -1.0f || ndc.y > 1.0f) continue;
+            
+            // Distance culling - don't render far cells
+            float dist = glm::distance(camPos, worldPos);
+            if (dist > 15.0f) continue;
+            
+            // Convert to screen coordinates
+            glm::vec2 screenPos;
+            screenPos.x = (ndc.x * 0.5f + 0.5f) * screenSize.x;
+            screenPos.y = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenSize.y;
+            
+            // Show walkability status and grid coordinates
+            char cellText[32];
+            bool walkable = node->IsWalkable();
+            
+            // Show coordinates for obstacles, penalty for walkable
+            if (!walkable) {
+                snprintf(cellText, sizeof(cellText), "X");
+            } else if (node->penalty > 0.0f) {
+                snprintf(cellText, sizeof(cellText), "+%.0f", node->penalty);
+            } else {
+                snprintf(cellText, sizeof(cellText), ".");
+            }
+            
+            // Color: green for walkable, red for obstacle
+            ImU32 textColor = walkable ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
+            
+            ImVec2 textSize = ImGui::CalcTextSize(cellText);
+            ImVec2 textPos = ImVec2(screenPos.x - textSize.x * 0.5f, screenPos.y - textSize.y * 0.5f);
+            
+            // Draw background rect for readability
+            drawList->AddRectFilled(
+                ImVec2(textPos.x - 2, textPos.y - 1),
+                ImVec2(textPos.x + textSize.x + 2, textPos.y + textSize.y + 1),
+                IM_COL32(0, 0, 0, 180)
+            );
+            
+            drawList->AddText(textPos, textColor, cellText);
         }
     }
 }
