@@ -1,9 +1,6 @@
 #include "MainGameLayer.h"
 
 #include "../../../SampleUtilities.h"
-#include "../components/CameraController.h"
-#include "../components/Character.h"
-#include "../components/CharacterController.h"
 #include "../components/CharacterRender.h"
 #include "engine/Application.h"
 #include "engine/Camera.h"
@@ -21,6 +18,7 @@
 #include "engine/ui/native/widgets/hud/UIHealthBar.h"
 #include "engine/ui/native/widgets/hud/UIAbilitySlot.h"
 #include "engine/debug/FrameProfiler.h"
+#include "engine/debug/DebugRenderer.h"
 
 #include <imgui.h>
 #include <filesystem>
@@ -94,6 +92,106 @@ void MainGameLayer::ImguiDebug() {
     
     ImGui::End();
     
+    // AI Debug Window - MANUAL CONTROL MODE
+    ImGui::Begin("AI Debug");
+    ImGui::TextColored(ImVec4(1,1,0,1), "DEBUG MODE - Manual Control Only");
+    ImGui::Separator();
+    
+    if (enemyEntity_.IsValid()) {
+        auto* aiController = enemyEntity_.FindComponent<se::AIController>();
+        if (aiController) {
+            auto& agent = aiController->GetPathfindingAgent();
+            
+            // Show agent state
+            const char* stateNames[] = {"Idle", "Moving", "Arrived", "Stuck", "RequestingPath"};
+            ImGui::Text("State: %s", stateNames[static_cast<int>(agent.state)]);
+            ImGui::Text("Has Path: %s", agent.HasPath() ? "Yes" : "No");
+            if (agent.HasPath()) {
+                ImGui::Text("Waypoints: %d / %zu", agent.currentWaypoint, agent.currentPath.size());
+            }
+            ImGui::Text("Path Age: %.1fs", agent.pathAge);
+            
+            ImGui::Separator();
+            
+            // Force recalculate button
+            if (ImGui::Button("Force Recalculate Path")) {
+                agent.forceRepath = true;
+                SE_LOG_INFO("[AI Debug] Force recalculate requested");
+            }
+            
+            ImGui::SameLine();
+            if (ImGui::Button("Stop Movement")) {
+                aiController->StopMovement();
+            }
+            
+            ImGui::Separator();
+            
+            // Rebake navmesh button
+            if (navSystem_ && ImGui::Button("Rebake Navmesh")) {
+                navSystem_->RebakeObstacles();
+                SE_LOG_INFO("[AI Debug] Navmesh rebaked");
+            }
+            
+            // Show navmesh stats
+            if (navSystem_ && navSystem_->GetGrid()) {
+                auto* grid = navSystem_->GetGrid();
+                int walkable = 0, total = 0;
+                for (int z = 0; z < grid->GetHeight(); ++z) {
+                    for (int x = 0; x < grid->GetWidth(); ++x) {
+                        total++;
+                        if (grid->IsWalkable(x, z)) walkable++;
+                    }
+                }
+                ImGui::Text("Navmesh: %d walkable / %d total", walkable, total);
+                ImGui::Text("Grid: %d x %d", grid->GetWidth(), grid->GetHeight());
+            }
+        }
+    }
+    ImGui::End();
+
+    // Navigation Debug - Full Panel
+    if (navSystem_) {
+        glm::vec3 enemyPos{0.0f};
+        auto& navDebug = navSystem_->GetDebug();
+        
+        if (enemyEntity_.IsValid() && enemyEntity_.HasComponent<se::TransformComponent>()) {
+            enemyPos = enemyEntity_.GetComponent<se::TransformComponent>().Position;
+
+            
+            // Update path visualization from agent's current path
+            auto* aiController = enemyEntity_.FindComponent<se::AIController>();
+            if (aiController) {
+                auto& agent = aiController->GetPathfindingAgent();
+                if (agent.HasPath()) {
+                    // Only show waypoints from current index onwards
+                    std::vector<glm::vec3> remainingPath(
+                        agent.currentPath.begin() + agent.currentWaypoint,
+                        agent.currentPath.end()
+                    );
+                    navDebug.AddActivePath(1, remainingPath);
+                } else {
+                    navDebug.RemoveActivePath(1);
+                }
+            }
+        }
+        
+        // Set callback for move-to button
+        navDebug.SetMoveToCallback([this](const glm::vec3& target) {
+            if (enemyEntity_.IsValid()) {
+                auto* aiController = enemyEntity_.FindComponent<se::AIController>();
+                if (aiController) {
+                    if (std::isnan(target.x)) {
+                        aiController->StopMovement();
+                    } else {
+                        aiController->MoveToLocation(target);
+                    }
+                }
+            }
+        });
+        
+        navDebug.RenderImGuiPanel(navSystem_.get(), enemyPos);
+    }
+    
     // HUD Demo Controls
     ImGui::Begin("HUD Controls");
     
@@ -163,20 +261,14 @@ void MainGameLayer::OnAttach() {
         SE_LOG_INFO("Loaded map: {} entities", mapResult.entityCount);
     }
 
-    character_entity_ = scene_->CreateEntity("Character");
-
-    // IMPORTANT: Set position BEFORE adding physics components!
-    // RigidbodyComponent::Awake() reads the TransformComponent position.
-    if (mapResult.hasPlayerStart) {
-        auto& transform = character_entity_.GetComponent<se::TransformComponent>();
-        transform.SetPosition(mapResult.playerStartPosition);
-        transform.SetRotation(mapResult.playerStartRotation);
-    }
-
-    character_entity_.AddComponent<Character>();
-    character_entity_.AddComponent<CameraController>();
-    character_entity_.AddComponent<CharacterController>();
-    character_entity_.AddComponent<CharacterRender>();
+    // Setup navigation first (needed by AI)
+    SetupNavigation();
+    
+    // Setup player using new architecture
+    SetupPlayer();
+    
+    // Setup enemy with AI
+    SetupEnemy();
     
     // Set up HDR IBL environment lighting for skybox and reflections
     auto& renderer = Application::Get().GetRenderer().GetSceneRenderer();
@@ -230,8 +322,85 @@ void MainGameLayer::OnAttach() {
     SetupHUD();
 }
 
+void MainGameLayer::SetupNavigation() {
+    navSystem_ = std::make_unique<se::nav::NavigationSystem>(scene_.get());
+    navSystem_->Initialize();
+    
+    // Create navigation grid - covers -100 to +100 on X and Z
+    se::nav::NavigationGridSettings gridSettings;
+    gridSettings.worldOrigin = {-100.0f, 0.0f, -100.0f};
+    gridSettings.width = 200;
+    gridSettings.height = 200;
+    gridSettings.cellSize = 1.0f;
+    gridSettings.allowDiagonal = true;
+    
+    navSystem_->CreateGrid(gridSettings);
+    
+    // Bake static obstacles from physics (now cached - only runs once)
+    navSystem_->BakeObstacles();
+    
+    SE_LOG_INFO("[MainGameLayer] Navigation grid: 200x200, origin (-100, -100), covers world (-100 to +100)");
+}
+
+void MainGameLayer::SetupPlayer() {
+    playerEntity_ = scene_->CreateEntity("Player");
+
+    // Load map may have set a start position
+    auto mapResult = se::MapLoader::Load(*scene_, "assets/maps/test.mstmap");
+    if (mapResult.hasPlayerStart) {
+        auto& transform = playerEntity_.GetComponent<se::TransformComponent>();
+        transform.SetPosition(mapResult.playerStartPosition);
+        transform.SetRotation(mapResult.playerStartRotation);
+    }
+
+    // Add Character (Pawn with physics movement)
+    playerEntity_.AddComponent<se::Character>();
+    
+    // Add PlayerController (handles input and camera)
+    auto& controller = playerEntity_.AddComponent<se::PlayerController>();
+    
+    // Add visual representation with animations
+    playerEntity_.AddComponent<CharacterRender>();
+    
+    SE_LOG_INFO("[MainGameLayer] Player setup complete with new Gameplay architecture");
+}
+
+void MainGameLayer::SetupEnemy() {
+    enemyEntity_ = scene_->CreateEntity("Enemy");
+    
+    // Position enemy near player
+    auto& transform = enemyEntity_.GetComponent<se::TransformComponent>();
+    transform.SetPosition({10.0f, 10.0f, 10.0f});
+    
+    // Add Character for physics movement
+    auto& character = enemyEntity_.AddComponent<se::Character>();
+    character.GetMovementConfig().maxWalkSpeed = 3.0f;  // Slower than player
+    
+    // Add AIController
+    auto& aiController = enemyEntity_.AddComponent<se::AIController>();
+    aiController.SetNavigationSystem(navSystem_.get());
+    
+    // SIMPLE DEBUG MODE: No state tree, only manual control via ImGui
+    // Disable auto-repath - will only calculate path once when MoveTo is called
+    auto& agent = aiController.GetPathfindingAgent();
+    agent.autoRepath = false;  // Disable automatic recalculation
+    
+    // Add visual representation with animations (same as player)
+    CharacterRenderConfig renderConfig;
+    renderConfig.ModelPath = "assets/models/characters/Y_Bot.fbx";
+    auto& render = enemyEntity_.AddComponent<CharacterRender>();
+    render.SetConfig(renderConfig);
+    
+    // Register enemy as navigation agent (excluded from obstacle detection)
+    navSystem_->RegisterAgent(enemyEntity_);
+    
+    SE_LOG_INFO("[MainGameLayer] Enemy AI setup in DEBUG MODE - use ImGui to control");
+}
+
+
 void MainGameLayer::OnDetach() {
     hudController_.reset();
+    navSystem_.reset();
     se::ui::Shutdown();
     Application::Get().SetActiveScene(nullptr);
     Layer::OnDetach();
@@ -239,6 +408,12 @@ void MainGameLayer::OnDetach() {
 
 void MainGameLayer::OnUpdate(float ts) {
     Layer::OnUpdate(ts);
+    
+    // Update navigation system
+    if (navSystem_) {
+        navSystem_->Update(ts);
+    }
+    
     scene_->OnUpdate(ts);
     
     // Poll UI input (engine handles hit testing, hover, events)
@@ -278,6 +453,12 @@ void MainGameLayer::OnUpdate(float ts) {
 void MainGameLayer::OnRender() {
     Layer::OnRender();
     scene_->OnRender();
+    
+    // Render debug visualization (navigation grid, paths, etc.)
+    Camera* camera = scene_->GetActiveCamera();
+    if (camera) {
+        se::DebugRenderer::Get().Flush(*camera);
+    }
     
     // Render native UI (engine handles retained-mode, canvas, etc.)
     se::ui::Render();

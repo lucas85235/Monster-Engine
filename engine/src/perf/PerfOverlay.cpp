@@ -88,14 +88,15 @@ void PerfOverlay::Render() {
     glm::vec2 viewportSize = ui::GetViewportSize();
     if (viewportSize.x <= 0 || viewportSize.y <= 0) return;
     
-    // Use the canvas directly with proper frame management
     auto& canvas = ui::UICanvas2D::Get();
     canvas.SetViewport(viewportSize.x, viewportSize.y);
     
-    // Begin frame, draw, end frame, render  
-    canvas.BeginFrame();
+    // Use overlay mode - this does NOT clear main UI commands
+    canvas.BeginOverlay();
     label_->Draw();
-    canvas.EndFrame();
+    canvas.EndOverlay();
+    
+    // Render the canvas (includes both main UI and overlays)
     canvas.Render();
 }
 

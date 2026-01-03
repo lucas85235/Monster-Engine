@@ -1,5 +1,4 @@
 #include "CharacterRender.h"
-#include "Character.h"
 
 #include "engine/Application.h"
 #include "engine/ecs/AnimatorComponent.h"
@@ -10,6 +9,7 @@
 #include "engine/animation/AnimationManager.h"
 #include "engine/animation/SkinnedModelManager.h"
 #include "engine/resources/ModelManager.h"
+#include "engine/gameplay/Character.h"
 
 namespace FirstGame {
 
@@ -30,8 +30,8 @@ void CharacterRender::Start() {
 }
 
 void CharacterRender::Update(float dt) {
-    // Query Character for movement state (decoupled from Controller)
-    if (auto* character = GetEntity().FindComponent<Character>()) {
+    // Query Character (from new engine gameplay) for movement state
+    if (auto* character = GetEntity().FindComponent<se::Character>()) {
         UpdateMovementState(character->IsMoving());
     }
 }

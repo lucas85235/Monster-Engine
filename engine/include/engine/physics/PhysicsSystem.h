@@ -90,6 +90,10 @@ class PhysicsSystem {
 
     void UpdateDebugDraw(float dt);
 
+    // Force processing of any pending add/remove body commands
+    // Call this before raycasting if bodies were recently added
+    void FlushPendingBodies() { ProcessPendingCommands(); }
+
     std::mutex& GetMutex() {
         return physics_mutex_;
     }
