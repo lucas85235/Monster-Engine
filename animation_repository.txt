@@ -1,0 +1,1359 @@
+# Sistema de Animação para Personagem Jogável - Documento Técnico
+
+================================================================================
+OBJETIVO
+================================================================================
+
+Implementar sistema completo de animação para personagem jogável utilizando 
+todos os assets disponíveis na pasta de animações, criando uma experiência 
+fluida e responsiva comparável a jogos AAA.
+
+
+================================================================================
+INVENTÁRIO DE ANIMAÇÕES DISPONÍVEIS
+================================================================================
+
+Análise dos Assets:
+-------------------
+YBot_Idle.fbx                      → Idle base
+YBot_Jog_Forward.fbx              → Corrida/Jog para frente
+YBot_JogForward.fbx               → Variante de corrida
+YBot_Left_Strafe_Walking.fbx      → Strafe esquerda (walking)
+YBot_Rifle_Aim_To_Down.fbx        → Transição aim para baixo
+YBot_Rifle_Aiming_Idle.fbx        → Idle com rifle (aim mode)
+YBot_Rifle_Down_To_Aim.fbx        → Transição de baixo para aim
+YBot_Rifle_Run.fbx                → Corrida com rifle
+YBot_Right_Strafe_Walking.fbx     → Strafe direita (walking)
+YBot_Run_Backwards.fbx            → Corrida para trás
+YBot_Running_Backward.fbx         → Variante corrida para trás
+YBot_Strafe_left.fbx              → Strafe esquerda
+YBot_Strafe_right.fbx             → Strafe direita
+YBot_Walking_Backward.fbx         → Caminhada para trás
+YBot_Walking.fbx                  → Caminhada para frente
+
+
+Categorização por Modo:
+------------------------
+
+### LOCOMOTION NORMAL (STANDING)
+- Idle: YBot_Idle.fbx
+- Walk Forward: YBot_Walking.fbx
+- Walk Backward: YBot_Walking_Backward.fbx
+- Jog/Run Forward: YBot_Jog_Forward.fbx ou YBot_JogForward.fbx
+- Run Backward: YBot_Run_Backwards.fbx ou YBot_Running_Backward.fbx
+
+### STRAFE MODE (AIM/COMBAT)
+- Aim Idle: YBot_Rifle_Aiming_Idle.fbx
+- Strafe Left: YBot_Strafe_left.fbx ou YBot_Left_Strafe_Walking.fbx
+- Strafe Right: YBot_Strafe_right.fbx ou YBot_Right_Strafe_Walking.fbx
+- Rifle Run: YBot_Rifle_Run.fbx
+
+### TRANSIÇÕES ESPECIAIS
+- Aim Down: YBot_Rifle_Aim_To_Down.fbx
+- Down to Aim: YBot_Rifle_Down_To_Aim.fbx
+
+
+================================================================================
+ARQUITETURA DE ESTADOS
+================================================================================
+
+STATE MACHINE PRINCIPAL
+-----------------------
+
+Root State Machine
+│
+├── Standing Mode (Locomotion Livre)
+│   │
+│   ├── Idle State
+│   │   └── Animation: YBot_Idle.fbx
+│   │
+│   ├── Walking State (Blend Space 1D)
+│   │   ├── Parameter: velocity (0.0 → 2.5 m/s)
+│   │   ├── Sample 0.0: YBot_Idle.fbx
+│   │   ├── Sample 1.5: YBot_Walking.fbx
+│   │   └── Sample 2.5: YBot_Walking.fbx (max speed)
+│   │
+│   ├── Running State (Blend Space 1D)
+│   │   ├── Parameter: velocity (2.5 → 6.0 m/s)
+│   │   ├── Sample 2.5: YBot_Walking.fbx
+│   │   └── Sample 6.0: YBot_Jog_Forward.fbx
+│   │
+│   └── Walking Backward State
+│       └── Animation: YBot_Walking_Backward.fbx
+│       └── Speed modulation: baseado em input magnitude
+│
+└── Aiming Mode (Strafe/Combat)
+    │
+    ├── Aim Idle State
+    │   └── Animation: YBot_Rifle_Aiming_Idle.fbx
+    │
+    ├── Strafe Movement (Blend Space 2D)
+    │   ├── Parameters: strafeX (-1 to 1), strafeY (-1 to 1)
+    │   │
+    │   ├── Forward (0, 1): YBot_Rifle_Run.fbx
+    │   ├── Backward (0, -1): YBot_Running_Backward.fbx
+    │   ├── Left (-1, 0): YBot_Left_Strafe_Walking.fbx
+    │   ├── Right (1, 0): YBot_Right_Strafe_Walking.fbx
+    │   │
+    │   └── Diagonals (interpolação automática)
+    │       ├── Forward-Left (-0.7, 0.7): blend de Left + Forward
+    │       ├── Forward-Right (0.7, 0.7): blend de Right + Forward
+    │       ├── Back-Left (-0.7, -0.7): blend de Left + Backward
+    │       └── Back-Right (0.7, -0.7): blend de Right + Backward
+    │
+    └── Aim Offset Layer (Aditivo sobre base)
+        └── [Implementado posteriormente com look-at procedural]
+
+
+================================================================================
+TRANSIÇÕES ENTRE ESTADOS
+================================================================================
+
+STANDING ↔ AIMING
+-----------------
+
+Standing → Aiming:
+  - Trigger: RMB (Right Mouse Button) pressed
+  - Condition: Pode transitar de qualquer estado Standing
+  - Blend Duration: 0.25 segundos
+  - Blend Mode: EaseInOut
+  - Special: Usar YBot_Rifle_Down_To_Aim.fbx se houver tempo
+
+Aiming → Standing:
+  - Trigger: RMB released
+  - Blend Duration: 0.3 segundos
+  - Blend Mode: EaseOut
+  - Special: Usar YBot_Rifle_Aim_To_Down.fbx se houver tempo
+
+
+DENTRO DE STANDING MODE
+------------------------
+
+Idle → Walking:
+  - Condition: velocity > 0.1 m/s
+  - Blend Duration: 0.2 segundos
+  - Blend Mode: Linear
+
+Walking → Running:
+  - Condition: velocity > 2.5 m/s AND shift key pressed
+  - Blend Duration: 0.3 segundos
+  - Blend Mode: EaseIn
+
+Running → Walking:
+  - Condition: velocity < 2.5 m/s OR shift key released
+  - Blend Duration: 0.25 segundos
+  - Blend Mode: EaseOut
+
+Walking/Running → Idle:
+  - Condition: velocity < 0.1 m/s
+  - Blend Duration: 0.3 segundos
+  - Blend Mode: EaseOut (importante para deceleration natural)
+
+
+DENTRO DE AIMING MODE
+----------------------
+
+Aim Idle ↔ Strafe Movement:
+  - Condition: magnitude(input) > 0.1
+  - Blend Duration: 0.15 segundos (rápido para responsividade)
+  - Blend Mode: Linear
+
+
+================================================================================
+SISTEMA DE BLEND SPACES
+================================================================================
+
+BLEND SPACE 1D: WALKING TO RUNNING
+-----------------------------------
+
+Configuração:
+  Type: 1D Blend Space
+  Parameter Name: "movementSpeed"
+  Parameter Range: 0.0 → 6.0 m/s
+  Interpolation: Linear
+
+Sample Points:
+  Position 0.0:  YBot_Idle.fbx
+      └── Weight quando speed = 0
+      
+  Position 1.5:  YBot_Walking.fbx
+      └── Walking speed ótima
+      
+  Position 2.5:  YBot_Walking.fbx (fast walk)
+      └── Transição para run
+      
+  Position 6.0:  YBot_Jog_Forward.fbx
+      └── Full run speed
+
+Algoritmo de Blending:
+  1. Calcular velocidade atual (magnitude do velocity vector)
+  2. Mapear velocidade para range 0-6
+  3. Encontrar dois samples adjacentes ao valor atual
+  4. Calcular peso: t = (speed - sample1.pos) / (sample2.pos - sample1.pos)
+  5. Blend = lerp(sample1.animation, sample2.animation, t)
+
+
+BLEND SPACE 2D: STRAFE MOVEMENT
+--------------------------------
+
+Configuração:
+  Type: 2D Blend Space
+  Parameter X: "strafeX" (range: -1.0 to 1.0)
+  Parameter Y: "strafeY" (range: -1.0 to 1.0)
+  Interpolation: Barycentric (triangulation)
+
+Sample Grid:
+
+                    Forward (0, 1)
+                    YBot_Rifle_Run.fbx
+                          │
+                          │
+Left (-1, 0) ────────(0, 0)──────── Right (1, 0)
+YBot_Left_Strafe     Idle         YBot_Right_Strafe
+_Walking.fbx                      _Walking.fbx
+                          │
+                          │
+                    Backward (0, -1)
+                    YBot_Running_Backward.fbx
+
+Triangulação (Delaunay):
+  Dividir espaço em 8 triângulos a partir do centro:
+  - Triangle 1: Center → Forward → Right
+  - Triangle 2: Center → Right → Backward
+  - Triangle 3: Center → Backward → Left
+  - Triangle 4: Center → Left → Forward
+  - (4 triângulos adicionais se houver samples intermediários)
+
+Algoritmo de Blending 2D:
+  1. Receber input do jogador (horizontal, vertical)
+  2. Normalizar se magnitude > 1.0
+  3. Encontrar triângulo que contém o ponto (strafeX, strafeY)
+  4. Calcular coordenadas baricêntricas (α, β, γ) onde α+β+γ=1
+  5. Blend = α*AnimA + β*AnimB + γ*AnimC
+
+Cálculo de Coordenadas Baricêntricas:
+  Dado triângulo ABC e ponto P:
+  
+  v0 = C - A
+  v1 = B - A
+  v2 = P - A
+  
+  dot00 = dot(v0, v0)
+  dot01 = dot(v0, v1)
+  dot02 = dot(v0, v2)
+  dot11 = dot(v1, v1)
+  dot12 = dot(v1, v2)
+  
+  invDenom = 1 / (dot00 * dot11 - dot01 * dot01)
+  u = (dot11 * dot02 - dot01 * dot12) * invDenom
+  v = (dot00 * dot12 - dot01 * dot02) * invDenom
+  
+  α = 1 - u - v
+  β = v
+  γ = u
+
+
+================================================================================
+SISTEMA DE INPUT E CONTROLE
+================================================================================
+
+INPUT MAPPING
+-------------
+
+### STANDING MODE
+
+W/S: Forward/Backward axis
+  └── Maps to: velocity calculation
+  └── Range: -1.0 to 1.0
+
+A/D: Rotation
+  └── Maps to: character yaw rotation
+  └── Rotation Speed: 180°/second
+
+Shift: Sprint modifier
+  └── Multiplies velocity by 2.4x
+  └── Triggers transition to Running state
+
+### AIMING MODE
+
+W/S: Strafe forward/backward
+  └── Maps to: strafeY parameter
+  └── Range: -1.0 to 1.0
+
+A/D: Strafe left/right
+  └── Maps to: strafeX parameter
+  └── Range: -1.0 to 1.0
+
+Mouse X/Y: Camera rotation
+  └── Drives Look At system
+  └── Character orientation follows camera after threshold
+
+RMB: Toggle Aim Mode
+  └── Press: Enter Aiming Mode
+  └── Release: Exit Aiming Mode
+
+
+VELOCITY CALCULATION
+--------------------
+
+Standing Mode:
+  baseVelocity = inputForward * character.forward
+  
+  if (shift pressed):
+      targetVelocity = baseVelocity * runSpeed (6.0 m/s)
+  else:
+      targetVelocity = baseVelocity * walkSpeed (2.5 m/s)
+  
+  currentVelocity = lerp(currentVelocity, targetVelocity, 
+                         acceleration * deltaTime)
+
+Aiming Mode:
+  moveDirection = camera.right * inputX + camera.forward * inputY
+  moveDirection = normalize(moveDirection)
+  
+  targetVelocity = moveDirection * strafeSpeed (3.0 m/s)
+  currentVelocity = lerp(currentVelocity, targetVelocity,
+                         strafeAcceleration * deltaTime)
+
+
+================================================================================
+SISTEMA DE LOOK AT (AIM OFFSET)
+================================================================================
+
+CONCEITO FUNDAMENTAL
+--------------------
+
+O sistema Look At permite que o personagem rotacione o tronco superior 
+(spine, neck, head) para olhar na direção da câmera sem rotacionar todo 
+o corpo. Essencial para aim natural em modo strafe.
+
+CADEIA DE BONES
+---------------
+
+Distribuição de Rotação (Total 100%):
+  Spine1:  15% da rotação total
+  Spine2:  20% da rotação total
+  Spine3:  25% da rotação total
+  Neck:    25% da rotação total
+  Head:    15% da rotação total
+
+Limites Anatômicos:
+  Horizontal: ±90 graus (total 180° de range)
+  Vertical:   ±60 graus (total 120° de range)
+  
+  Se exceder limites, iniciar rotação de corpo completo
+
+ALGORITMO LOOK AT
+-----------------
+
+A cada frame:
+
+1. Calcular diferença angular entre forward do personagem e câmera:
+   
+   horizontalDelta = angle(character.forward, camera.forward)
+   verticalDelta = camera.pitch
+
+2. Aplicar limites (clamp):
+   
+   horizontalDelta = clamp(horizontalDelta, -90°, +90°)
+   verticalDelta = clamp(verticalDelta, -60°, +60°)
+
+3. Distribuir rotação pela cadeia de bones:
+   
+   for each bone in lookAtChain:
+       targetRotation = quaternion(
+           horizontalDelta * bone.weight,
+           verticalDelta * bone.weight,
+           0
+       )
+       
+       bone.rotation = slerp(
+           bone.rotation,
+           targetRotation,
+           smoothSpeed * deltaTime
+       )
+
+4. Se rotação exceder threshold, iniciar Body Rotation
+
+PARÂMETROS DE TUNING
+--------------------
+
+smoothSpeed: 10.0
+  └── Velocidade de interpolação (maior = mais rápido)
+
+horizontalThreshold: 75°
+  └── Ângulo onde inicia rotação de corpo
+
+verticalThreshold: 50°
+  └── Ângulo vertical onde inicia compensação
+
+deadzone: 5°
+  └── Zona onde não aplica rotação (estabilidade)
+
+
+================================================================================
+SISTEMA DE BODY ROTATION (TORSO TWIST)
+================================================================================
+
+CONCEITO FUNDAMENTAL
+--------------------
+
+Quando a câmera ultrapassa certo ângulo em relação ao personagem, o corpo 
+inteiro deve rotacionar gradualmente para evitar torção não natural. 
+Inspirado em GTA V e The Last of Us.
+
+HYSTERESIS PATTERN
+------------------
+
+Thresholds diferentes para ativar/desativar evitam flickering:
+
+Ativar rotação: |angle| > 45°
+Desativar rotação: |angle| < 30°
+
+Deadzone: ±10° (zona de não-mudança)
+
+ALGORITMO
+---------
+
+A cada frame:
+
+1. Calcular diferença angular:
+   
+   angleDiff = cameraYaw - characterYaw
+
+2. Verificar se deve iniciar rotação:
+   
+   if (abs(angleDiff) > activationThreshold):
+       startBodyRotation = true
+
+3. Aplicar rotação suave (spring-damper):
+   
+   if (startBodyRotation):
+       targetYaw = cameraYaw
+       
+       characterYaw = spring_damp(
+           current: characterYaw,
+           target: targetYaw,
+           velocity: angularVelocity,
+           stiffness: 5.0,
+           damping: 0.7,
+           deltaTime: dt
+       )
+
+4. Sincronizar com foot plant:
+   
+   if (inTransition && footPlanted):
+       playFootPivotAnimation()
+
+SPRING-DAMPER IMPLEMENTATION
+-----------------------------
+
+Fórmula física (Mass-Spring-Damper):
+
+acceleration = -stiffness * (current - target) - damping * velocity
+
+velocity += acceleration * deltaTime
+current += velocity * deltaTime
+
+Parâmetros típicos:
+  stiffness: 5.0 (rigidez da mola)
+  damping: 0.7 (amortecimento)
+  maxAngularVelocity: 360°/s
+
+
+================================================================================
+SISTEMA DE ANIMATION LAYERS
+================================================================================
+
+CONCEITO
+--------
+
+Layers permitem combinar múltiplas animações sobre diferentes partes do 
+esqueleto. Essencial para ter upper body fazendo aim enquanto lower body anda.
+
+LAYER ARCHITECTURE
+------------------
+
+Layer 0 - Base Locomotion (Prioridade: 0)
+  Weight: 1.0
+  Blend Mode: Override
+  Bone Mask: Full Body
+  Description: Locomotion principal (idle, walk, run, strafe)
+
+Layer 1 - Upper Body Aim (Prioridade: 1)
+  Weight: aimWeight (0.0 quando não aiming, 1.0 quando aiming)
+  Blend Mode: Blend
+  Bone Mask: Upper Body
+  Bones Afetados:
+    - Spine1
+    - Spine2
+    - Spine3
+    - Neck
+    - Head
+    - LeftShoulder, LeftArm, LeftForearm, LeftHand
+    - RightShoulder, RightArm, RightForearm, RightHand
+  Description: Pose de aim rifle
+
+Layer 2 - Look At Additive (Prioridade: 2)
+  Weight: 1.0
+  Blend Mode: Additive
+  Bone Mask: Spine + Neck + Head
+  Bones Afetados:
+    - Spine1, Spine2, Spine3
+    - Neck
+    - Head
+  Description: Rotação procedural para olhar câmera
+
+Layer 3 - Procedural Adjustments (Prioridade: 3) [FUTURO]
+  Weight: Variable
+  Blend Mode: Additive
+  Bone Mask: Custom per adjustment
+  Description: IK, recoil, hit reactions, etc.
+
+BLEND MODES
+-----------
+
+Override Mode:
+  finalPose = layerPose
+  └── Substitui completamente a pose base
+
+Blend Mode:
+  finalPose = lerp(basePose, layerPose, weight)
+  └── Interpolação linear entre poses
+
+Additive Mode:
+  delta = layerPose - referencePose
+  finalPose = basePose + (delta * weight)
+  └── Aplica diferença como offset
+
+BONE MASK IMPLEMENTATION
+-------------------------
+
+Usar bitset para eficiência:
+
+mask = 0b0000000000000000
+
+Para cada bone no skeleton:
+  if (bone in maskBones):
+      mask |= (1 << boneIndex)
+
+Durante blending:
+  for each bone:
+      if (mask & (1 << boneIndex)):
+          apply blend
+      else:
+          skip bone
+
+Máscaras pré-computadas:
+  FULL_BODY_MASK
+  UPPER_BODY_MASK
+  LOWER_BODY_MASK
+  LEFT_ARM_MASK
+  RIGHT_ARM_MASK
+  SPINE_ONLY_MASK
+
+
+================================================================================
+ALGORITMOS DE BLENDING
+================================================================================
+
+QUATERNION SLERP
+----------------
+
+Spherical Linear Interpolation para rotações suaves:
+
+slerp(q1, q2, t):
+    // Garantir caminho mais curto
+    dot = q1.x*q2.x + q1.y*q2.y + q1.z*q2.z + q1.w*q2.w
+    
+    if (dot < 0):
+        q2 = -q2
+        dot = -dot
+    
+    // Se muito próximos, usar lerp (otimização)
+    if (dot > 0.9995):
+        return normalize(lerp(q1, q2, t))
+    
+    // Slerp padrão
+    theta = acos(dot)
+    sinTheta = sin(theta)
+    
+    w1 = sin((1-t) * theta) / sinTheta
+    w2 = sin(t * theta) / sinTheta
+    
+    return q1*w1 + q2*w2
+
+EASE FUNCTIONS
+--------------
+
+Para transições mais naturais:
+
+smoothstep(t):
+    return t * t * (3 - 2*t)
+
+smootherstep(t):
+    return t * t * t * (t * (t * 6 - 15) + 10)
+
+easeInOut(t):
+    if (t < 0.5):
+        return 2 * t * t
+    else:
+        return 1 - pow(-2*t + 2, 2) / 2
+
+INERTIAL BLENDING
+-----------------
+
+Prevenir "pops" durante transições mantendo velocidade:
+
+inertialBlend(currentPose, targetPose, t, deltaTime):
+    // Calcular velocidade atual de cada bone
+    for each bone:
+        velocity = (bone.position - bone.previousPosition) / deltaTime
+        
+        // Blend posição
+        blendedPos = lerp(bone.position, targetPose.position, t)
+        
+        // Aplicar momentum
+        finalPos = blendedPos + velocity * (1-t) * deltaTime * dampingFactor
+        
+        // Atualizar bone
+        bone.position = finalPos
+        bone.previousPosition = bone.position
+
+SYNCHRONIZED BLENDING
+---------------------
+
+Alinhar fases de animações cíclicas:
+
+syncedBlend(anim1, anim2, t):
+    // Detectar fase de anim1 (0-1 no ciclo)
+    phase1 = (anim1.currentTime % anim1.cycleDuration) / anim1.cycleDuration
+    
+    // Sincronizar anim2 à mesma fase
+    anim2.currentTime = phase1 * anim2.cycleDuration
+    
+    // Agora fazer blend normal
+    return blend(
+        anim1.sample(anim1.currentTime),
+        anim2.sample(anim2.currentTime),
+        t
+    )
+
+
+================================================================================
+OTIMIZAÇÕES DE PERFORMANCE
+================================================================================
+
+LEVEL OF DETAIL (LOD)
+---------------------
+
+Ajustar qualidade baseado em distância da câmera:
+
+LOD 0 (High) - Distance < 10m:
+  - Update Rate: 60 FPS
+  - All bones updated
+  - Full blend space evaluation
+  - Look At enabled
+  - Inertial blending
+
+LOD 1 (Medium) - Distance 10-30m:
+  - Update Rate: 30 FPS
+  - Skip fingers/toes bones
+  - Simplified blend spaces
+  - Look At enabled
+  - Linear blending
+
+LOD 2 (Low) - Distance 30-60m:
+  - Update Rate: 15 FPS
+  - Only major bones (spine, limbs)
+  - No blend spaces (snap to nearest)
+  - No Look At
+  - Linear blending
+
+LOD 3 (Minimal) - Distance > 60m:
+  - Update Rate: 5 FPS
+  - Static pose or simple animation
+  - No blending
+  - No procedural adjustments
+
+POSE CACHING
+------------
+
+Reutilizar poses calculadas:
+
+cache = {}
+
+getPose(state, parameters):
+    cacheKey = hash(state, parameters)
+    
+    if (cacheKey in cache && !cache[cacheKey].dirty):
+        return cache[cacheKey].pose
+    
+    // Calcular pose
+    pose = evaluateState(state, parameters)
+    
+    cache[cacheKey] = {
+        pose: pose,
+        dirty: false,
+        timestamp: currentTime
+    }
+    
+    return pose
+
+Invalidação:
+  - Mudança de estado → marcar cache como dirty
+  - Timeout (1 frame) → limpar cache antigo
+
+EARLY-OUT OPTIMIZATION
+----------------------
+
+Pular cálculos desnecessários:
+
+evaluateLayer(layer):
+    // Se weight é zero, skip
+    if (layer.weight < 0.001):
+        return null
+    
+    // Se layer não afeta bones visíveis, skip
+    if (!layer.mask.intersects(visibleBones)):
+        return null
+    
+    // Continuar avaliação normal
+    return evaluateLayerFull(layer)
+
+SIMD VECTORIZATION
+------------------
+
+Processar múltiplos quaternions simultaneamente:
+
+// Processar 4 bones de uma vez usando SSE
+__m128 qx = _mm_load_ps(&quaternions[i].x)
+__m128 qy = _mm_load_ps(&quaternions[i].y)
+__m128 qz = _mm_load_ps(&quaternions[i].z)
+__m128 qw = _mm_load_ps(&quaternions[i].w)
+
+// Operações vetorizadas
+__m128 dot = _mm_add_ps(
+    _mm_mul_ps(qx, qx),
+    _mm_add_ps(
+        _mm_mul_ps(qy, qy),
+        _mm_add_ps(
+            _mm_mul_ps(qz, qz),
+            _mm_mul_ps(qw, qw)
+        )
+    )
+)
+
+MULTI-THREADING
+---------------
+
+Pipeline em fases:
+
+Thread Principal (Frame N):
+  1. Coletar inputs
+  2. Atualizar state machines
+  3. Enfileirar jobs de blending
+
+Worker Threads (Frame N):
+  4. Processar blend spaces
+  5. Calcular blending de layers
+  6. Aplicar look at procedural
+
+Thread Principal (Frame N+1):
+  7. Aplicar poses finais ao skeleton
+  8. Atualizar transforms
+  9. Render
+
+Job System:
+  job = {
+      characterID,
+      stateMachinePtr,
+      inputData,
+      outputPoseBuffer
+  }
+  
+  jobQueue.enqueue(job)
+  workerThreads.process()
+
+
+================================================================================
+DEBUG E VISUALIZATION
+================================================================================
+
+SKELETON RENDERING
+------------------
+
+Desenhar bones como linhas conectadas:
+
+drawSkeleton(skeleton):
+    for each bone in skeleton:
+        if (bone has parent):
+            drawLine(
+                bone.worldPosition,
+                bone.parent.worldPosition,
+                color: boneColor,
+                thickness: 2.0
+            )
+        
+        drawSphere(
+            bone.worldPosition,
+            radius: 0.05,
+            color: jointColor
+        )
+
+Color Coding:
+  - White: Normal bones
+  - Red: Affected by current layer
+  - Green: Procedurally modified (Look At)
+  - Blue: IK targets
+  - Yellow: Root bone
+
+STATE MACHINE VISUALIZATION
+----------------------------
+
+Overlay na tela:
+
+Current State: Standing > Walking
+Next State: Standing > Running
+Transition Progress: [####------] 40%
+Blend Weight: 0.4
+
+Active Layers:
+  [0] Base Locomotion     Weight: 1.00 [##########]
+  [1] Upper Body Aim      Weight: 0.00 [          ]
+  [2] Look At Additive    Weight: 1.00 [##########]
+
+Parameters:
+  movementSpeed: 3.2 m/s
+  strafeX: 0.0
+  strafeY: 0.8
+
+BLEND SPACE DEBUG
+-----------------
+
+Visualizar posição em 2D grid:
+
+drawBlendSpace2D(blendSpace):
+    // Desenhar grid
+    drawGrid(bounds: -1 to 1, -1 to 1)
+    
+    // Desenhar samples
+    for each sample in blendSpace.samples:
+        drawCircle(
+            sample.position,
+            radius: 0.1,
+            color: sampleColor
+        )
+        drawText(sample.animationName)
+    
+    // Desenhar posição atual
+    drawCross(
+        currentPosition,
+        size: 0.15,
+        color: red
+    )
+    
+    // Desenhar triângulo ativo
+    drawTriangle(
+        activeTriangle.vertices,
+        color: yellow,
+        fill: false
+    )
+
+PERFORMANCE PROFILER
+--------------------
+
+Métricas a coletar:
+
+Per-Character:
+  - Total animation time (ms)
+  - State machine update (ms)
+  - Blend space evaluation (ms)
+  - Layer blending (ms)
+  - Procedural adjustments (ms)
+  - Skeleton update (ms)
+
+Global:
+  - Characters in LOD 0/1/2/3
+  - Cache hit rate (%)
+  - Total bones updated
+  - Jobs queued/processed
+
+Display:
+  Animation System: 2.3ms (3.8% of frame)
+    - State Machines: 0.4ms
+    - Blending: 1.2ms
+    - Procedural: 0.5ms
+    - Skeleton: 0.2ms
+  
+  LOD Distribution:
+    High: 1 character
+    Medium: 3 characters
+    Low: 8 characters
+    Minimal: 12 characters
+  
+  Cache Hit Rate: 87%
+
+
+================================================================================
+CONFIGURAÇÃO E TUNING
+================================================================================
+
+PARÂMETROS PRINCIPAIS
+---------------------
+
+Locomotion:
+  walkSpeed: 2.5 m/s
+  runSpeed: 6.0 m/s
+  strafeSpeed: 3.0 m/s
+  acceleration: 8.0 m/s²
+  deceleration: 12.0 m/s²
+
+Transitions:
+  idleToWalkBlend: 0.2 s
+  walkToRunBlend: 0.3 s
+  runToIdleBlend: 0.3 s
+  standingToAimBlend: 0.25 s
+  aimToStandingBlend: 0.3 s
+
+Look At:
+  smoothSpeed: 10.0
+  horizontalLimit: 90°
+  verticalLimit: 60°
+  spine1Weight: 0.15
+  spine2Weight: 0.20
+  spine3Weight: 0.25
+  neckWeight: 0.25
+  headWeight: 0.15
+
+Body Rotation:
+  activationThreshold: 45°
+  deactivationThreshold: 30°
+  deadzone: 10°
+  stiffness: 5.0
+  damping: 0.7
+  maxAngularVelocity: 360°/s
+
+Performance:
+  lod0Distance: 10.0 m
+  lod1Distance: 30.0 m
+  lod2Distance: 60.0 m
+  lod0UpdateRate: 60 FPS
+  lod1UpdateRate: 30 FPS
+  lod2UpdateRate: 15 FPS
+  lod3UpdateRate: 5 FPS
+
+EXEMPLO DE ARQUIVO JSON
+------------------------
+
+{
+  "animationController": {
+    "locomotion": {
+      "walkSpeed": 2.5,
+      "runSpeed": 6.0,
+      "strafeSpeed": 3.0,
+      "acceleration": 8.0
+    },
+    "transitions": {
+      "idleToWalk": 0.2,
+      "walkToRun": 0.3,
+      "runToIdle": 0.3,
+      "standingToAim": 0.25,
+      "aimToStanding": 0.3
+
+
+
+      },
+    "lookAt": {
+      "enabled": true,
+      "smoothSpeed": 10.0,
+      "limits": {
+        "horizontal": 90,
+        "vertical": 60
+      },
+      "chain": [
+        {"bone": "Spine1", "weight": 0.15},
+        {"bone": "Spine2", "weight": 0.20},
+        {"bone": "Spine3", "weight": 0.25},
+        {"bone": "Neck", "weight": 0.25},
+        {"bone": "Head", "weight": 0.15}
+      ]
+    },
+    "bodyRotation": {
+      "enabled": true,
+      "activationThreshold": 45,
+      "deactivationThreshold": 30,
+      "stiffness": 5.0,
+      "damping": 0.7
+    },
+    "layers": [
+      {
+        "name": "BaseLocomotion",
+        "priority": 0,
+        "weight": 1.0,
+        "blendMode": "override",
+        "boneMask": "fullBody"
+      },
+      {
+        "name": "UpperBodyAim",
+        "priority": 1,
+        "weight": 0.0,
+        "blendMode": "blend",
+        "boneMask": "upperBody"
+      },
+      {
+        "name": "LookAt",
+        "priority": 2,
+        "weight": 1.0,
+        "blendMode": "additive",
+        "boneMask": "spine"
+      }
+    ]
+  }
+}
+
+
+================================================================================
+ORDEM DE IMPLEMENTAÇÃO
+================================================================================
+
+FASE 1: FUNDAÇÃO (Dias 1-2)
+---------------------------
+
+Prioridade Máxima:
+
+1. Estrutura de dados básica:
+   - Skeleton class
+   - Bone class
+   - Pose class (array de transforms)
+   - AnimationClip class
+
+2. Sistema de Quaternions:
+   - Operações básicas (multiply, inverse, conjugate)
+   - Slerp implementation
+   - Conversão Euler ↔ Quaternion
+
+3. Animation Playback básico:
+   - Carregar .fbx animations
+   - Sample pose em tempo T
+   - Apply pose to skeleton
+
+4. State Machine simples:
+   - Estados: Idle, Walk, Run
+   - Transições com blend linear
+   - Teste com 3 animações básicas
+
+Resultado Esperado:
+  Personagem transita entre idle, walk e run com blending básico
+
+
+FASE 2: BLEND SPACES (Dias 3-4)
+--------------------------------
+
+Prioridade Alta:
+
+5. Blend Space 1D:
+   - Implementar interpolação linear entre samples
+   - Testar com idle → walk → run baseado em velocity
+
+6. Blend Space 2D:
+   - Implementar triangulação Delaunay
+   - Calcular coordenadas baricêntricas
+   - Testar com 4 samples (forward, back, left, right)
+
+7. Melhorar Input System:
+   - Capturar WASD smooth (com aceleração)
+   - Calcular velocity vector
+   - Feed para blend spaces
+
+Resultado Esperado:
+  Movimento em 8 direções fluído com interpolação suave
+
+
+FASE 3: AIM MODE E STRAFE (Dias 5-6)
+-------------------------------------
+
+Prioridade Alta:
+
+8. Implementar Aim Mode:
+   - Toggle com RMB
+   - State: Aiming com sub-states
+   - Usar YBot_Rifle_Aiming_Idle
+
+9. Strafe Blend Space:
+   - 2D blend space com animações strafe
+   - Camera-relative movement
+   - Testar 8 direções
+
+10. Transições Standing ↔ Aiming:
+    - Usar animações Down_To_Aim e Aim_To_Down
+    - Blend suave (0.25s)
+
+Resultado Esperado:
+  Entrar/sair de aim mode fluido, movimento strafe em todas direções
+
+
+FASE 4: LOOK AT SYSTEM (Dias 7-8)
+----------------------------------
+
+Prioridade Alta:
+
+11. Identificar bones no skeleton:
+    - Mapear Spine1, Spine2, Spine3, Neck, Head
+    - Criar cadeia de Look At
+
+12. Implementar Distributed Rotation:
+    - Calcular ângulo câmera vs personagem
+    - Distribuir rotação por pesos (15/20/25/25/15)
+    - Aplicar limites (±90° horizontal, ±60° vertical)
+
+13. Integrar Look At com Aim Mode:
+    - Ativar durante aim
+    - Smooth interpolation (10.0 speed)
+    - Testar olhar em todas direções
+
+Resultado Esperado:
+  Personagem olha para direção da câmera naturalmente durante aim
+
+
+FASE 5: BODY ROTATION (Dias 9-10)
+----------------------------------
+
+Prioridade Média:
+
+14. Hysteresis Pattern:
+    - Implementar thresholds (45° ativa, 30° desativa)
+    - Deadzone de ±10°
+
+15. Spring-Damper System:
+    - Rotação suave do corpo
+    - Parâmetros: stiffness 5.0, damping 0.7
+    - Max angular velocity 360°/s
+
+16. Foot Pivot Detection:
+    - Detectar quando disparar pivot
+    - Sincronizar com foot plant
+
+Resultado Esperado:
+  Corpo rotaciona naturalmente quando câmera ultrapassa limites
+
+
+FASE 6: ANIMATION LAYERS (Dias 11-12)
+--------------------------------------
+
+Prioridade Média:
+
+17. Sistema de Bone Masks:
+    - Implementar bitset para máscaras
+    - Criar máscaras: FullBody, UpperBody, LowerBody
+
+18. Layer Blending:
+    - Override mode
+    - Blend mode
+    - Additive mode
+
+19. Configurar Layers:
+    - Layer 0: Base Locomotion
+    - Layer 1: Upper Body Aim (quando aiming)
+    - Layer 2: Look At Additive
+
+Resultado Esperado:
+  Upper body pode aim enquanto lower body faz locomotion diferente
+
+
+FASE 7: POLISH E OTIMIZAÇÃO (Dias 13-14)
+-----------------------------------------
+
+Prioridade Média-Baixa:
+
+20. Inertial Blending:
+    - Manter velocidade durante transições
+    - Eliminar "pops" visíveis
+
+21. Synchronized Blending:
+    - Phase matching para walk cycles
+    - Smooth transitions entre velocidades
+
+22. LOD System:
+    - Distance-based LOD
+    - Throttle update rates
+
+Resultado Esperado:
+  Transições imperceptíveis, performance otimizada
+
+
+FASE 8: DEBUG TOOLS (Dias 15-16)
+---------------------------------
+
+Prioridade Baixa mas Importante:
+
+23. Skeleton Visualization:
+    - Desenhar bones e joints
+    - Color coding por layer
+
+24. State Machine Debug:
+    - Overlay com estado atual
+    - Blend weights visuais
+
+25. Profiling:
+    - Timers por sistema
+    - LOD distribution
+    - Cache hit rate
+
+Resultado Esperado:
+  Ferramentas para diagnosticar e tunar sistema
+
+
+================================================================================
+CHECKLIST DE QUALIDADE
+================================================================================
+
+FLUIDEZ VISUAL
+--------------
+[ ] Nenhum "pop" visível em transições
+[ ] Animações ciclo sem quebras
+[ ] Blend entre estados imperceptível
+[ ] Velocidade de animação match velocidade real do personagem
+[ ] Pés não deslizam no chão (foot sliding)
+
+RESPONSIVIDADE
+---------------
+[ ] Input refletido em < 100ms
+[ ] Pode cancelar animações longas
+[ ] Transição para aim mode instantânea (< 0.25s)
+[ ] Mudança de direção suave mas responsiva
+[ ] Buffer de input durante transições
+
+NATURALIDADE
+-------------
+[ ] Rotações distribuídas (não só head/neck)
+[ ] Momentum preservado em transições
+[ ] Corpo rotaciona naturalmente com câmera
+[ ] Look at limits respeitam anatomia
+[ ] Variação sutil (breathing, idle sway)
+
+PERFORMANCE
+-----------
+[ ] 60 FPS com 1 personagem high LOD
+[ ] 60 FPS com 10 personagens (mix de LODs)
+[ ] LOD system funcionando (< 30m = medium LOD)
+[ ] Cache hit rate > 80%
+[ ] Multi-threading sem race conditions
+
+CONFIGURABILIDADE
+-----------------
+[ ] Parâmetros em arquivo JSON
+[ ] Hot-reload de configuração
+[ ] Designers podem tunar sem código
+[ ] Debug tools funcionais
+[ ] Profiling disponível
+
+PREPARAÇÃO FUTURA
+------------------
+[ ] Arquitetura suporta IK (bones, chains)
+[ ] Sistema de layers extensível
+[ ] Additive animations funcionando
+[ ] Skeleton hierarquia correta
+[ ] Forward kinematics implementado
+
+
+================================================================================
+MÉTRICAS DE SUCESSO
+================================================================================
+
+Objetivos Mensuráveis:
+
+1. Fluidez: 
+   - Zero frames com descontinuidade de pose > 10cm
+   - Transition blend time < 0.3s para 95% das transições
+
+2. Responsividade:
+   - Input latency < 100ms (3-6 frames @ 60fps)
+   - State change reflection < 2 frames
+
+3. Performance:
+   - 60 FPS estável com 1 character high LOD
+   - < 2.5ms total animation system time
+   - LOD 0: < 1.5ms per character
+   - LOD 1: < 0.8ms per character
+   - LOD 2: < 0.3ms per character
+
+4. Qualidade Visual:
+   - Look at rotation imperceptível em movimento
+   - Body rotation triggers não visíveis
+   - Foot planting 100% do tempo
+   - Nenhum gimbal lock visível
+
+5. Extensibilidade:
+   - Adicionar novo estado em < 30 min
+   - Adicionar nova animação em < 5 min
+   - Configurar novo layer em < 15 min
+   - Adicionar IK solver sem refactor
+
+
+================================================================================
+RECURSOS ADICIONAIS
+================================================================================
+
+REFERÊNCIAS TÉCNICAS
+---------------------
+
+GTA V (RAGE Engine):
+  - Transition matching com phase synchronization
+  - Multi-layer body part blending
+  - Lazy follow camera system
+  - Context-aware animation selection
+
+The Last of Us (Naughty Dog Engine):
+  - Motion matching database
+  - Trajectory prediction
+  - Dynamic obstacle avoidance
+  - Emotional state modulation
+
+Unreal Engine:
+  - Anim Blueprint visual system
+  - Layered Blend Per Bone
+  - Aim Offset blend spaces
+  - Control Rig for procedural
+
+Unity:
+  - Animator State Machine
+  - Blend Trees hierarchy
+  - Avatar Masking
+  - Humanoid retargeting
+
+PAPERS E ARTIGOS
+----------------
+
+"Motion Matching and The Road to Next-Gen Animation" - Ubisoft (2016)
+"Learned Motion Matching" - Holden et al. (2020)
+"Quaternion Slerp vs Nlerp" - Jon Blow
+"Animation Layering in AAA Games" - GDC Talks
+"IK Solvers Comparison" - Two-Bone vs FABRIK vs CCD
+
+
+================================================================================
+NOTAS FINAIS
+================================================================================
+
+Este documento fornece uma base sólida para implementar um sistema de 
+animação de nível AAA. A ordem de implementação é sugerida para obter 
+resultados visíveis rapidamente enquanto constrói fundação sólida.
+
+Lembre-se:
+- Começar simples, iterar para complexidade
+- Testar cada fase antes de avançar
+- Manter código modular e extensível
+- Priorizar qualidade visual sobre features
+- Otimizar apenas quando necessário (profile first)
+
+O sistema está preparado para expansão futura com:
+- IK (Inverse Kinematics)
+- Motion Matching
+- Procedural Adjustments
+- Hit Reactions
+- Contextual Animations
+
+Boa implementação!
+
+================================================================================

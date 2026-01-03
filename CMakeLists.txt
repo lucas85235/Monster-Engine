@@ -44,6 +44,7 @@ add_subdirectory(engine)
 #add_subdirectory(apps/sandbox)
 add_subdirectory(apps/third_person_game)
 add_subdirectory(apps/ssgi_test)
+add_subdirectory(apps/animation_test)
 add_subdirectory(tools/map_editor)
 add_subdirectory(tools/ui_editor)
 

@@ -17,6 +17,7 @@ struct CharacterMovementConfig {
     float jumpForce      = 5.0f;   // match old code
     float gravityScale   = 1.0f;
     float rotationSpeed  = 15.0f;  // interpolation factor per second (match old code)
+    float modelYawOffset = 0.0f;   // Offset in degrees for models facing different directions
     bool  orientToMovement = true;
 };
 
@@ -49,7 +50,10 @@ class Character : public Pawn {
     void    SetVelocity(const Vector3& velocity);
     
     // AI-controlled rotation (bypasses camera-relative transformation)
-    void    SetTargetRotation(float yaw) { targetYaw_ = yaw; hasTargetRotation_ = true; }
+    void    SetTargetRotation(float yaw) { 
+        targetYaw_ = yaw + movementConfig_.modelYawOffset; 
+        hasTargetRotation_ = true; 
+    }
 
     // Configuration access
     CharacterMovementConfig& GetMovementConfig() { return movementConfig_; }
