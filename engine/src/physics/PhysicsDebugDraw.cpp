@@ -11,7 +11,6 @@ namespace se {
 
 PhysicsDebugDraw::PhysicsDebugDraw() {
     debug_mode_ = DBG_DrawWireframe;
-    //DBG_NoDebug
 
     const std::string vertexSrc = R"(#version 330 core
         layout (location = 0) in vec3 a_Position;
@@ -30,8 +29,6 @@ PhysicsDebugDraw::PhysicsDebugDraw() {
 
     shader_ = std::make_shared<Shader>(vertexSrc, fragmentSrc);
 
-    // Pre-allocate reusable VBO/VAO to avoid per-frame allocations
-    // Initial capacity: kInitialLineCapacity lines * 2 vertices * 3 floats * 4 bytes
     bufferCapacity_ = kInitialLineCapacity * 2 * 3 * sizeof(float);
     vertex_buffer_  = std::make_shared<VertexBuffer>(bufferCapacity_);
     BufferLayout layout = {{ShaderDataType::Float3, "a_Position"}};
@@ -55,19 +52,16 @@ void PhysicsDebugDraw::drawLine(const btVector3& from, const btVector3& to,
 
 void PhysicsDebugDraw::drawContactPoint(const btVector3& PointOnB, const btVector3& normalOnB,
                                         btScalar distance, int lifeTime, const btVector3& color) {
-    // Draw a small cross at the contact point
     const float size = 0.05f;
     Vector3 point(PointOnB.x(), PointOnB.y(), PointOnB.z());
     Vector3 c(color.x(), color.y(), color.z());
     
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // Cross in XYZ axes
     lines_.push_back({point - Vector3(size, 0, 0), point + Vector3(size, 0, 0), c});
     lines_.push_back({point - Vector3(0, size, 0), point + Vector3(0, size, 0), c});
     lines_.push_back({point - Vector3(0, 0, size), point + Vector3(0, 0, size), c});
     
-    // Draw normal direction (in cyan)
     Vector3 normalEnd = point + Vector3(normalOnB.x(), normalOnB.y(), normalOnB.z()) * 0.2f;
     lines_.push_back({point, normalEnd, Vector3(0.0f, 1.0f, 1.0f)});
 }
@@ -125,7 +119,6 @@ PhysicsDebugDraw::DebugDrawMode PhysicsDebugDraw::GetMode() const {
 
 void PhysicsDebugDraw::Flush(const Camera& camera) {
     for (const auto& timedLine : timedLines_) {
-        // timedLines is main thread only - add to lines_ which is thread-safe
         drawLine(btVector3(timedLine.From.x, timedLine.From.y, timedLine.From.z),
                  btVector3(timedLine.To.x, timedLine.To.y, timedLine.To.z),
                  btVector3(timedLine.Color.x, timedLine.Color.y, timedLine.Color.z));
@@ -135,7 +128,7 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
     if (lines_.empty()) { return; }
 
     std::vector<float> vertices;
-    vertices.reserve(lines_.size() * 6);  // 2 points * 3 floats
+    vertices.reserve(lines_.size() * 6);
 
     for (const auto& line : lines_) {
         vertices.push_back(line.From.x);
@@ -149,7 +142,6 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
 
     const uint32_t requiredSize = static_cast<uint32_t>(vertices.size() * sizeof(float));
 
-    // Reallocate buffer if capacity is exceeded (grow by 1.5x)
     if (requiredSize > bufferCapacity_) {
         bufferCapacity_ = static_cast<uint32_t>(requiredSize * 1.5f);
         vertex_buffer_  = std::make_shared<VertexBuffer>(bufferCapacity_);
@@ -160,7 +152,6 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         vertex_array_->AddVertexBuffer(vertex_buffer_);
     }
 
-    // Update existing buffer with new data
     vertex_buffer_->SetData(vertices.data(), requiredSize);
 
     if (shader_) {
@@ -175,7 +166,7 @@ void PhysicsDebugDraw::Flush(const Camera& camera) {
         shader_->setMat4("u_ViewProjection", viewProjection);
     }
 
-    RenderCommand::DrawLines(vertex_array_.get(), lines_.size() * 2);
+    RenderCommand::DrawLines(vertex_array_.get(), static_cast<uint32_t>(lines_.size() * 2));
 
     if (shader_) { shader_->unbind(); }
     lines_.clear();
@@ -190,22 +181,18 @@ void PhysicsDebugDraw::DrawDebugSphere(const Vector3& center, float radius, cons
                                        float duration, int segments) {
     const float pi = 3.14159265359f;
 
-    // Draw circles in XY, XZ, and YZ planes
     for (int i = 0; i < segments; ++i) {
         float angle1 = (float)i / segments * 2.0f * pi;
         float angle2 = (float)(i + 1) / segments * 2.0f * pi;
 
-        // XZ circle (horizontal)
         Vector3 p1 = center + Vector3(cos(angle1) * radius, 0, sin(angle1) * radius);
         Vector3 p2 = center + Vector3(cos(angle2) * radius, 0, sin(angle2) * radius);
         timedLines_.push_back({p1, p2, color, duration});
 
-        // XY circle (vertical front)
         p1 = center + Vector3(cos(angle1) * radius, sin(angle1) * radius, 0);
         p2 = center + Vector3(cos(angle2) * radius, sin(angle2) * radius, 0);
         timedLines_.push_back({p1, p2, color, duration});
 
-        // YZ circle (vertical side)
         p1 = center + Vector3(0, sin(angle1) * radius, cos(angle1) * radius);
         p2 = center + Vector3(0, sin(angle2) * radius, cos(angle2) * radius);
         timedLines_.push_back({p1, p2, color, duration});
@@ -215,7 +202,6 @@ void PhysicsDebugDraw::DrawDebugSphere(const Vector3& center, float radius, cons
 void PhysicsDebugDraw::DrawDebugPoint(const Vector3& point, float size, const Vector3& color,
                                       float duration) {
     float half = size * 0.5f;
-    // Draw a cross at the point
     timedLines_.push_back(
         {point - Vector3(half, 0, 0), point + Vector3(half, 0, 0), color, duration});
     timedLines_.push_back(
@@ -225,7 +211,6 @@ void PhysicsDebugDraw::DrawDebugPoint(const Vector3& point, float size, const Ve
 }
 
 void PhysicsDebugDraw::UpdateTimedElements(float deltaTime) {
-    // Remove expired timed lines
     timedLines_.erase(std::remove_if(timedLines_.begin(), timedLines_.end(),
                                      [deltaTime](TimedDebugLine& line) {
                                          line.RemainingTime -= deltaTime;

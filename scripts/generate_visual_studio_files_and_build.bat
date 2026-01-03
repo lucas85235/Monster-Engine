@@ -25,7 +25,7 @@ set "C_BOLD=%ESC%[1m"
 :: Change to "Release" for distribution builds
 :: ===========================================
 @REM set "BUILD_TYPE=Debug"
-set "BUILD_TYPE=Release"
+set "BUILD_TYPE=Debug"
 
 :: ===========================================
 :: GAME CONFIGURATION

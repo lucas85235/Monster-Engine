@@ -32,6 +32,17 @@ struct CachedTransform {
     glm::quat rotation;
 };
 
+struct RaycastRequest {
+    glm::vec3 start;
+    glm::vec3 end;
+};
+
+struct RaycastResult {
+    bool      hit = false;
+    glm::vec3 hitPoint{0.0f};
+    glm::vec3 hitNormal{0.0f, 1.0f, 0.0f};
+};
+
 // Physics configuration for tuning
 struct PhysicsConfig {
     // maxSubSteps: How many fixed timestep iterations Bullet can do per frame
@@ -81,6 +92,13 @@ class PhysicsSystem {
     btRigidBody* RaycastHitBodySync(const glm::vec3& start, const glm::vec3& end,
                                     glm::vec3& hitPoint, btRigidBody* ignoredBody = nullptr);
 
+    // Batch raycast - single mutex lock for multiple rays (more efficient for navmesh baking)
+    void RaycastBatch(const std::vector<RaycastRequest>& requests,
+                      std::vector<RaycastResult>& results);
+
+    // AABB overlap check - returns true if any physics body overlaps the box
+    bool OverlapAABB(const glm::vec3& min, const glm::vec3& max);
+
     btDiscreteDynamicsWorld* GetDynamicsWorld() {
         return dynamics_world_;
     }
@@ -89,6 +107,10 @@ class PhysicsSystem {
     }
 
     void UpdateDebugDraw(float dt);
+
+    // Force processing of any pending add/remove body commands
+    // Call this before raycasting if bodies were recently added
+    void FlushPendingBodies() { ProcessPendingCommands(); }
 
     std::mutex& GetMutex() {
         return physics_mutex_;

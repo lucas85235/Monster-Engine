@@ -6,4 +6,5 @@
 6. implementar uma forma eficiente de renderizar point lights na engine. 
 
 8. implementar controller input para que funcione com steam deck entre outras plataformas.
-9. 
+9. melhorar a arquitetura do sistema de debug com o sistema de fisica para que nao fique codigo duplicado
+10. implementar navigation volume para que calcule o grid de navegacao dentro da area selecionada

@@ -120,6 +120,11 @@ public:
     void EndFrame();
     void Render();
     
+    // Overlay management - overlays are rendered on top and not cleared by BeginFrame
+    void BeginOverlay();
+    void EndOverlay();
+    void ClearOverlays();
+    
     // Retained mode control
     void MarkDirty() { isDirty_ = true; }
     bool IsDirty() const { return isDirty_; }
@@ -166,12 +171,15 @@ private:
 private:
     std::vector<DrawCommand> commands_;
     std::vector<DrawCommand> cachedCommands_;  // Persisted commands for retained mode
+    std::vector<DrawCommand> overlayCommands_;  // Overlay commands - never cleared by BeginFrame
+    std::vector<DrawCommand> cachedOverlayCommands_;  // Cached overlays for rendering
     std::vector<glm::mat3> transformStack_;
     std::vector<glm::vec4> scissorStack_;
     
     int32_t currentZIndex_ = 0;
     glm::vec2 viewportSize_{1920.0f, 1080.0f};
     bool isDirty_ = true;  // True if commands need to be re-rendered
+    bool isInOverlayMode_ = false;  // True when collecting overlay commands
     
     // OpenGL resources
     uint32_t vao_ = 0;

@@ -167,7 +167,10 @@ void UICanvas2D::BeginFrame() {
         InitializeResources();
     }
     
-    commands_.clear();
+    // Only clear main commands, NOT overlays
+    if (!isInOverlayMode_) {
+        commands_.clear();
+    }
     currentZIndex_ = 0;
     
     // Reset transform stack
@@ -179,17 +182,48 @@ void UICanvas2D::BeginFrame() {
 }
 
 void UICanvas2D::EndFrame() {
-    // Sort commands by Z-index
-    SortCommands();
-    
-    // Cache commands for retained mode
-    cachedCommands_ = commands_;
+    if (isInOverlayMode_) {
+        // Cache overlay commands separately
+        cachedOverlayCommands_ = overlayCommands_;
+    } else {
+        // Sort and cache main commands
+        SortCommands();
+        cachedCommands_ = commands_;
+    }
     isDirty_ = false;
 }
 
+void UICanvas2D::BeginOverlay() {
+    if (!initialized_) {
+        InitializeResources();
+    }
+    
+    isInOverlayMode_ = true;
+    overlayCommands_.clear();
+    currentZIndex_ = 10000;  // High Z-index for overlays
+    
+    // Reset transform stack
+    transformStack_.clear();
+    transformStack_.push_back(glm::mat3(1.0f));
+    
+    // Reset scissor stack
+    scissorStack_.clear();
+}
+
+void UICanvas2D::EndOverlay() {
+    // Cache overlay commands
+    cachedOverlayCommands_ = overlayCommands_;
+    isInOverlayMode_ = false;
+}
+
+void UICanvas2D::ClearOverlays() {
+    overlayCommands_.clear();
+    cachedOverlayCommands_.clear();
+}
+
 void UICanvas2D::Render() {
-    // Use cached commands for retained mode rendering
-    if (cachedCommands_.empty()) return;
+    // Skip if nothing to render
+    if (cachedCommands_.empty() && cachedOverlayCommands_.empty()) return;
     
     // Setup OpenGL state
     glEnable(GL_BLEND);
@@ -205,7 +239,16 @@ void UICanvas2D::Render() {
     
     glBindVertexArray(vao_);
     
+    // Render main UI commands first
     RenderCommands();
+    
+    // Render overlay commands on top (always last)
+    if (!cachedOverlayCommands_.empty()) {
+        auto tempCached = cachedCommands_;
+        cachedCommands_ = cachedOverlayCommands_;
+        RenderCommands();
+        cachedCommands_ = tempCached;
+    }
     
     glBindVertexArray(0);
     glUseProgram(0);
@@ -473,7 +516,12 @@ void UICanvas2D::DrawRectFilled(const glm::vec4& rect, const glm::vec4& color, f
     cmd.rectFilled.rect = rect;
     cmd.rectFilled.color = color;
     cmd.rectFilled.cornerRadius = cornerRadius;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::DrawTexture(uint32_t textureId, const glm::vec4& rect, const glm::vec4& uvRect, const glm::vec4& modulate) {
@@ -485,7 +533,12 @@ void UICanvas2D::DrawTexture(uint32_t textureId, const glm::vec4& rect, const gl
     cmd.texture.rect = rect;
     cmd.texture.uvRect = uvRect;
     cmd.texture.modulate = modulate;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::DrawNinePatch(uint32_t textureId, const glm::vec4& rect, const glm::vec4& sourceRect, const glm::vec4& margins, const glm::vec4& modulate) {
@@ -498,7 +551,12 @@ void UICanvas2D::DrawNinePatch(uint32_t textureId, const glm::vec4& rect, const 
     cmd.ninePatch.sourceRect = sourceRect;
     cmd.ninePatch.margins = margins;
     cmd.ninePatch.modulate = modulate;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::DrawText(const std::string& text, const glm::vec2& position, const glm::vec4& color, uint32_t fontId, float fontSize) {
@@ -511,7 +569,12 @@ void UICanvas2D::DrawText(const std::string& text, const glm::vec2& position, co
     cmd.textColor = color;
     cmd.textFontId = fontId;
     cmd.textFontSize = fontSize;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::DrawLine(const glm::vec2& from, const glm::vec2& to, const glm::vec4& color, float width) {
@@ -523,7 +586,12 @@ void UICanvas2D::DrawLine(const glm::vec2& from, const glm::vec2& to, const glm:
     cmd.line.to = to;
     cmd.line.color = color;
     cmd.line.width = width;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::DrawCircle(const glm::vec2& center, float radius, const glm::vec4& color, bool filled) {
@@ -535,7 +603,12 @@ void UICanvas2D::DrawCircle(const glm::vec2& center, float radius, const glm::ve
     cmd.circle.radius = radius;
     cmd.circle.color = color;
     cmd.circle.filled = filled;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::PushScissor(const glm::vec4& rect) {
@@ -544,7 +617,12 @@ void UICanvas2D::PushScissor(const glm::vec4& rect) {
     DrawCommand cmd;
     cmd.type = DrawCommandType::SCISSOR_PUSH;
     cmd.scissor.rect = rect;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::PopScissor() {
@@ -554,7 +632,12 @@ void UICanvas2D::PopScissor() {
     
     DrawCommand cmd;
     cmd.type = DrawCommandType::SCISSOR_POP;
-    commands_.push_back(std::move(cmd));
+    
+    if (isInOverlayMode_) {
+        overlayCommands_.push_back(std::move(cmd));
+    } else {
+        commands_.push_back(std::move(cmd));
+    }
 }
 
 void UICanvas2D::SetViewport(float width, float height) {
