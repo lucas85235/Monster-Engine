@@ -84,6 +84,24 @@ bool Entity::HasChildren() const {
     return !GetComponent<RelationshipComponent>().Children.empty();
 }
 
-
+glm::mat4 Entity::ComputeWorldMatrix() const {
+    if (!IsValid() || !HasComponent<TransformComponent>()) {
+        return glm::mat4(1.0f);
+    }
+    
+    const auto& transform = GetComponent<TransformComponent>();
+    glm::mat4 localMatrix = transform.GetTransform();
+    
+    if (HasParent()) {
+        Entity parent = GetParent();
+        if (parent.IsValid()) {
+            glm::mat4 parentWorld = parent.ComputeWorldMatrix();
+            return parentWorld * localMatrix;
+        }
+    }
+    
+    // Root entity - local is world
+    return localMatrix;
+}
 
 }  // namespace se

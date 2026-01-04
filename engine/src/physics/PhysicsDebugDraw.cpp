@@ -10,7 +10,7 @@
 namespace se {
 
 PhysicsDebugDraw::PhysicsDebugDraw() {
-    debug_mode_ = DBG_DrawWireframe;
+    debug_mode_ = DBG_NoDebug;  // Disabled by default
 
     const std::string vertexSrc = R"(#version 330 core
         layout (location = 0) in vec3 a_Position;

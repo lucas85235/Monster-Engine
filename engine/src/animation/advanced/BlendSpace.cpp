@@ -164,17 +164,100 @@ void BlendSpace2D::Triangulate() {
         return;
     }
     
-    // Simple fan triangulation from center for common 4-5 sample case
-    // For more complex cases, would need proper Delaunay triangulation
+    // Try to detect if samples form a regular grid
+    // Collect unique X and Y coordinates
+    std::vector<float> uniqueX, uniqueY;
+    const float epsilon = 0.01f;
     
-    // Find center point (average of all samples)
+    for (const auto& sample : samples_) {
+        bool foundX = false, foundY = false;
+        for (float x : uniqueX) {
+            if (std::abs(x - sample.position.x) < epsilon) {
+                foundX = true;
+                break;
+            }
+        }
+        if (!foundX) uniqueX.push_back(sample.position.x);
+        
+        for (float y : uniqueY) {
+            if (std::abs(y - sample.position.y) < epsilon) {
+                foundY = true;
+                break;
+            }
+        }
+        if (!foundY) uniqueY.push_back(sample.position.y);
+    }
+    
+    // Sort coordinates
+    std::sort(uniqueX.begin(), uniqueX.end());
+    std::sort(uniqueY.begin(), uniqueY.end());
+    
+    size_t cols = uniqueX.size();
+    size_t rows = uniqueY.size();
+    
+    // Check if samples form a complete grid
+    if (cols >= 2 && rows >= 2 && cols * rows == samples_.size()) {
+        SE_LOG_INFO("[BlendSpace2D] Detected {}x{} grid, using grid triangulation", cols, rows);
+        
+        // Build a lookup table: grid[row][col] = sample index
+        std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, -1));
+        
+        for (size_t i = 0; i < samples_.size(); ++i) {
+            const auto& pos = samples_[i].position;
+            
+            // Find column
+            int col = -1;
+            for (size_t c = 0; c < cols; ++c) {
+                if (std::abs(uniqueX[c] - pos.x) < epsilon) {
+                    col = static_cast<int>(c);
+                    break;
+                }
+            }
+            
+            // Find row
+            int row = -1;
+            for (size_t r = 0; r < rows; ++r) {
+                if (std::abs(uniqueY[r] - pos.y) < epsilon) {
+                    row = static_cast<int>(r);
+                    break;
+                }
+            }
+            
+            if (col >= 0 && row >= 0) {
+                grid[row][col] = static_cast<int>(i);
+            }
+        }
+        
+        // Create triangles for each cell (2 triangles per cell)
+        for (size_t r = 0; r < rows - 1; ++r) {
+            for (size_t c = 0; c < cols - 1; ++c) {
+                int tl = grid[r + 1][c];     // top-left
+                int tr = grid[r + 1][c + 1]; // top-right
+                int bl = grid[r][c];         // bottom-left
+                int br = grid[r][c + 1];     // bottom-right
+                
+                if (tl >= 0 && tr >= 0 && bl >= 0 && br >= 0) {
+                    // First triangle: bottom-left, top-left, top-right
+                    triangles_.push_back({bl, tl, tr});
+                    // Second triangle: bottom-left, top-right, bottom-right
+                    triangles_.push_back({bl, tr, br});
+                }
+            }
+        }
+        
+        SE_LOG_INFO("[BlendSpace2D] Created {} triangles for grid", triangles_.size());
+        return;
+    }
+    
+    // Fallback: center fan triangulation for non-grid layouts
+    SE_LOG_INFO("[BlendSpace2D] Using fan triangulation (samples don't form a complete grid)");
+    
     glm::vec2 center{0.0f};
     for (const auto& sample : samples_) {
         center += sample.position;
     }
     center /= static_cast<float>(samples_.size());
     
-    // Sort samples by angle from center
     std::vector<size_t> sortedIndices(samples_.size());
     for (size_t i = 0; i < samples_.size(); ++i) {
         sortedIndices[i] = i;
@@ -187,8 +270,6 @@ void BlendSpace2D::Triangulate() {
             return std::atan2(da.y, da.x) < std::atan2(db.y, db.x);
         });
     
-    // Create triangles using fan from first vertex
-    // For 4+ samples, create triangles connecting consecutive samples through center
     if (samples_.size() == 3) {
         triangles_.push_back({
             static_cast<int>(sortedIndices[0]),
@@ -196,7 +277,6 @@ void BlendSpace2D::Triangulate() {
             static_cast<int>(sortedIndices[2])
         });
     } else if (samples_.size() == 4) {
-        // Create 4 triangles (quad split into triangles from corners)
         triangles_.push_back({
             static_cast<int>(sortedIndices[0]),
             static_cast<int>(sortedIndices[1]),
@@ -208,7 +288,6 @@ void BlendSpace2D::Triangulate() {
             static_cast<int>(sortedIndices[3])
         });
     } else {
-        // Fan triangulation from first sample for 5+ samples
         for (size_t i = 1; i < samples_.size() - 1; ++i) {
             triangles_.push_back({
                 static_cast<int>(sortedIndices[0]),
@@ -299,18 +378,37 @@ void BlendSpace2D::Evaluate(glm::vec2 parameter, Pose& outPose, float time, cons
     // Clamp parameter to bounds
     parameter = glm::clamp(parameter, minBounds_, maxBounds_);
     
-    // Single sample case
+    // Single sample case - normalized time keeps looping correct
     if (samples_.size() == 1) {
-        outPose.SetFromClip(samples_[0].clip.get(), time, skeleton);
+        auto* clip = samples_[0].clip.get();
+        float refDuration = clip ? clip->GetDuration() : 24.0f;
+        float refTicksPerSecond = clip ? clip->GetTicksPerSecond() : 24.0f;
+        if (refTicksPerSecond <= 0.0f) refTicksPerSecond = 24.0f;
+        if (refDuration <= 0.0f) refDuration = 24.0f;
+        float timeInTicks = time * refTicksPerSecond;
+        float normalizedTime = fmod(timeInTicks / refDuration, 1.0f);
+        if (normalizedTime < 0.0f) normalizedTime += 1.0f;
+        
+        outPose.SetFromClipNormalized(clip, normalizedTime, skeleton);
         return;
     }
     
-    // Two samples: linear interpolation
+    // Two samples: linear interpolation with normalized time
     if (samples_.size() == 2) {
+        // Calculate normalized time from first sample
+        auto* refClip = samples_[0].clip.get();
+        float refDuration = refClip ? refClip->GetDuration() : 24.0f;
+        float refTicksPerSecond = refClip ? refClip->GetTicksPerSecond() : 24.0f;
+        if (refTicksPerSecond <= 0.0f) refTicksPerSecond = 24.0f;
+        if (refDuration <= 0.0f) refDuration = 24.0f;
+        float timeInTicks = time * refTicksPerSecond;
+        float normalizedTime = fmod(timeInTicks / refDuration, 1.0f);
+        if (normalizedTime < 0.0f) normalizedTime += 1.0f;
+        
         Pose pose0(skeleton);
         Pose pose1(skeleton);
-        pose0.SetFromClip(samples_[0].clip.get(), time, skeleton);
-        pose1.SetFromClip(samples_[1].clip.get(), time, skeleton);
+        pose0.SetFromClipNormalized(samples_[0].clip.get(), normalizedTime, skeleton);
+        pose1.SetFromClipNormalized(samples_[1].clip.get(), normalizedTime, skeleton);
         
         // Use distance-based weight
         float d0 = glm::distance(parameter, samples_[0].position);
@@ -328,19 +426,73 @@ void BlendSpace2D::Evaluate(glm::vec2 parameter, Pose& outPose, float time, cons
     glm::vec3 baryCoords;
     
     if (!FindTriangle(parameter, triangleIdx, baryCoords)) {
-        // Point outside all triangles - find nearest sample
-        float minDist = std::numeric_limits<float>::max();
-        size_t nearestIdx = 0;
+        // Point outside all triangles - use inverse distance weighted blend
+        // This provides smooth transitions even at boundaries
         
+        // Calculate distances to all samples
+        std::vector<std::pair<float, size_t>> distances;
         for (size_t i = 0; i < samples_.size(); ++i) {
             float dist = glm::distance(parameter, samples_[i].position);
-            if (dist < minDist) {
-                minDist = dist;
-                nearestIdx = i;
-            }
+            distances.push_back({dist, i});
         }
         
-        outPose.SetFromClip(samples_[nearestIdx].clip.get(), time, skeleton);
+        // Sort by distance
+        std::sort(distances.begin(), distances.end());
+        
+        // Use inverse distance weighting for closest 3 samples (or all if fewer)
+        size_t blendCount = std::min(static_cast<size_t>(3), samples_.size());
+        
+        std::vector<float> weights(blendCount);
+        float totalWeight = 0.0f;
+        
+        for (size_t i = 0; i < blendCount; ++i) {
+            float dist = distances[i].first;
+            // Inverse distance with epsilon to avoid division by zero
+            weights[i] = 1.0f / (dist + 0.01f);
+            totalWeight += weights[i];
+        }
+        
+        // Normalize weights
+        for (size_t i = 0; i < blendCount; ++i) {
+            weights[i] /= totalWeight;
+        }
+        
+        // Calculate normalized time using LONGEST duration for natural speed
+        float maxDuration = 0.0f;
+        float refTicksPerSecond = 24.0f;
+        for (size_t i = 0; i < blendCount; ++i) {
+            auto* clip = samples_[distances[i].second].clip.get();
+            if (clip) {
+                float dur = clip->GetDuration();
+                if (dur > 0.0f && dur > maxDuration) {
+                    maxDuration = dur;
+                }
+                if (i == 0) {
+                    refTicksPerSecond = clip->GetTicksPerSecond();
+                    if (refTicksPerSecond <= 0.0f) refTicksPerSecond = 24.0f;
+                }
+            }
+        }
+        if (maxDuration <= 0.0f) maxDuration = 24.0f;
+        
+        float timeInTicks = time * refTicksPerSecond;
+        float normalizedTime = fmod(timeInTicks / maxDuration, 1.0f);
+        if (normalizedTime < 0.0f) normalizedTime += 1.0f;
+        
+        // Sample and blend poses with normalized time
+        Pose tempPose(skeleton);
+        outPose.SetFromClipNormalized(samples_[distances[0].second].clip.get(), normalizedTime, skeleton);
+        
+        for (size_t i = 1; i < blendCount; ++i) {
+            tempPose.SetFromClipNormalized(samples_[distances[i].second].clip.get(), normalizedTime, skeleton);
+            // Accumulative blend
+            float accWeight = 0.0f;
+            for (size_t j = 0; j <= i; ++j) {
+                accWeight += weights[j];
+            }
+            float blendT = weights[i] / accWeight;
+            outPose.BlendWith(tempPose, blendT);
+        }
         return;
     }
     
@@ -351,27 +503,81 @@ void BlendSpace2D::Evaluate(glm::vec2 parameter, Pose& outPose, float time, cons
     Pose pose1(skeleton);
     Pose pose2(skeleton);
     
-    pose0.SetFromClip(samples_[static_cast<size_t>(tri[0])].clip.get(), time, skeleton);
-    pose1.SetFromClip(samples_[static_cast<size_t>(tri[1])].clip.get(), time, skeleton);
-    pose2.SetFromClip(samples_[static_cast<size_t>(tri[2])].clip.get(), time, skeleton);
+    // Use normalized time (0.0-1.0) to keep all animations synchronized
+    // Use the LONGEST duration among the 3 clips to prevent any animation from playing too fast
+    auto* clip0 = samples_[static_cast<size_t>(tri[0])].clip.get();
+    auto* clip1 = samples_[static_cast<size_t>(tri[1])].clip.get();
+    auto* clip2 = samples_[static_cast<size_t>(tri[2])].clip.get();
     
-    // Normalize barycentric coordinates
-    float sum = baryCoords.x + baryCoords.y + baryCoords.z;
+    // Get durations (in ticks)
+    float dur0 = clip0 ? clip0->GetDuration() : 24.0f;
+    float dur1 = clip1 ? clip1->GetDuration() : 24.0f;
+    float dur2 = clip2 ? clip2->GetDuration() : 24.0f;
+    if (dur0 <= 0.0f) dur0 = 24.0f;
+    if (dur1 <= 0.0f) dur1 = 24.0f;
+    if (dur2 <= 0.0f) dur2 = 24.0f;
+    
+    // Use the LONGEST duration to ensure no animation plays faster than intended
+    float refDuration = std::max({dur0, dur1, dur2});
+    
+    // Use first clip's ticks per second (usually consistent across all)
+    float refTicksPerSecond = clip0 ? clip0->GetTicksPerSecond() : 24.0f;
+    if (refTicksPerSecond <= 0.0f) refTicksPerSecond = 24.0f;
+    
+    // Convert time to normalized (0.0 to 1.0)
+    float timeInTicks = time * refTicksPerSecond;
+    float normalizedTime = fmod(timeInTicks / refDuration, 1.0f);
+    if (normalizedTime < 0.0f) normalizedTime += 1.0f;
+    
+    pose0.SetFromClipNormalized(clip0, normalizedTime, skeleton);
+    pose1.SetFromClipNormalized(clip1, normalizedTime, skeleton);
+    pose2.SetFromClipNormalized(clip2, normalizedTime, skeleton);
+    
+    // Normalize barycentric coordinates and clamp to positive
+    float w0 = std::max(0.0f, baryCoords.x);
+    float w1 = std::max(0.0f, baryCoords.y);
+    float w2 = std::max(0.0f, baryCoords.z);
+    
+    float sum = w0 + w1 + w2;
     if (sum > 0.0001f) {
-        baryCoords /= sum;
+        w0 /= sum;
+        w1 /= sum;
+        w2 /= sum;
     } else {
-        baryCoords = glm::vec3(1.0f / 3.0f);
+        w0 = w1 = w2 = 1.0f / 3.0f;
     }
     
-    // Three-way blend: first blend pose0 and pose1, then with pose2
+    // Robust 3-way blend:
+    // Handle cases where one or two weights dominate
+    const float MIN_WEIGHT = 0.001f;
+    
+    // If one weight is dominant (corner case), just use that pose
+    if (w0 > 0.99f) {
+        outPose = pose0;
+        return;
+    }
+    if (w1 > 0.99f) {
+        outPose = pose1;
+        return;
+    }
+    if (w2 > 0.99f) {
+        outPose = pose2;
+        return;
+    }
+    
+    // Sequential blending with proper weight ratios
     outPose = pose0;
     
-    // Blend pose0 (weight bary.x) with pose1 (weight bary.y)
-    float t01 = baryCoords.y / (baryCoords.x + baryCoords.y + 0.0001f);
-    outPose.BlendWith(pose1, t01);
+    // Blend pose0 with pose1
+    if (w1 > MIN_WEIGHT) {
+        float t1 = w1 / (w0 + w1);
+        outPose.BlendWith(pose1, t1);
+    }
     
-    // Blend result with pose2 (weight bary.z)
-    outPose.BlendWith(pose2, baryCoords.z);
+    // Now outPose represents (w0 + w1) weight, blend with pose2
+    if (w2 > MIN_WEIGHT) {
+        outPose.BlendWith(pose2, w2);
+    }
 }
 
 }  // namespace se::anim

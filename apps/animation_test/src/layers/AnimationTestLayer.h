@@ -30,6 +30,7 @@ private:
     void RenderAnimationDebugPanel();
     void RenderBlendSpaceDebugPanel();
     void RenderLayerDebugPanel();
+    void RenderGamepadDebugPanel();
 
     se::Scope<se::Scene> scene_;
     se::Entity playerEntity_;

@@ -35,6 +35,10 @@ struct CameraConfig {
     float sensitivityX    = 0.1f;
     float sensitivityY    = 0.1f;
     bool  invertY         = false;
+    
+    // Gamepad sensitivity (applied per frame, so scaled appropriately)
+    float gamepadSensitivityX = 9.0f;
+    float gamepadSensitivityY = 9.0f;
 };
 
 class PlayerController : public Controller {

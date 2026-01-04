@@ -49,10 +49,16 @@ class Character : public Pawn {
     Vector3 GetVelocity() const;
     void    SetVelocity(const Vector3& velocity);
     
-    // AI-controlled rotation (bypasses camera-relative transformation)
+    // AI-controlled rotation (applies modelYawOffset)
     void    SetTargetRotation(float yaw) { 
         targetYaw_ = yaw + movementConfig_.modelYawOffset; 
         hasTargetRotation_ = true; 
+    }
+    
+    // Direct rotation control (no offset applied) - for aim mode body rotation
+    void    SetTargetRotationRaw(float yaw) {
+        targetYaw_ = yaw;
+        hasTargetRotation_ = true;
     }
 
     // Configuration access
@@ -82,6 +88,7 @@ class Character : public Pawn {
 
     // Movement state
     Vector3 desiredMoveDirection_{0.0f};
+    float   inputScale_        = 1.0f;  // Analog input magnitude (0.0 to 1.0)
     bool    wantsToMove_       = false;
     bool    wantsToJump_       = false;
     float   targetYaw_         = 0.0f;

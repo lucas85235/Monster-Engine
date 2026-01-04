@@ -144,13 +144,16 @@ void Scene::OnUpdate(float deltaTime) {
     // Animation system - tick all AnimatorComponents
     AnimationSystem::Update(*this, deltaTime);
 
+    // Update transforms BEFORE component Update() so components can read current WorldMatrix
+    UpdateTransforms();
+
     // Component Update and LateUpdate (variable rate logic)
     if (component_system_) {
         component_system_->Update(deltaTime);
         component_system_->LateUpdate(deltaTime);
     }
     
-    // Update transforms AFTER logic and physics to ensure rendering is up to date
+    // Update transforms AFTER logic to ensure any component changes are reflected for rendering
     UpdateTransforms();
 
     // Bone attachment system - must happen AFTER character world matrices are updated

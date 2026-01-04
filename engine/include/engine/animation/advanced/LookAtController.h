@@ -4,6 +4,10 @@
  * 
  * Distributes camera-following rotation across spine chain for natural movement.
  * Supports configurable bone weights and rotation limits per joint.
+ * 
+ * Modes:
+ * - Additive: Adds rotation ON TOP of existing animation (subtle adjustments)
+ * - Override: Forces spine to face target direction (guarantees aim stability)
  */
 
 #include <glm.hpp>
@@ -18,6 +22,12 @@ class SkinnedModelData;
 namespace anim {
 
 class Pose;
+
+// How the look-at rotation is applied
+enum class LookAtMode {
+    Additive,   // Add rotation on top of animation (default, subtle)
+    Override    // Force spine to face target (aggressive, overrides animation)
+};
 
 struct LookAtBoneSettings {
     std::string boneName;
@@ -34,8 +44,10 @@ struct LookAtSettings {
     float verticalLimit = 60.0f;
     float deadzone = 5.0f;
     bool enabled = true;
+    LookAtMode mode = LookAtMode::Additive;
     
     static LookAtSettings DefaultMixamo();
+    static LookAtSettings DefaultUEMannequin();  // For aim mode
 };
 
 class LookAtController {
@@ -50,10 +62,17 @@ public:
     
     void Update(float dt);
     
+    // Apply rotation based on current mode
     void ApplyToPose(Pose& pose);
+    
+    // Force immediate application (no smoothing) - for aim mode responsiveness
+    void ApplyImmediateOverride(Pose& pose, float yawDegrees, float pitchDegrees);
     
     void SetEnabled(bool enabled) { settings_.enabled = enabled; }
     bool IsEnabled() const { return settings_.enabled; }
+    
+    void SetMode(LookAtMode mode) { settings_.mode = mode; }
+    LookAtMode GetMode() const { return settings_.mode; }
     
     void SetSmoothSpeed(float speed) { settings_.smoothSpeed = speed; }
     float GetSmoothSpeed() const { return settings_.smoothSpeed; }
@@ -75,6 +94,9 @@ private:
         float maxVertical = 0.0f;
     };
     
+    void ApplyAdditive(Pose& pose, float horizontalRad, float verticalRad);
+    void ApplyOverride(Pose& pose, float horizontalRad, float verticalRad);
+    
     LookAtSettings settings_;
     std::vector<ResolvedBone> resolvedBones_;
     const SkinnedModelData* skeleton_ = nullptr;
@@ -87,3 +109,4 @@ private:
 
 }  // namespace anim
 }  // namespace se
+

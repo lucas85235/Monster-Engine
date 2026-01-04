@@ -70,12 +70,16 @@ Bullet Physics integration for 3D rigid body simulation.
 - [Debug Draw](physics/DebugDraw.md) - Physics visualization
 
 ### [Animation](animation/Overview.md)
-Skeletal animation with crossfade blending.
+Skeletal animation with graphs, blend spaces, and IK.
 - [Overview](animation/Overview.md) - Animation architecture
 - [Animator](animation/Animator.md) - Playback and blending
-- [AnimationClip](animation/AnimationClip.md) - Clip format
-- [Skinned Models](animation/SkinnedModels.md) - Model loading
-- [Bone Attachments](animation/BoneAttachments.md) - Attach objects to bones
+- [Animation Graph](animation/AnimationGraph.md) - Node-based animation
+- [Blend Spaces](animation/BlendSpaces.md) - 1D/2D animation blending
+- [Animation Layers](animation/Layers.md) - Partial body blending
+- [Locomotion Controller](animation/LocomotionController.md) - Movement animation
+- [IK System](animation/IK.md) - Inverse kinematics
+- [Bone Attachment](animation/BoneAttachment.md) - Attach objects to bones
+- [Procedural Animation](animation/ProceduralAnimation.md) - Look-at and body rotation
 
 ### [UI System](ui/Overview.md)
 Godot-style retained mode UI framework.

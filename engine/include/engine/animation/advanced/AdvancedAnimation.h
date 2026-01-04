@@ -19,6 +19,29 @@
 #include "engine/animation/advanced/LookAtController.h"
 #include "engine/animation/advanced/BodyRotationController.h"
 
+// Animation graph system
+#include "engine/animation/graph/IAnimationNode.h"
+#include "engine/animation/graph/AnimationGraph.h"
+#include "engine/animation/graph/ClipNode.h"
+#include "engine/animation/graph/BlendNode.h"
+#include "engine/animation/graph/BlendSpaceNode.h"
+#include "engine/animation/graph/StateMachineNode.h"
+#include "engine/animation/graph/LayerNode.h"
+
+// Locomotion system
+#include "engine/animation/locomotion/LocomotionConfig.h"
+#include "engine/animation/locomotion/LocomotionController.h"
+
+// IK system
+#include "engine/animation/ik/IIKSolver.h"
+#include "engine/animation/ik/TwoBoneIKSolver.h"
+
+// Bone attachment system
+#include "engine/animation/BoneAttachment.h"
+
+// Orchestrating component
+#include "engine/animation/AdvancedAnimatorComponent.h"
+
 // Serialization
 #include "engine/animation/advanced/AnimatorAsset.h"
 #include "engine/animation/advanced/AnimatorAssetLoader.h"
@@ -27,7 +50,7 @@ namespace se {
 namespace anim {
 
 // Version info
-constexpr const char* ADVANCED_ANIMATION_VERSION = "1.0.0";
+constexpr const char* ADVANCED_ANIMATION_VERSION = "2.0.0";
 
 }  // namespace anim
 }  // namespace se

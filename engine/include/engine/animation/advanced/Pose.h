@@ -40,7 +40,11 @@ public:
     void Resize(size_t boneCount);
     void SetIdentity();
     
+    // Sample clip at absolute time (each clip loops independently)
     void SetFromClip(const AnimationClip* clip, float time, const SkinnedModelData* skeleton);
+    
+    // Sample clip at normalized time (0.0-1.0) - all clips in a blend are synchronized
+    void SetFromClipNormalized(const AnimationClip* clip, float normalizedTime, const SkinnedModelData* skeleton);
     
     void BlendWith(const Pose& other, float weight);
     

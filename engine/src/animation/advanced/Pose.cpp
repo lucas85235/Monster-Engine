@@ -101,6 +101,39 @@ void Pose::SetFromClip(const AnimationClip* clip, float time, const SkinnedModel
     }
 }
 
+void Pose::SetFromClipNormalized(const AnimationClip* clip, float normalizedTime, const SkinnedModelData* skeleton) {
+    if (!clip || !skeleton || transforms_.empty()) {
+        return;
+    }
+    
+    // Ensure normalized time is in [0, 1)
+    normalizedTime = fmod(normalizedTime, 1.0f);
+    if (normalizedTime < 0.0f) {
+        normalizedTime += 1.0f;
+    }
+    
+    // Convert normalized time to ticks using clip's duration
+    float duration = clip->GetDuration();
+    if (duration <= 0.0f) {
+        duration = 24.0f;  // Fallback
+    }
+    float timeInTicks = normalizedTime * duration;
+    
+    // Sample each bone
+    for (size_t i = 0; i < skeleton->Bones.size(); ++i) {
+        const auto& boneInfo = skeleton->Bones[i];
+        const AnimationChannel* channel = clip->FindChannel(boneInfo.Name);
+        
+        if (channel) {
+            transforms_[i].position = channel->GetPosition(timeInTicks);
+            transforms_[i].rotation = channel->GetRotation(timeInTicks);
+            transforms_[i].scale = channel->GetScale(timeInTicks);
+        } else {
+            transforms_[i] = BoneTransform::Identity();
+        }
+    }
+}
+
 void Pose::BlendWith(const Pose& other, float weight) {
     if (other.transforms_.size() != transforms_.size()) {
         SE_LOG_WARN("[Pose] BlendWith: Pose size mismatch ({} vs {})", transforms_.size(), other.transforms_.size());
