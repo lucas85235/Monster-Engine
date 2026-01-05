@@ -1,6 +1,6 @@
 #pragma once
 
-#include "se_pch.h"
+#include <mmath/Luma.h>
 #include "LinearMath/btVector3.h"
 
 struct GLFWwindow;
@@ -8,15 +8,15 @@ struct GLFWmonitor;
 struct GLFWcursor;
 
 namespace se {
-// Math Types - must be defined before other includes that use them
-using Vector2    = glm::vec2;
-using Vector3    = glm::vec3;
-using Vector4    = glm::vec4;
-using Matrix4    = glm::mat4;
-using Matrix3    = glm::mat3;
-using Matrix2    = glm::mat2;
-using Quaternion = glm::quat;
-using Color      = glm::vec4;
+// Math Types - imported from Luma library
+using Vector2    = luma::Vector2;
+using Vector3    = luma::Vector3;
+using Vector4    = luma::Vector4;
+using Matrix4    = luma::Matrix4;
+using Matrix3    = luma::Matrix3;
+using Matrix2    = luma::Matrix2;
+using Quaternion = luma::Quaternion;
+using Color      = luma::Color;
 
 // Input Types
 using MouseButton = uint16_t;
