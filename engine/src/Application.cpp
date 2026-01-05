@@ -30,7 +30,7 @@ Application::Application(const ApplicationSpecification& specification) {
 
     SE_LOG_INFO("Starting Simple Engine");
 
-    InputManager::Get().Init();
+    InputManager::Get().Init(event_bus_.get());
 
     WindowSpec windowSpec;
     windowSpec.Title      = specification.Name;
@@ -98,6 +98,9 @@ Application::~Application() {
     if (imguiLayer_) { imguiLayer_->OnDetach(); }
 #endif
     
+    // Shutdown input manager
+    InputManager::Get().Shutdown();
+
     // Shutdown performance overlay
     perf::PerfOverlay::Shutdown();
 

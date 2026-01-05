@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <entt.hpp>
 #include <type_traits>
+#include <glm.hpp>
 
 namespace se {
 
@@ -67,6 +68,10 @@ class Entity {
     
     // Check if entity has children
     bool HasChildren() const;
+    
+    // Compute world matrix by walking up the parent hierarchy
+    // This ensures the WorldMatrix includes all parent transforms correctly
+    glm::mat4 ComputeWorldMatrix() const;
 
     // Get entity ID
     uint32_t GetID() const {

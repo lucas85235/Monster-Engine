@@ -57,16 +57,9 @@
 #include <glad/glad.h>
 
 // ============================================================================
-// GLM (Math)
+// Monster Math Library (includes GLM internally)
 // ============================================================================
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-#include <gtc/type_ptr.hpp>
-#include <gtc/quaternion.hpp>
-#include <gtx/quaternion.hpp>
-#include <gtx/transform.hpp>
-#include <gtx/matrix_decompose.hpp>
-#include <gtx/euler_angles.hpp>
+#include <mmath/Luma.h>
 
 // ============================================================================
 // EnTT (ECS)

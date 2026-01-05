@@ -43,7 +43,6 @@ set(imnodes_DIR ${third_party_dir}/imnodes)
 set(imguizmo_DIR ${third_party_dir}/ImGuizmo)
 set(glfw_DIR ${third_party_dir}/glfw)
 set(glad_DIR ${third_party_dir}/glad)
-set(glm_DIR ${third_party_dir}/glm)
 set(entt_DIR ${third_party_dir}/entt)
 set(stb_DIR ${third_party_dir}/stb)
 set(rmlui_DIR ${third_party_dir}/RmlUi)
@@ -64,7 +63,6 @@ add_subdirectory(${imguizmo_DIR})
 add_subdirectory(${imnodes_DIR})
 add_subdirectory(${glfw_DIR})
 add_subdirectory(${glad_DIR})
-add_subdirectory(${glm_DIR})
 add_subdirectory(${entt_DIR})
 add_subdirectory(${bullet_DIR})
 
@@ -112,7 +110,6 @@ target_include_directories(simple_engine PUBLIC
         ${imguizmo_DIR}
         ${glad_DIR}/include
         ${glfw_DIR}/include
-        ${glm_DIR}
         ${stb_DIR}
         ${entt_DIR}
         ${rmlui_DIR}/Include
@@ -128,10 +125,10 @@ target_include_directories(simple_engine PUBLIC
 # Liga a sua engine às suas dependências.
 # Agora voltamos a ligar explicitamente ao ALVO 'glad'.
 target_link_libraries(simple_engine PUBLIC
+        mmath
         glad
         glfw
         OpenGL::GL
-        glm
         ImGui
         ImGuizmo
         spdlog

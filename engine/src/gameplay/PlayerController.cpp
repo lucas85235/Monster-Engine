@@ -6,6 +6,7 @@
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/physics/RigidbodyComponent.h"
 #include "engine/input/InputManager.h"
+#include "engine/input/GamepadCodes.h"
 #include "engine/Application.h"
 #include "engine/Log.h"
 
@@ -64,18 +65,34 @@ void PlayerController::BindInputs() {
     // Mouse toggle
     input.BindAction(inputConfig_.toggleMouse, Key::Tab);
 
-    // Camera rotation
+    // Camera rotation (Mouse)
     input.BindAxis(inputConfig_.lookX, Key::MouseX, 1.0f);
     input.BindAxis(inputConfig_.lookY, Key::MouseY, -1.0f);
 
-    // Movement
+    // Camera rotation (Gamepad Right Stick)
+    // Note: Y axis inverted for natural camera feel (push up = look up)
+    input.BindGamepadAxis(inputConfig_.lookX, Gamepad::RightX, cameraConfig_.gamepadSensitivityX);
+    input.BindGamepadAxis(inputConfig_.lookY, Gamepad::RightY, cameraConfig_.gamepadSensitivityY, true);
+
+    // Movement (Keyboard) - uses fixed scale (pressed = full value)
     input.BindAxis(inputConfig_.moveForward, Key::W, 1.0f);
     input.BindAxis(inputConfig_.moveForward, Key::S, -1.0f);
     input.BindAxis(inputConfig_.moveRight, Key::D, 1.0f);
     input.BindAxis(inputConfig_.moveRight, Key::A, -1.0f);
 
-    // Actions
+    // Movement (Gamepad Left Stick) - uses analog value (0.0 to 1.0 for proportional speed)
+    // Y axis inverted: pushing stick up (negative Y) should move forward (positive)
+    input.BindGamepadAxis(inputConfig_.moveForward, Gamepad::LeftY, 1.0f, true);
+    input.BindGamepadAxis(inputConfig_.moveRight, Gamepad::LeftX, 1.0f);
+
+    // Actions (Keyboard)
     input.BindAction(inputConfig_.jump, Key::Space);
+
+    // Actions (Gamepad)
+    input.BindGamepadAction(inputConfig_.jump, Gamepad::A);
+    input.BindGamepadAction(inputConfig_.toggleMouse, Gamepad::Start);
+
+    SE_LOG_DEBUG("[PlayerController] Input bindings registered (keyboard + gamepad)");
 }
 
 void PlayerController::ProcessInput(float dt) {

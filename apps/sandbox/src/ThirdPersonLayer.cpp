@@ -7,10 +7,8 @@
 #include <engine/input/InputManager.h>
 #include <engine/resources/MeshManager.h>
 #include <imgui.h>
+#include <mmath/MathUtils.h>
 
-#include <gtc/matrix_transform.hpp>
-
-#include "../../MathUtils.h"
 #include "../../SampleUtilities.h"
 #include "engine/physics/BoxCollider.h"
 #include "engine/physics/PhysicsDebugDraw.h"
@@ -257,12 +255,12 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         movement = glm::normalize(movement);
 
         // Smoothly rotate player to face movement direction
-        float targetYaw  = Math::CalculateYawFromDirection(movement.x, movement.z);
+        float targetYaw  = luma::YawFromDirection(movement.x, movement.z);
         float currentYaw = transform.Rotation.y;
 
         // Hysteresis for 180 degree turns
         float diff = targetYaw - currentYaw;
-        diff       = Math::NormalizeAngle(diff);
+        diff       = luma::NormalizeAngleDeg(diff);
 
         // If we are near the singularity (180 degrees), favor the previous direction
         if (std::abs(diff) > 170.0f && std::abs(lastRotationDiff_) > 0.0f) {
@@ -277,7 +275,7 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
         float rotationSpeed = 10.0f;
         float newYaw        = currentYaw + diff * glm::clamp(rotationSpeed * ts, 0.0f, 1.0f);
-        newYaw              = Math::NormalizeAngle(newYaw);
+        newYaw              = luma::NormalizeAngleDeg(newYaw);
 
         // Apply rotation to Rigidbody
         rb.SetRotation({0.0f, newYaw, 0.0f});

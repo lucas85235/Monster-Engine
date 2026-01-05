@@ -26,12 +26,13 @@ set "C_BOLD=%ESC%[1m"
 :: ===========================================
 @REM set "BUILD_TYPE=Debug"
 set "BUILD_TYPE=Debug"
+set "APP_NAME=animation_test"
 
 :: ===========================================
 :: GAME CONFIGURATION
 :: Name of the game (used for distribution folder)
 :: ===========================================
-set "GAME_NAME=ThirdPersonGame"
+set "GAME_NAME=AnimationTest"
 
 :: Navigate to project root (parent folder of Scripts)
 cd /d "%~dp0\.."
@@ -107,7 +108,7 @@ echo %C_BLUE%[STEP 4/5]%C_RESET% %C_YELLOW%Looking for executable...%C_RESET%
 
 set "EXE_PATH="
 set "EXE_NAME="
-for /r "build\apps\third_person_game\%BUILD_TYPE%" %%F in (*.exe) do (
+for /r "build\apps\%APP_NAME%\%BUILD_TYPE%" %%F in (*.exe) do (
     set "EXE_PATH=%%F"
     set "EXE_NAME=%%~nxF"
     goto :found_exe
@@ -148,7 +149,7 @@ if exist "assets" (
 )
 
 :: Copy any required DLLs from build folder
-for %%D in ("build\apps\third_person_game\%BUILD_TYPE%\*.dll") do (
+for %%D in ("build\apps\%APP_NAME%\%BUILD_TYPE%\*.dll") do (
     echo   Copying %%~nxD...
     copy "%%D" "!DIST_DIR!\" >nul 2>&1
 )

@@ -295,4 +295,64 @@ glm::mat4 Animator::GetBoneWorldMatrix(const std::string& boneName) const {
     return GetBoneWorldMatrix(boneIndex);
 }
 
+void Animator::ApplyPose(const anim::Pose& pose) {
+    if (!modelData_ || pose.IsEmpty()) {
+        return;
+    }
+    
+    if (pose.GetBoneCount() != modelData_->Bones.size()) {
+        SE_LOG_WARN("[Animator] ApplyPose: bone count mismatch ({} vs {})",
+                    pose.GetBoneCount(), modelData_->Bones.size());
+        return;
+    }
+    
+    // Process hierarchy from root bones
+    for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
+        if (modelData_->Bones[i].ParentIndex < 0) {
+            ProcessBoneHierarchyFromPose(static_cast<int>(i), glm::mat4(1.0f), pose);
+        }
+    }
+}
+
+void Animator::ProcessBoneHierarchyFromPose(int boneIndex, const glm::mat4& parentTransform, const anim::Pose& pose) {
+    if (boneIndex < 0 || boneIndex >= static_cast<int>(modelData_->Bones.size())) {
+        return;
+    }
+    
+    const auto& boneInfo = modelData_->Bones[boneIndex];
+    const auto& transform = pose[boneIndex];
+    
+    // Build local transform from BoneTransform
+    glm::mat4 localTransform = glm::translate(glm::mat4(1.0f), transform.position)
+                             * glm::toMat4(transform.rotation)
+                             * glm::scale(glm::mat4(1.0f), transform.scale);
+    
+    glm::mat4 globalTransform = parentTransform * localTransform;
+    
+    finalBoneMatrices_[boneIndex] = modelData_->GlobalInverseTransform * globalTransform * boneInfo.OffsetMatrix;
+    localTransforms_[boneIndex] = localTransform;
+    
+    // Process children
+    for (size_t i = 0; i < modelData_->Bones.size(); ++i) {
+        if (modelData_->Bones[i].ParentIndex == boneIndex) {
+            ProcessBoneHierarchyFromPose(static_cast<int>(i), globalTransform, pose);
+        }
+    }
+}
+
+void Animator::SampleCurrentPose(anim::Pose& outPose) const {
+    if (!modelData_ || !currentClip_) {
+        return;
+    }
+    
+    // currentTime_ is in ticks, but SetFromClip expects seconds
+    float ticksPerSecond = currentClip_->GetTicksPerSecond();
+    if (ticksPerSecond <= 0.0f) {
+        ticksPerSecond = 24.0f;
+    }
+    float timeInSeconds = currentTime_ / ticksPerSecond;
+    
+    outPose.SetFromClip(currentClip_.get(), timeInSeconds, modelData_);
+}
+
 }  // namespace se

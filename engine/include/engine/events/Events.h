@@ -75,4 +75,15 @@ struct AppTickEvent {};
 struct AppUpdateEvent {};
 struct AppRenderEvent {};
 
+// ==================== Gamepad Events ====================
+
+struct GamepadConnectedEvent {
+    int         gamepadId;
+    const char* name;
+};
+
+struct GamepadDisconnectedEvent {
+    int gamepadId;
+};
+
 }  // namespace se

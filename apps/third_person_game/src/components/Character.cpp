@@ -1,7 +1,6 @@
 #include "Character.h"
 
-#include <glm.hpp>
-#include "apps/MathUtils.h"
+#include <mmath/MathUtils.h>
 #include "engine/Log.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
@@ -79,12 +78,12 @@ void Character::ApplyRotation(float dt) {
     if (!rigidbody_ || !hasTargetRotation_) return;
 
     auto& transform  = GetComponent<TransformComponent>();
-    float currentYaw = Math::NormalizeAngle(transform.Rotation.y);
-    float diff       = Math::NormalizeAngle(targetYaw_ - currentYaw);
+    float currentYaw = luma::NormalizeAngleDeg(transform.Rotation.y);
+    float diff       = luma::NormalizeAngleDeg(targetYaw_ - currentYaw);
 
     // Use fixed dt for framerate-independent rotation
     float t      = glm::clamp(movementConfig_.rotationSpeed * dt, 0.0f, 1.0f);
-    float newYaw = Math::NormalizeAngle(currentYaw + diff * t);
+    float newYaw = luma::NormalizeAngleDeg(currentYaw + diff * t);
 
     rigidbody_->SetRotation({0.0f, newYaw, 0.0f});
     hasTargetRotation_ = false;

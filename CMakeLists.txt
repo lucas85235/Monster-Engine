@@ -40,12 +40,15 @@ configure_file(
 )
 
 message(STATUS "SimpleEngine v${VERSION_STRING} (${GIT_HASH}) - ${BUILD_TYPE}")
+add_subdirectory(libs/mmath)
 add_subdirectory(engine)
 #add_subdirectory(apps/sandbox)
 add_subdirectory(apps/third_person_game)
 add_subdirectory(apps/ssgi_test)
+add_subdirectory(apps/animation_test)
 add_subdirectory(tools/map_editor)
 add_subdirectory(tools/ui_editor)
+add_subdirectory(tools/animation_editor)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTY VS_STARTUP_PROJECT sandbox)

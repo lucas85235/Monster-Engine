@@ -37,27 +37,36 @@ void Character::Update(float dt) {
     
     // Consume movement input from controller and convert to movement
     Vector3 input = ConsumeMovementInput();
-    if (glm::length(input) > 0.01f) {
-        // Convert controller input to world-space movement
-        // If oriented to camera, use control rotation
-        if (movementConfig_.orientToMovement && controller_) {
-            float yaw = glm::radians(controlRotation_.y);
-            Vector3 forward{-std::sin(yaw), 0.0f, -std::cos(yaw)};
-            Vector3 right{std::cos(yaw), 0.0f, -std::sin(yaw)};
+    float inputMagnitude = glm::length(input);
+    
+    if (inputMagnitude > 0.01f && controller_) {
+        // Convert controller input to world-space movement using camera direction
+        // This always uses camera-relative movement
+        float yaw = glm::radians(controlRotation_.y);
+        Vector3 forward{-std::sin(yaw), 0.0f, -std::cos(yaw)};
+        Vector3 right{std::cos(yaw), 0.0f, -std::sin(yaw)};
+        
+        Vector3 worldDirection = forward * input.z + right * input.x;
+        float worldMagnitude = glm::length(worldDirection);
+        
+        if (worldMagnitude > 0.01f) {
+            desiredMoveDirection_ = glm::normalize(worldDirection);
+            // Preserve input magnitude for analog control (clamped to 1.0)
+            inputScale_ = glm::clamp(worldMagnitude, 0.0f, 1.0f);
+            wantsToMove_ = true;
             
-            Vector3 worldDirection = forward * input.z + right * input.x;
-            if (glm::length(worldDirection) > 0.01f) {
-                desiredMoveDirection_ = glm::normalize(worldDirection);
-                wantsToMove_ = true;
-                
-                // Face movement direction - use atan2(x, z) to match original behavior
+            // Only rotate to face movement direction if orientToMovement is enabled
+            if (movementConfig_.orientToMovement) {
                 targetYaw_ = glm::degrees(std::atan2(desiredMoveDirection_.x, desiredMoveDirection_.z));
+                targetYaw_ += movementConfig_.modelYawOffset;  // Compensate for model forward direction
                 hasTargetRotation_ = true;
             }
-        } else {
-            desiredMoveDirection_ = glm::normalize(input);
-            wantsToMove_ = true;
         }
+    } else if (inputMagnitude > 0.01f) {
+        // No controller - use raw input (for AI or direct control)
+        desiredMoveDirection_ = glm::normalize(input);
+        inputScale_ = glm::clamp(inputMagnitude, 0.0f, 1.0f);
+        wantsToMove_ = true;
     } else {
         wantsToMove_ = false;
     }
@@ -155,7 +164,8 @@ void Character::ApplyMovement(float dt) {
     Vector3 currentVel = GetVelocity();
     Vector3 horizontalVel{currentVel.x, 0.0f, currentVel.z};
 
-    float maxSpeed = movementConfig_.maxWalkSpeed;
+    // Scale max speed by analog input magnitude
+    float maxSpeed = movementConfig_.maxWalkSpeed * inputScale_;
     Vector3 targetVel = desiredMoveDirection_ * maxSpeed;
     
     float accel = isGrounded_ ? movementConfig_.acceleration : 

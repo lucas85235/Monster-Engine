@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "engine/animation/AnimationClip.h"
+#include "engine/animation/advanced/Pose.h"
 #include "engine/resources/ModelData.h"
 
 namespace se {
@@ -46,11 +47,19 @@ public:
     void SetModelData(const SkinnedModelData* modelData);
     const SkinnedModelData* GetModelData() const { return modelData_; }
     
+    // Apply a pre-computed Pose to the bone matrices.
+    // This allows external systems (like AnimationLayerStack) to control the final pose.
+    void ApplyPose(const anim::Pose& pose);
+    
+    // Sample the current animation into a Pose (for layer system input)
+    void SampleCurrentPose(anim::Pose& outPose) const;
+    
 private:
     void CalculateBoneTransforms();
     void CalculateBoneTransformsBlended();
     void ProcessBoneHierarchy(int boneIndex, const glm::mat4& parentTransform);
     void ProcessBoneHierarchyBlended(int boneIndex, const glm::mat4& parentTransform);
+    void ProcessBoneHierarchyFromPose(int boneIndex, const glm::mat4& parentTransform, const anim::Pose& pose);
     glm::mat4 GetBoneLocalTransform(const AnimationClip* clip, const std::string& boneName, float time) const;
     
     const SkinnedModelData* modelData_ = nullptr;

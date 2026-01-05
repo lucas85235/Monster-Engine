@@ -1,21 +1,30 @@
 #include "engine/input/InputManager.h"
 
-#include <GLFW/glfw3.h>  // For raw input queries if needed, but we try to rely on events
+#include <GLFW/glfw3.h>
 
 #include <algorithm>
 
 #include "engine/Application.h"
 #include "engine/Log.h"
+#include "engine/input/GamepadManager.h"
 
 namespace se {
 
-void InputManager::Init() {
-    // Initialize default bindings or state if needed
-    SE_LOG_INFO("InputManager Initialized");
+void InputManager::Init(EventBus* eventBus) {
+    eventBus_ = eventBus;
+
+    GamepadManager::Get().Init(eventBus);
+
+    SE_LOG_INFO("InputManager initialized");
+}
+
+void InputManager::Shutdown() {
+    GamepadManager::Get().Shutdown();
+    SE_LOG_INFO("InputManager shutdown");
 }
 
 void InputManager::Update() {
-    // Reset "Just" states
+    // Reset keyboard/mouse "Just" states
     for (auto& [key, state] : keyStates_) {
         state.JustPressed  = false;
         state.JustReleased = false;
@@ -26,7 +35,10 @@ void InputManager::Update() {
     }
 
     mouseDelta_  = {0.0f, 0.0f};
-    scrollDelta_ = 0.0f;  // Reset scroll each frame
+    scrollDelta_ = 0.0f;
+
+    // Update gamepad state
+    GamepadManager::Get().Update();
 }
 
 void InputManager::SetCursorMode(CursorMode mode) {
@@ -49,6 +61,7 @@ void InputManager::SetCursorMode(CursorMode mode) {
     glfwSetInputMode(window, GLFW_CURSOR, glfwMode);
 }
 
+// Keyboard/Mouse Bindings
 void InputManager::BindAction(const std::string& name, KeyCode key) {
     actionBindings_.push_back({name, key});
 }
@@ -71,30 +84,75 @@ void InputManager::UnbindAxis(const std::string& name) {
         axisBindings_.end());
 }
 
+// Gamepad Bindings
+void InputManager::BindGamepadAction(const std::string& name, GamepadButton button) {
+    gamepadActionBindings_.push_back({name, button});
+}
+
+void InputManager::BindGamepadAxis(const std::string& name, GamepadAxis axis, float scale, bool invert) {
+    gamepadAxisBindings_.push_back({name, axis, scale, invert});
+}
+
+void InputManager::UnbindGamepadAction(const std::string& name) {
+    gamepadActionBindings_.erase(
+        std::remove_if(gamepadActionBindings_.begin(), gamepadActionBindings_.end(),
+                       [&](const GamepadActionBinding& binding) { return binding.Name == name; }),
+        gamepadActionBindings_.end());
+}
+
+void InputManager::UnbindGamepadAxis(const std::string& name) {
+    gamepadAxisBindings_.erase(
+        std::remove_if(gamepadAxisBindings_.begin(), gamepadAxisBindings_.end(),
+                       [&](const GamepadAxisBinding& binding) { return binding.Name == name; }),
+        gamepadAxisBindings_.end());
+}
+
+// Unified Queries
 bool InputManager::IsActionPressed(const std::string& name) const {
+    // Check keyboard bindings
     for (const auto& binding : actionBindings_) {
         if (binding.Name == name) {
             if (IsKeyDown(binding.Key)) return true;
+        }
+    }
+    // Check gamepad bindings
+    for (const auto& binding : gamepadActionBindings_) {
+        if (binding.Name == name) {
+            if (IsGamepadButtonDown(binding.Button)) return true;
         }
     }
     return false;
 }
 
 bool InputManager::IsActionJustPressed(const std::string& name) const {
+    // Check keyboard bindings
     for (const auto& binding : actionBindings_) {
         if (binding.Name == name) {
             auto it = keyStates_.find(binding.Key);
             if (it != keyStates_.end() && it->second.JustPressed) return true;
         }
     }
+    // Check gamepad bindings
+    for (const auto& binding : gamepadActionBindings_) {
+        if (binding.Name == name) {
+            if (IsGamepadButtonPressed(binding.Button)) return true;
+        }
+    }
     return false;
 }
 
 bool InputManager::IsActionJustReleased(const std::string& name) const {
+    // Check keyboard bindings
     for (const auto& binding : actionBindings_) {
         if (binding.Name == name) {
             auto it = keyStates_.find(binding.Key);
             if (it != keyStates_.end() && it->second.JustReleased) return true;
+        }
+    }
+    // Check gamepad bindings
+    for (const auto& binding : gamepadActionBindings_) {
+        if (binding.Name == name) {
+            if (IsGamepadButtonReleased(binding.Button)) return true;
         }
     }
     return false;
@@ -102,6 +160,8 @@ bool InputManager::IsActionJustReleased(const std::string& name) const {
 
 float InputManager::GetAxis(const std::string& name) const {
     float value = 0.0f;
+
+    // Keyboard/Mouse axis bindings
     for (const auto& binding : axisBindings_) {
         if (binding.Name == name) {
             if (binding.Key == Key::MouseX) {
@@ -115,9 +175,20 @@ float InputManager::GetAxis(const std::string& name) const {
             }
         }
     }
+
+    // Gamepad axis bindings
+    for (const auto& binding : gamepadAxisBindings_) {
+        if (binding.Name == name) {
+            float axisValue = GetGamepadAxis(binding.Axis);
+            if (binding.Invert) axisValue = -axisValue;
+            value += axisValue * binding.Scale;
+        }
+    }
+
     return value;
 }
 
+// Raw Keyboard/Mouse Input
 bool InputManager::IsKeyDown(KeyCode key) const {
     auto it = keyStates_.find(key);
     return it != keyStates_.end() && it->second.IsDown;
@@ -136,6 +207,28 @@ Vector2 InputManager::GetMouseDelta() const {
     return mouseDelta_;
 }
 
+// Raw Gamepad Input
+bool InputManager::IsGamepadButtonDown(GamepadButton button) const {
+    return GamepadManager::Get().IsButtonDown(button);
+}
+
+bool InputManager::IsGamepadButtonPressed(GamepadButton button) const {
+    return GamepadManager::Get().IsButtonPressed(button);
+}
+
+bool InputManager::IsGamepadButtonReleased(GamepadButton button) const {
+    return GamepadManager::Get().IsButtonReleased(button);
+}
+
+float InputManager::GetGamepadAxis(GamepadAxis axis) const {
+    return GamepadManager::Get().GetAxis(axis);
+}
+
+bool InputManager::IsGamepadConnected(GamepadId id) const {
+    return GamepadManager::Get().IsConnected(id);
+}
+
+// Event Handlers
 void InputManager::OnKeyPressed(KeyCode key) {
     auto& state = keyStates_[key];
     if (!state.IsDown) {
@@ -177,15 +270,6 @@ void InputManager::OnMouseMoved(float x, float y) {
     mousePosition_ = {x, y};
     mouseDelta_ += mousePosition_ - lastMousePosition_;
     lastMousePosition_ = mousePosition_;
-
-    // Y inverted in many systems, but let's keep it raw here and let the camera handle inversion if
-    // needed. Actually, standard GLFW is top-left origin. Let's invert Y delta here to match
-    // typical camera expectations (up is positive) if needed, but usually it's better to keep raw
-    // delta and let the consumer decide. For now, raw delta. Wait, in InputHandler.cpp: double
-    // yOffset = lastY_ - ypos;  // Y inverted in GLFW So if I want positive delta to mean "up", and
-    // y increases downwards, then yes: deltaY = lastY - currentY. My implementation: currentY -
-    // lastY. So positive delta means moving down. I will leave it as is (standard delta) and let
-    // CameraController flip it.
 }
 
 void InputManager::OnMouseScrolled(float yOffset) {

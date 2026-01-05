@@ -3,7 +3,7 @@
 #include "CameraController.h"
 #include "Character.h"
 #include "engine/Application.h"
-#include "apps/MathUtils.h"
+#include <mmath/MathUtils.h>
 #include "engine/ecs/SimpleComponents.h"
 
 namespace FirstGame {
@@ -103,7 +103,7 @@ void CharacterController::ProcessMovementInput() {
     bool isMoving = glm::length(moveDir) > 0.01f;
     
     if (isMoving) {
-        float targetYaw = Math::CalculateYawFromDirection(moveDir.x, moveDir.z);
+        float targetYaw = luma::YawFromDirection(moveDir.x, moveDir.z);
         character_->RotateTowards(targetYaw);
 
         moveDir = glm::normalize(moveDir);
