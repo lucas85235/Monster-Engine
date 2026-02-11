@@ -94,9 +94,72 @@ add_subdirectory(${assimp_DIR})
 
 find_package(OpenGL REQUIRED)
 
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃               FILAMENT SDK CONFIGURATION                 ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+set(FILAMENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${third_party_dir}/filament)
+set(FILAMENT_INCLUDE_DIR ${FILAMENT_DIR}/include)
+
+# Determine Filament library directory based on architecture
+if (APPLE)
+    execute_process(
+        COMMAND uname -m
+        OUTPUT_VARIABLE MACHINE_ARCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if (MACHINE_ARCH STREQUAL "arm64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/arm64)
+    else()
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+    endif()
+elseif(WIN32)
+    set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+else()
+    set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+endif()
+
+# Create IMPORTED targets for Filament libraries
+set(FILAMENT_LIBS
+    filament
+    backend
+    bluegl
+    bluevk
+    filabridge
+    filaflat
+    filamat
+    filament-iblprefilter
+    geometry
+    ibl
+    image
+    shaders
+    smol-v
+    uberarchive
+    uberzlib
+    utils
+    camutils
+    viewer
+    stb
+    zstd
+)
+
+foreach(lib ${FILAMENT_LIBS})
+    add_library(filament_${lib} STATIC IMPORTED)
+    set_target_properties(filament_${lib} PROPERTIES
+        IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/lib${lib}.a
+    )
+endforeach()
+
 file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
+
+# Add Objective-C++ sources on Apple platforms
+if(APPLE)
+    file(GLOB_RECURSE PROJECT_MM_SRCS CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
+    )
+    list(APPEND PROJECT_SRCS ${PROJECT_MM_SRCS})
+endif()
 
 add_library(simple_engine STATIC
         ${PROJECT_SRCS}
@@ -118,12 +181,20 @@ target_include_directories(simple_engine PUBLIC
         ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
         ${freetype_DIR}/include
         ${third_party_dir}/legit-profiler
+        # Filament SDK headers
+        ${FILAMENT_INCLUDE_DIR}
 )
 
 # --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
 
 # Liga a sua engine às suas dependências.
 # Agora voltamos a ligar explicitamente ao ALVO 'glad'.
+# Filament static libraries (order matters for linker)
+set(FILAMENT_LINK_LIBS)
+foreach(lib ${FILAMENT_LIBS})
+    list(APPEND FILAMENT_LINK_LIBS filament_${lib})
+endforeach()
+
 target_link_libraries(simple_engine PUBLIC
         mmath
         glad
@@ -141,7 +212,29 @@ target_link_libraries(simple_engine PUBLIC
         BulletCollision
         LinearMath
         assimp
+        # Filament libraries
+        ${FILAMENT_LINK_LIBS}
 )
+
+# Platform-specific frameworks required by Filament
+if(APPLE)
+    target_link_libraries(simple_engine PUBLIC
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework Cocoa"
+        "-framework CoreVideo"
+        "-framework IOKit"
+        "-framework QuartzCore"
+        "-framework CoreGraphics"
+        "-framework Foundation"
+    )
+    # Disable PCH for .mm files (PCH was compiled as C++, not Obj-C++)
+    set_source_files_properties(
+        ${PROJECT_MM_SRCS}
+        PROPERTIES
+            SKIP_PRECOMPILE_HEADERS ON
+    )
+endif()
 
 # Adiciona definições de compilação necessárias
 target_compile_definitions(simple_engine PUBLIC

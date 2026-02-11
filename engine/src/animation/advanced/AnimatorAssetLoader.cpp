@@ -600,9 +600,10 @@ uint64_t AnimatorAssetLoader::GetLastModifiedTime(const std::filesystem::path& p
     }
     
     auto ftime = std::filesystem::last_write_time(path);
-    auto sctp = std::chrono::time_point_cast<std::chrono::seconds>(
-        std::chrono::clock_cast<std::chrono::system_clock>(ftime));
-    return static_cast<uint64_t>(sctp.time_since_epoch().count());
+    // Portable conversion: use duration since epoch of file_clock directly
+    auto duration = ftime.time_since_epoch();
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    return static_cast<uint64_t>(seconds.count());
 }
 
 bool AnimatorAssetLoader::CheckModified(const std::filesystem::path& path, uint64_t lastLoadTime) {
