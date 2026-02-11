@@ -92,7 +92,7 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${assimp_DIR})
 
-find_package(OpenGL REQUIRED)
+# OpenGL no longer required — Filament handles all rendering
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃               FILAMENT SDK CONFIGURATION                 ┃
@@ -153,6 +153,9 @@ file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Exclude legacy OpenGL files from the build
+list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/_legacy/.*")
+
 # Add Objective-C++ sources on Apple platforms
 if(APPLE)
     file(GLOB_RECURSE PROJECT_MM_SRCS CONFIGURE_DEPENDS
@@ -171,7 +174,6 @@ target_include_directories(simple_engine PUBLIC
         ${imgui_DIR}
         ${imnodes_DIR}
         ${imguizmo_DIR}
-        ${glad_DIR}/include
         ${glfw_DIR}/include
         ${stb_DIR}
         ${entt_DIR}
@@ -185,10 +187,8 @@ target_include_directories(simple_engine PUBLIC
         ${FILAMENT_INCLUDE_DIR}
 )
 
-# --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
+# --- ENGINE DEPENDENCIES ---
 
-# Liga a sua engine às suas dependências.
-# Agora voltamos a ligar explicitamente ao ALVO 'glad'.
 # Filament static libraries (order matters for linker)
 set(FILAMENT_LINK_LIBS)
 foreach(lib ${FILAMENT_LIBS})
@@ -197,9 +197,7 @@ endforeach()
 
 target_link_libraries(simple_engine PUBLIC
         mmath
-        glad
         glfw
-        OpenGL::GL
         ImGui
         ImGuizmo
         spdlog

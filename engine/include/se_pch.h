@@ -48,13 +48,12 @@
 #include <vector>
 
 // ============================================================================
-// OpenGL / GLFW
+// GLFW (windowing only — no OpenGL, rendering via Filament)
 // ============================================================================
 #ifndef GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_NONE
 #endif
 #include <GLFW/glfw3.h>
-#include <glad/glad.h>
 
 // ============================================================================
 // Monster Math Library (includes GLM internally)

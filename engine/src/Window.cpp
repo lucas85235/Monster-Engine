@@ -8,7 +8,6 @@
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/events/Events.h"
-#include "engine/renderer/GraphicsContext.h"
 
 namespace se {
 
@@ -29,11 +28,8 @@ void Window::OnUpdate() {
 }
 
 void Window::SetVSync(bool enabled) {
-    if (enabled)
-        glfwSwapInterval(1);
-    else
-        glfwSwapInterval(0);
-
+    // VSync is managed by Filament's SwapChain, not GLFW.
+    // Store the value for the renderer to query.
     vsync_ = enabled;
 }
 
@@ -53,10 +49,6 @@ void Window::RequestClose() const {
 
 void Window::SetTargetFPS(int fps) {
     target_fps_ = fps;
-    if (fps > 0) {
-        // Disable VSync when using manual FPS limiting
-        SetVSync(false);
-    }
 }
 
 void Window::ApplyFrameRateLimit() {
@@ -77,10 +69,6 @@ void Window::ApplyFrameRateLimit() {
     last_frame_time_ = std::chrono::high_resolution_clock::now();
 }
 
-void Window::SwapBuffers() const {
-    context_->SwapBuffers();
-}
-
 Window* Window::Create(const WindowSpec& specification) {
     return new Window(specification);
 }
@@ -95,18 +83,13 @@ void Window::Init() {
         s_GLFWInitialized = true;
     }
 
-    // Set OpenGL version hints (4.3 required for compute shaders)
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // No OpenGL context — Filament creates its own Metal/Vulkan context
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_DECORATED, spec_.Decorated);
     glfwWindowHint(GLFW_RESIZABLE, spec_.Resizable);
 
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
-    SE_LOG_INFO("Creating window {} ({}, {})", spec_.Title, spec_.Width, spec_.Height);
+    SE_LOG_INFO("Creating window {} ({}, {}) [Filament backend]",
+                spec_.Title, spec_.Width, spec_.Height);
 
     if (spec_.Fullscreen) {
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
@@ -117,9 +100,7 @@ void Window::Init() {
 
         window_handle_ =
             glfwCreateWindow(width, height, spec_.Title.c_str(), primary_monitor, nullptr);
-    }
-
-    else {
+    } else {
         window_handle_ =
             glfwCreateWindow(spec_.Width, spec_.Height, spec_.Title.c_str(), nullptr, nullptr);
 
@@ -127,7 +108,7 @@ void Window::Init() {
         GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
         glfwGetMonitorWorkarea(primary_monitor, nullptr, nullptr, &width, &height);
 
-        // to open in the center of screen
+        // Center the window on screen
         glfwSetWindowPos(window_handle_, width / 2 - spec_.Width / 2,
                          height / 2 - spec_.Height / 2);
     }
@@ -136,10 +117,6 @@ void Window::Init() {
         glfwTerminate();
         throw std::runtime_error("Failed to create GLFW window");
     }
-
-    // Create graphics context
-    context_ = std::make_unique<GraphicsContext>(window_handle_);
-    context_->Init();
 
     glfwSetWindowUserPointer(window_handle_, this);
 
@@ -198,14 +175,7 @@ void Window::Init() {
         event_bus_->Invoke<WindowFocusEvent>(focused == GLFW_TRUE);
     });
 
-    // Set initial viewport
-    int frame_buffer_width, frame_buffer_height;
-    glfwGetFramebufferSize(window_handle_, &frame_buffer_width, &frame_buffer_height);
-    glViewport(0, 0, frame_buffer_width, frame_buffer_height);
-    
-    // Apply VSync setting from WindowSpec
-    SetVSync(spec_.VSync);
-    SE_LOG_INFO("VSync: {}", spec_.VSync ? "enabled" : "disabled");
+    SE_LOG_INFO("Window created successfully (no OpenGL context)");
 }
 
 void Window::Shutdown() {
@@ -223,7 +193,7 @@ void Window::FramebufferSizeCallback(WindowHandle window, int width, int height)
         event_bus_->Invoke<WindowResizeEvent>(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
     }
 
-    glViewport(0, 0, w, h);
+    // Note: No glViewport — Filament handles viewport via View::setViewport
 }
 
 }  // namespace se

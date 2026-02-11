@@ -4,12 +4,15 @@
 #include <vector>
 
 #include "Engine.h"
-#include "engine/ImGuiLayer.h"
 #include "engine/Layer.h"
-#include "engine/Renderer.h"
 #include "engine/Window.h"
 #include "engine/events/EventBus.h"
 #include "engine/events/Events.h"
+#include "engine/renderer/FilamentContext.h"
+#include "engine/renderer/FilamentRenderer.h"
+#include "engine/renderer/MaterialSystem.h"
+#include "engine/renderer/MeshSystem.h"
+#include "engine/renderer/LightSystem.h"
 
 namespace se {
 
@@ -54,8 +57,20 @@ class Application {
     Window& GetWindow() {
         return *window_;
     }
-    Renderer& GetRenderer() {
-        return *renderer_;
+    FilamentContext& GetFilamentContext() {
+        return *filament_context_;
+    }
+    FilamentRenderer& GetFilamentRenderer() {
+        return *filament_renderer_;
+    }
+    MaterialSystem& GetMaterialSystem() {
+        return *material_system_;
+    }
+    MeshSystem& GetMeshSystem() {
+        return *mesh_system_;
+    }
+    LightSystem& GetLightSystem() {
+        return *light_system_;
     }
     EventBus& GetEventBus() {
         return *event_bus_;
@@ -77,14 +92,17 @@ class Application {
     float GetTime();
 
    private:
-    // Event handlers for the new EventBus system
+    // Event handlers
     bool OnWindowResize(const WindowResizeEvent& e);
     bool OnWindowMinimize(const WindowMinimizeEvent& e);
     bool OnWindowClose(const WindowCloseEvent& e);
 
-    std::unique_ptr<Window>     window_;
-    std::unique_ptr<Renderer>   renderer_;
-    std::shared_ptr<ImGuiLayer> imguiLayer_;
+    std::unique_ptr<Window>           window_;
+    std::unique_ptr<FilamentContext>   filament_context_;
+    std::unique_ptr<FilamentRenderer> filament_renderer_;
+    std::unique_ptr<MaterialSystem>   material_system_;
+    std::unique_ptr<MeshSystem>       mesh_system_;
+    std::unique_ptr<LightSystem>      light_system_;
 
     ApplicationSpecification specification_;
 

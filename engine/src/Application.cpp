@@ -2,17 +2,12 @@
 
 #include <GLFW/glfw3.h>
 
-#include <glm.hpp>
-
 #include "Engine.h"
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/core/Time.h"
-#include "engine/debug/DebugConfig.h"
-#include "engine/debug/DebugTools.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
-#include "engine/perf/PerfOverlay.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -28,7 +23,7 @@ Application::Application(const ApplicationSpecification& specification) {
     LogInit(true);
 #endif
 
-    SE_LOG_INFO("Starting Simple Engine");
+    SE_LOG_INFO("Starting Monster Engine (Filament)");
 
     InputManager::Get().Init(event_bus_.get());
 
@@ -43,30 +38,44 @@ Application::Application(const ApplicationSpecification& specification) {
     windowSpec.IconPath   = specification.IconPath;
     windowSpec.event_bus   = event_bus_.get();
 
-    // Create window
+    // Create window (GLFW_NO_API — no OpenGL context)
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
     window_->Init();
 
-    // Create and initialize renderer
-    renderer_ = std::make_unique<Renderer>();
-    renderer_->Init();
+    // Create Filament context and renderer
+    filament_context_ = std::make_unique<FilamentContext>();
+    filament_context_->Init(
+        window_->GetNativeWindow(),
+        specification.WindowWidth,
+        specification.WindowHeight,
+        FilamentContext::Backend::Default  // Metal on macOS, Vulkan on Linux/Windows
+    );
+
+    filament_renderer_ = std::make_unique<FilamentRenderer>(*filament_context_);
+
+    // Set default clear color (dark blue-gray)
+    filament_renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+
+    // Initialize rendering subsystems
+    material_system_ = std::make_unique<MaterialSystem>();
+    material_system_->Init(filament_context_->GetEngine());
+
+    mesh_system_ = std::make_unique<MeshSystem>();
+    mesh_system_->Init(filament_context_->GetEngine(), filament_context_->GetScene());
+
+    light_system_ = std::make_unique<LightSystem>();
+    light_system_->Init(filament_context_->GetEngine(), filament_context_->GetScene());
 
     // Register services with ServiceLocator
-    ServiceLocator::Get().ProvideRenderer(renderer_.get());
     ServiceLocator::Get().ProvideInputManager(&InputManager::Get());
     ServiceLocator::Get().ProvideEventBus(event_bus_.get());
+    ServiceLocator::Get().ProvideFilamentContext(filament_context_.get());
+    ServiceLocator::Get().ProvideFilamentRenderer(filament_renderer_.get());
+    ServiceLocator::Get().ProvideMaterialSystem(material_system_.get());
+    ServiceLocator::Get().ProvideMeshSystem(mesh_system_.get());
+    ServiceLocator::Get().ProvideLightSystem(light_system_.get());
 
-    // Set default clear color
-    renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-
-    // Create and attach ImGui layer with app name for per-app ini file (Debug only)
-#if SE_DEBUG
-    imguiLayer_ = std::make_shared<ImGuiLayer>(specification.Name);
-    imguiLayer_->SetWindow(window_->GetNativeWindow());
-    imguiLayer_->OnAttach();
-#endif
-
-    // Register event listeners with the new EventBus
+    // Register event listeners
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
     event_bus_->AddListener<WindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimize));
     event_bus_->AddListener<WindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowClose));
@@ -87,29 +96,25 @@ Application::Application(const ApplicationSpecification& specification) {
     event_bus_->AddListener<MouseScrolledEvent>(
         [](const MouseScrolledEvent& e) { InputManager::Get().OnMouseScrolled(e.yOffset); });
 
-    SE_LOG_INFO("Application initialized successfully");
+    SE_LOG_INFO("Application initialized successfully (Filament renderer)");
 }
 
 Application::~Application() {
-    SE_LOG_INFO("Shutting down Simple Engine");
+    SE_LOG_INFO("Shutting down Monster Engine");
 
-    // Detach ImGui (Debug only)
-#if SE_DEBUG
-    if (imguiLayer_) { imguiLayer_->OnDetach(); }
-#endif
-    
     // Shutdown input manager
     InputManager::Get().Shutdown();
-
-    // Shutdown performance overlay
-    perf::PerfOverlay::Shutdown();
 
     // Cleanup layers
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
     layer_stack_.clear();
 
-    // Cleanup systems
-    renderer_.reset();
+    // Cleanup rendering subsystems (reverse init order)
+    light_system_.reset();
+    mesh_system_.reset();
+    material_system_.reset();
+    filament_renderer_.reset();
+    filament_context_.reset();
 
     // Reset ServiceLocator
     ServiceLocator::Get().Reset();
@@ -126,12 +131,13 @@ int Application::Run() {
     SE_LOG_INFO("Application main loop started");
 
     while (running_) {
-        // Check for window close
+        // Check for window close (Escape key)
         if (InputManager::Get().IsKeyDown(Key::Escape)) { window_->RequestClose(); }
 
         // Calculate timestep
         float currentTime = GetTime();
-        float timestep    = glm::clamp(currentTime - lastTime, 0.001f, 0.1f);
+        float timestep    = std::min(currentTime - lastTime, 0.1f);
+        if (timestep < 0.001f) timestep = 0.001f;
         lastTime          = currentTime;
 
         // Update global time
@@ -140,7 +146,7 @@ int Application::Run() {
         // Update Input Manager
         InputManager::Get().Update();
 
-        // Poll events
+        // Poll GLFW events
         window_->OnUpdate();
 
         // Dispatch events from the EventBus
@@ -148,88 +154,33 @@ int Application::Run() {
 
         // Skip rendering if minimized
         if (minimized_) continue;
-        
-        // Begin debug profiling frame
-        SE_DEBUG_TOOLS_FRAME_BEGIN();
 
-        // IMPORTANT: Update viewport BEFORE BeginFrame
-        // BeginFrame reads GL_VIEWPORT to determine HDR framebuffer size.
-        // We must ensure glViewport reflects the actual framebuffer size first.
+        // Update framebuffer size
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
         if (width > 0 && height > 0) {
-            glViewport(0, 0, width, height);
             if (window_->GetWidth() != static_cast<uint32_t>(width) ||
                 window_->GetHeight() != static_cast<uint32_t>(height)) {
                 window_->SetWidth(width);
                 window_->SetHeight(height);
+                filament_context_->OnResize(width, height);
             }
         }
 
-        {
-            SE_PROFILE_SCOPE_COLOR("BeginFrame", ProfilerColors::Clouds);
-            renderer_->BeginFrame();
-        }
-
-        {
-            SE_PROFILE_SCOPE_COLOR("Clear", ProfilerColors::Clouds);
-            renderer_->Clear();
-        }
-
-        {
-            SE_PROFILE_SCOPE_COLOR("Layers Update", ProfilerColors::Turquoise);
+        // Begin Filament frame
+        if (filament_renderer_->BeginFrame()) {
+            // Update layers
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
-        }
 
-        {
-            SE_PROFILE_SCOPE_COLOR("Layers Render", ProfilerColors::Emerald);
+            // Render layers
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
-        }
-        
-        // Update and render performance overlay (works in both Debug and Release)
-        perf::PerfOverlay::Update(timestep);
-        perf::PerfOverlay::Render();
 
-        {
-            SE_PROFILE_SCOPE_COLOR("EndFrame", ProfilerColors::Clouds);
-            renderer_->EndFrame();
+            // End Filament frame (render + present)
+            filament_renderer_->EndFrame();
         }
 
-        // ImGui rendering (Debug only)
-#if SE_DEBUG
-        {
-            SE_PROFILE_SCOPE_COLOR("ImGui", ProfilerColors::SunFlower);
-            
-            {
-                SE_PROFILE_SCOPE_COLOR("ImGui::Begin", ProfilerColors::Carrot);
-                imguiLayer_->Begin();
-            }
-
-            {
-                SE_PROFILE_SCOPE_COLOR("ImGui::Layers", ProfilerColors::Alizarin);
-                // Let layers draw their ImGui
-                for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnImGuiRender(); }
-            }
-            
-            // Render debug tools (only in Debug builds)
-            // Note: This includes the profiler itself - timing here is recursive
-            SE_DEBUG_TOOLS_RENDER();
-
-            {
-                SE_PROFILE_SCOPE_COLOR("ImGui::End", ProfilerColors::Amethyst);
-                imguiLayer_->End();
-            }
-        }
-#endif
-        
-        // End debug profiling frame
-        SE_DEBUG_TOOLS_FRAME_END();
-        
         // Apply FPS limiting if set
         window_->ApplyFrameRateLimit();
-
-        // Swap buffers
-        window_->SwapBuffers();
 
         if (window_->ShouldClose()) {
             Close();
@@ -259,6 +210,7 @@ bool Application::OnWindowResize(const WindowResizeEvent& e) {
         return false;
     }
     minimized_ = false;
+    filament_context_->OnResize(e.width, e.height);
     return false;
 }
 

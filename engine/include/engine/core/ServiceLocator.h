@@ -4,10 +4,13 @@
 
 namespace se {
 
-class Renderer;
 class InputManager;
 class EventBus;
-class SceneRenderer;
+class FilamentContext;
+class FilamentRenderer;
+class MaterialSystem;
+class MeshSystem;
+class LightSystem;
 
 /**
  * ServiceLocator provides centralized access to engine services.
@@ -24,25 +27,29 @@ class ServiceLocator {
     }
 
     // Service registration (non-owning pointers)
-    void ProvideRenderer(Renderer* renderer) {
-        renderer_ = renderer;
-    }
     void ProvideInputManager(InputManager* input) {
         input_manager_ = input;
     }
     void ProvideEventBus(EventBus* eventBus) {
         event_bus_ = eventBus;
     }
-    void ProvideSceneRenderer(SceneRenderer* sceneRenderer) {
-        scene_renderer_ = sceneRenderer;
+    void ProvideFilamentContext(FilamentContext* context) {
+        filament_context_ = context;
+    }
+    void ProvideFilamentRenderer(FilamentRenderer* renderer) {
+        filament_renderer_ = renderer;
+    }
+    void ProvideMaterialSystem(MaterialSystem* materials) {
+        material_system_ = materials;
+    }
+    void ProvideMeshSystem(MeshSystem* meshes) {
+        mesh_system_ = meshes;
+    }
+    void ProvideLightSystem(LightSystem* lights) {
+        light_system_ = lights;
     }
 
     // Service access with validation
-    Renderer& GetRenderer() const {
-        if (!renderer_) throw std::runtime_error("Renderer not registered with ServiceLocator");
-        return *renderer_;
-    }
-
     InputManager& GetInputManager() const {
         if (!input_manager_)
             throw std::runtime_error("InputManager not registered with ServiceLocator");
@@ -54,46 +61,82 @@ class ServiceLocator {
         return *event_bus_;
     }
 
-    SceneRenderer& GetSceneRenderer() const {
-        if (!scene_renderer_)
-            throw std::runtime_error("SceneRenderer not registered with ServiceLocator");
-        return *scene_renderer_;
+    FilamentContext& GetFilamentContext() const {
+        if (!filament_context_)
+            throw std::runtime_error("FilamentContext not registered with ServiceLocator");
+        return *filament_context_;
+    }
+
+    FilamentRenderer& GetFilamentRenderer() const {
+        if (!filament_renderer_)
+            throw std::runtime_error("FilamentRenderer not registered with ServiceLocator");
+        return *filament_renderer_;
+    }
+
+    MaterialSystem& GetMaterialSystem() const {
+        if (!material_system_)
+            throw std::runtime_error("MaterialSystem not registered with ServiceLocator");
+        return *material_system_;
+    }
+
+    MeshSystem& GetMeshSystem() const {
+        if (!mesh_system_)
+            throw std::runtime_error("MeshSystem not registered with ServiceLocator");
+        return *mesh_system_;
+    }
+
+    LightSystem& GetLightSystem() const {
+        if (!light_system_)
+            throw std::runtime_error("LightSystem not registered with ServiceLocator");
+        return *light_system_;
     }
 
     // Raw pointer access for optional checks
-    Renderer* GetRendererPtr() const {
-        return renderer_;
-    }
     InputManager* GetInputManagerPtr() const {
         return input_manager_;
     }
     EventBus* GetEventBusPtr() const {
         return event_bus_;
     }
-    SceneRenderer* GetSceneRendererPtr() const {
-        return scene_renderer_;
+    FilamentContext* GetFilamentContextPtr() const {
+        return filament_context_;
+    }
+    FilamentRenderer* GetFilamentRendererPtr() const {
+        return filament_renderer_;
+    }
+    MaterialSystem* GetMaterialSystemPtr() const {
+        return material_system_;
+    }
+    MeshSystem* GetMeshSystemPtr() const {
+        return mesh_system_;
+    }
+    LightSystem* GetLightSystemPtr() const {
+        return light_system_;
     }
 
     // Availability checks
-    bool HasRenderer() const {
-        return renderer_ != nullptr;
-    }
     bool HasInputManager() const {
         return input_manager_ != nullptr;
     }
     bool HasEventBus() const {
         return event_bus_ != nullptr;
     }
-    bool HasSceneRenderer() const {
-        return scene_renderer_ != nullptr;
+    bool HasFilamentContext() const {
+        return filament_context_ != nullptr;
+    }
+    bool HasFilamentRenderer() const {
+        return filament_renderer_ != nullptr;
     }
 
     // Reset all services (for shutdown/testing)
     void Reset() {
-        renderer_       = nullptr;
-        input_manager_  = nullptr;
-        event_bus_      = nullptr;
-        scene_renderer_ = nullptr;
+        input_manager_     = nullptr;
+        event_bus_         = nullptr;
+        filament_context_  = nullptr;
+        filament_renderer_ = nullptr;
+        material_system_   = nullptr;
+        mesh_system_       = nullptr;
+        light_system_      = nullptr;
     }
 
    private:
@@ -105,10 +148,13 @@ class ServiceLocator {
     ServiceLocator(ServiceLocator&&)                 = delete;
     ServiceLocator& operator=(ServiceLocator&&)      = delete;
 
-    Renderer*      renderer_       = nullptr;
-    InputManager*  input_manager_  = nullptr;
-    EventBus*      event_bus_      = nullptr;
-    SceneRenderer* scene_renderer_ = nullptr;
+    InputManager*     input_manager_     = nullptr;
+    EventBus*         event_bus_         = nullptr;
+    FilamentContext*  filament_context_  = nullptr;
+    FilamentRenderer* filament_renderer_ = nullptr;
+    MaterialSystem*   material_system_   = nullptr;
+    MeshSystem*       mesh_system_       = nullptr;
+    LightSystem*      light_system_      = nullptr;
 };
 
 }  // namespace se

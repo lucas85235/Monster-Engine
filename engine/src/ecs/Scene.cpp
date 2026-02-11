@@ -5,7 +5,6 @@
 #include "engine/Log.h"
 #include "engine/ecs/AnimationSystem.h"
 #include "engine/ecs/ComponentSystem.h"
-#include "engine/ecs/RenderSystem.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
 
@@ -166,7 +165,8 @@ void Scene::OnUpdate(float deltaTime) {
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {
-    RenderSystem::Render(*this, camera, aspectRatio);
+    // TODO: Implement Filament-based rendering pipeline
+    // RenderSystem now uses Filament instead of OpenGL
 
     if (physics_system_) { physics_system_->RenderDebug(camera); }
 }

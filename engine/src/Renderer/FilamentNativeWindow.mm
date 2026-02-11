@@ -1,14 +1,15 @@
 /**
  * Platform-specific native window handle extraction for Filament.
  *
- * On macOS, Filament needs either:
- * - NSView* for OpenGL backend
- * - CAMetalLayer* for Metal backend (Filament handles this internally from NSView*)
+ * On macOS with the Metal backend, Filament expects a CAMetalLayer*
+ * as the native window handle for SwapChain creation.
  *
- * This Objective-C++ file extracts the NSView* from a GLFW window.
+ * This Objective-C++ file extracts the NSView* from a GLFW window,
+ * sets its layer to a CAMetalLayer, and returns the layer pointer.
  */
 
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/CAMetalLayer.h>
 
 #define GLFW_EXPOSE_NATIVE_COCOA
 #include <GLFW/glfw3.h>
@@ -22,5 +23,15 @@ extern "C" void* GetCocoaNativeWindow(void* glfwWindow) {
     if (!nsWindow) return nullptr;
 
     NSView* view = [nsWindow contentView];
-    return (__bridge void*)view;
+    if (!view) return nullptr;
+
+    // Filament Metal backend requires a CAMetalLayer* as native handle.
+    // We make the NSView layer-backed and replace its layer with a CAMetalLayer.
+    [view setWantsLayer:YES];
+
+    CAMetalLayer* metalLayer = [CAMetalLayer layer];
+    metalLayer.contentsScale = [nsWindow backingScaleFactor];
+    [view setLayer:metalLayer];
+
+    return (__bridge void*)metalLayer;
 }

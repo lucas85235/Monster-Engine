@@ -14,7 +14,6 @@
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/Collider.h"
-#include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/RigidbodyComponent.h"
 #include "engine/physics/ShapeCache.h"
 
@@ -74,8 +73,9 @@ void PhysicsSystem::Initialize(const PhysicsConfig& config) {
     dynamics_world_->getSolverInfo().m_numIterations = config_.solverIterations;
     dynamics_world_->getSolverInfo().m_splitImpulse  = true;
 
-    debug_drawer_ = new PhysicsDebugDraw();
-    dynamics_world_->setDebugDrawer(debug_drawer_);
+    // TODO: Implement Filament-based physics debug drawer
+    // debug_drawer_ = new PhysicsDebugDraw();
+    // dynamics_world_->setDebugDrawer(debug_drawer_);
     
     // Set pre-tick callback to sync game logic with physics substeps
     // isPreTick=true means callback runs BEFORE each substep
@@ -127,7 +127,8 @@ void PhysicsSystem::Shutdown() {
         delete overlapping_pair_cache_broadphase_interface_;
         delete dispatcher_;
         delete collision_configuration_;
-        delete debug_drawer_;
+        // debug_drawer_ no longer created — Filament debug draw TBD
+        debug_drawer_ = nullptr;
 
         // Reset task scheduler
         if (task_scheduler_) {
@@ -445,15 +446,17 @@ void PhysicsSystem::RemoveBodyInternal(btRigidBody* body) {
 }
 
 void PhysicsSystem::RenderDebug(const Camera& camera) {
-    std::lock_guard<std::mutex> lock(physics_mutex_);
-    if (dynamics_world_ && debug_drawer_) {
-        dynamics_world_->debugDrawWorld();
-        debug_drawer_->Flush(camera);
-    }
+    // TODO: Implement Filament-based physics debug rendering
+    // std::lock_guard<std::mutex> lock(physics_mutex_);
+    // if (dynamics_world_ && debug_drawer_) {
+    //     dynamics_world_->debugDrawWorld();
+    //     debug_drawer_->Flush(camera);
+    // }
 }
 
 void PhysicsSystem::UpdateDebugDraw(float dt) {
-    if (debug_drawer_) { debug_drawer_->UpdateTimedElements(dt); }
+    // TODO: Implement Filament-based physics debug draw update
+    // if (debug_drawer_) { debug_drawer_->UpdateTimedElements(dt); }
 }
 
 struct RaycastCallback : public btCollisionWorld::ClosestRayResultCallback {

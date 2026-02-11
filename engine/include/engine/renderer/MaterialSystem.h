@@ -1,0 +1,93 @@
+#pragma once
+
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "engine/renderer/MaterialHandle.h"
+
+namespace filament {
+class Engine;
+class Material;
+class MaterialInstance;
+} // namespace filament
+
+namespace se {
+
+/**
+ * Configuration for creating a material instance.
+ */
+struct MaterialConfig {
+    float baseColor[4]  = {0.8f, 0.8f, 0.8f, 1.0f}; // Linear RGBA
+    float metallic      = 0.0f;
+    float roughness     = 0.5f;
+    float reflectance   = 0.5f;
+    float emissive[3]   = {0.0f, 0.0f, 0.0f};
+    float emissiveIntensity = 0.0f;
+};
+
+/**
+ * Manages Filament Material and MaterialInstance lifetimes.
+ *
+ * Provides built-in materials for common use cases and allows
+ * creating custom material instances with PBR parameters.
+ *
+ * All Materials are owned by this system and destroyed on Shutdown().
+ */
+class MaterialSystem {
+public:
+    MaterialSystem() = default;
+    ~MaterialSystem();
+
+    // Non-copyable
+    MaterialSystem(const MaterialSystem&) = delete;
+    MaterialSystem& operator=(const MaterialSystem&) = delete;
+
+    /**
+     * Initialize with a Filament engine. Must be called before any other method.
+     */
+    void Init(filament::Engine* engine);
+
+    /**
+     * Shutdown and destroy all materials.
+     */
+    void Shutdown();
+
+    /**
+     * Create a new PBR material instance with the given configuration.
+     */
+    MaterialHandle CreateMaterial(const MaterialConfig& config = {});
+
+    /**
+     * Get the default lit material (white, roughness=0.5, non-metallic).
+     */
+    MaterialHandle GetDefaultLit();
+
+    /**
+     * Get a flat unlit material (no lighting).
+     */
+    MaterialHandle GetDefaultUnlit();
+
+    /**
+     * Get the underlying Filament Material for advanced use.
+     */
+    filament::Material* GetLitMaterial() const { return lit_material_; }
+
+private:
+    void CreateBuiltInMaterials();
+
+    filament::Engine*   engine_ = nullptr;
+
+    // Built-in Filament Materials (template materials)
+    filament::Material* lit_material_   = nullptr;
+    filament::Material* unlit_material_ = nullptr;
+
+    // All created instances (owned by this system)
+    std::vector<filament::MaterialInstance*> instances_;
+
+    // Default instances
+    MaterialHandle default_lit_;
+    MaterialHandle default_unlit_;
+};
+
+} // namespace se

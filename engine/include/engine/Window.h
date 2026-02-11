@@ -12,8 +12,6 @@ struct GLFWwindow;
 
 namespace se {
 
-class GraphicsContext;
-
 struct WindowSpec {
     std::string           Title      = "Simple-Engine";
     uint32_t              Width      = 800;
@@ -26,6 +24,10 @@ struct WindowSpec {
     std::filesystem::path IconPath;
 };
 
+/**
+ * Window class that uses GLFW with NO OpenGL context.
+ * Rendering is handled entirely by Filament (Metal/Vulkan backend).
+ */
 class Window {
    public:
     explicit Window(const WindowSpec& spec);
@@ -67,8 +69,6 @@ class Window {
         return window_handle_;
     }
 
-    void SwapBuffers() const;
-
     static Window* Create(const WindowSpec& specification);
 
    private:
@@ -78,7 +78,6 @@ class Window {
 
    private:
     WindowHandle           window_handle_ = nullptr;
-    Scope<GraphicsContext> context_;
     WindowSpec             spec_;
     bool                   vsync_ = true;
     
