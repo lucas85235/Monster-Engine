@@ -9,9 +9,6 @@ compile_commands.json
 !.idea/
 .idea/**
 
-# mac store
-.DS_*
-
 !.idea/fileTemplates/
 !.idea/fileTemplates/**
 
