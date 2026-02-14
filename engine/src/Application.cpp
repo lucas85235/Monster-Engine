@@ -62,6 +62,8 @@ Application::Application(const ApplicationSpecification& specification) {
 
     // Set default clear color (dark blue-gray)
     filament_renderer_->SetClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+    render_settings_system_ = std::make_unique<RenderSettingsSystem>();
+    render_settings_system_->Init(filament_renderer_.get());
 
     // Initialize rendering subsystems
     material_system_ = std::make_unique<MaterialSystem>();
@@ -89,6 +91,7 @@ Application::Application(const ApplicationSpecification& specification) {
     ServiceLocator::Get().ProvideLightSystem(light_system_.get());
     ServiceLocator::Get().ProvideTextureSystem(texture_system_.get());
     ServiceLocator::Get().ProvideModelLoader(model_loader_.get());
+    ServiceLocator::Get().ProvideRenderSettingsSystem(render_settings_system_.get());
 
     // Register event listeners
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
@@ -129,17 +132,22 @@ Application::~Application() {
         imgui_layer_.reset();
     }
 
+    // Reset service pointers before tearing down subsystem instances to avoid
+    // stale pointer access during late object destruction.
+    ServiceLocator::Get().Reset();
+
     // Cleanup rendering subsystems (reverse init order)
     model_loader_.reset();
+    if (render_settings_system_) {
+        render_settings_system_->Shutdown();
+    }
+    render_settings_system_.reset();
     texture_system_.reset();
     light_system_.reset();
     mesh_system_.reset();
     material_system_.reset();
     filament_renderer_.reset();
     filament_context_.reset();
-
-    // Reset ServiceLocator
-    ServiceLocator::Get().Reset();
 
     glfwTerminate();
 
@@ -177,6 +185,10 @@ int Application::Run() {
         // Skip rendering if minimized
         if (minimized_) continue;
 
+        if (render_settings_system_ && render_settings_system_->IsDirty()) {
+            render_settings_system_->Apply();
+        }
+
         // Update framebuffer size
         int width, height;
         glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
@@ -193,6 +205,11 @@ int Application::Run() {
         if (filament_renderer_->BeginFrame()) {
             // Update layers
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+
+            // Advance glTF skeletal animation clocks before scene rendering.
+            if (model_loader_) {
+                model_loader_->UpdateAnimations(timestep);
+            }
 
             // Render layers
             for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }

@@ -22,6 +22,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+#include <limits>
 
 namespace se {
 
@@ -112,16 +113,21 @@ void MeshSystem::Shutdown() {
     if (!engine_) return;
 
     for (auto& r : renderables_) {
-        if (r.entity) {
-            scene_->remove(*r.entity);
-            engine_->destroy(*r.entity);
-            utils::EntityManager::get().destroy(*r.entity);
-            delete r.entity;
+        if (r.alive) {
+            if (scene_) {
+                scene_->remove(r.entity);
+            }
+            engine_->destroy(r.entity);
+            utils::EntityManager::get().destroy(r.entity);
         }
         if (r.vertexBuffer) engine_->destroy(r.vertexBuffer);
         if (r.indexBuffer)  engine_->destroy(r.indexBuffer);
+        r.vertexBuffer = nullptr;
+        r.indexBuffer  = nullptr;
+        r.alive        = false;
     }
     renderables_.clear();
+    free_slots_.clear();
 
     engine_ = nullptr;
     scene_  = nullptr;
@@ -255,15 +261,25 @@ RenderableHandle MeshSystem::CreateRenderable(const MeshData& meshData,
 
     scene_->addEntity(entity);
 
-    // Store managed renderable
-    ManagedRenderable managed;
-    managed.entity       = new utils::Entity(entity);
+    // Store managed renderable in a generation-tracked slot.
+    uint32_t slotIndex = 0;
+    if (!free_slots_.empty()) {
+        slotIndex = free_slots_.back();
+        free_slots_.pop_back();
+    } else {
+        slotIndex = static_cast<uint32_t>(renderables_.size());
+        renderables_.emplace_back();
+    }
+
+    auto& managed       = renderables_[slotIndex];
+    managed.entity      = entity;
     managed.vertexBuffer = vb;
     managed.indexBuffer  = ib;
-    renderables_.push_back(managed);
+    managed.alive        = true;
 
     RenderableHandle handle;
-    handle.filamentEntity = managed.entity;
+    handle.index      = slotIndex;
+    handle.generation = managed.generation;
 
     spdlog::debug("Created renderable '{}' with {} vertices, {} indices.",
                   meshData.name, vertexCount, indexCount);
@@ -272,36 +288,62 @@ RenderableHandle MeshSystem::CreateRenderable(const MeshData& meshData,
 }
 
 void MeshSystem::DestroyRenderable(RenderableHandle& handle) {
-    if (!handle.IsValid() || !engine_) return;
-
-    for (auto it = renderables_.begin(); it != renderables_.end(); ++it) {
-        if (it->entity == handle.filamentEntity) {
-            scene_->remove(*it->entity);
-            engine_->destroy(*it->entity);
-            utils::EntityManager::get().destroy(*it->entity);
-            delete it->entity;
-
-            if (it->vertexBuffer) engine_->destroy(it->vertexBuffer);
-            if (it->indexBuffer)  engine_->destroy(it->indexBuffer);
-
-            renderables_.erase(it);
-            break;
-        }
+    if (!engine_ || !handle.IsValid()) return;
+    if (!IsAlive(handle)) {
+        handle = RenderableHandle{};
+        return;
     }
 
-    handle.filamentEntity = nullptr;
+    auto& renderable = renderables_[handle.index];
+
+    if (scene_) {
+        scene_->remove(renderable.entity);
+    }
+    engine_->destroy(renderable.entity);
+    utils::EntityManager::get().destroy(renderable.entity);
+
+    if (renderable.vertexBuffer) {
+        engine_->destroy(renderable.vertexBuffer);
+        renderable.vertexBuffer = nullptr;
+    }
+    if (renderable.indexBuffer) {
+        engine_->destroy(renderable.indexBuffer);
+        renderable.indexBuffer = nullptr;
+    }
+
+    renderable.alive = false;
+    if (renderable.generation == std::numeric_limits<uint32_t>::max()) {
+        renderable.generation = 1;
+    } else {
+        ++renderable.generation;
+    }
+
+    free_slots_.push_back(handle.index);
+    handle = RenderableHandle{};
 }
 
 void MeshSystem::SetTransform(const RenderableHandle& handle, const float* transform) {
-    if (!handle.IsValid() || !engine_) return;
+    if (!engine_ || !IsAlive(handle)) return;
 
     auto& tcm = engine_->getTransformManager();
-    auto ti = tcm.getInstance(*handle.filamentEntity);
+    auto ti = tcm.getInstance(renderables_[handle.index].entity);
 
     // Convert from column-major float[16] to Filament mat4f
     filament::math::mat4f mat;
     std::memcpy(&mat, transform, sizeof(float) * 16);
     tcm.setTransform(ti, mat);
+}
+
+bool MeshSystem::IsAlive(const RenderableHandle& handle) const {
+    if (!handle.IsValid()) {
+        return false;
+    }
+    if (handle.index >= renderables_.size()) {
+        return false;
+    }
+
+    const auto& slot = renderables_[handle.index];
+    return slot.alive && slot.generation == handle.generation;
 }
 
 } // namespace se

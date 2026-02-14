@@ -11,6 +11,8 @@
 #include <filament/SwapChain.h>
 #include <filament/Viewport.h>
 #include <filament-iblprefilter/IBLPrefilterContext.h>
+#include <image/Ktx1Bundle.h>
+#include <ktxreader/Ktx1Reader.h>
 
 #include <math/vec3.h>
 
@@ -25,6 +27,8 @@
 #include <cmath>
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <vector>
 
 // Platform-specific native window extraction
 #if defined(__APPLE__)
@@ -60,22 +64,85 @@ filament::backend::Backend ToFilamentBackend(FilamentContext::Backend backend) {
     }
 }
 
-std::filesystem::path ResolveAltankaHdrPath() {
-    static constexpr std::array<const char*, 4> kCandidates = {
-        "assets/textures/ibl/altanka_4k.hdr",
-        "../assets/textures/ibl/altanka_4k.hdr",
-        "../../assets/textures/ibl/altanka_4k.hdr",
-        "../../../assets/textures/ibl/altanka_4k.hdr",
+struct EnvironmentPaths {
+    std::filesystem::path skyboxKtx;
+    std::filesystem::path iblKtx;
+    std::filesystem::path hdrEquirect;
+
+    bool HasPrecomputedKtx() const {
+        return !skyboxKtx.empty() && !iblKtx.empty();
+    }
+};
+
+template <size_t N>
+std::filesystem::path ResolveAssetPath(const std::array<const char*, N>& relativeCandidates) {
+    static constexpr std::array<const char*, 4> kSearchRoots = {
+        "",
+        "..",
+        "../..",
+        "../../..",
     };
 
-    for (const auto* candidate : kCandidates) {
-        std::filesystem::path path(candidate);
-        if (std::filesystem::exists(path)) {
-            return path;
+    for (const auto* root : kSearchRoots) {
+        for (const auto* relative : relativeCandidates) {
+            std::filesystem::path path = std::filesystem::path(root) / relative;
+            if (std::filesystem::exists(path)) {
+                return path.lexically_normal();
+            }
         }
     }
 
     return {};
+}
+
+EnvironmentPaths ResolveAltankaEnvironmentPaths() {
+    static constexpr std::array<const char*, 2> kSkyboxKtxCandidates = {
+        "assets/textures/ibl/altanka_4k_skybox.ktx",
+        "assets/textures/ibl/altanka_4k/skybox.ktx",
+    };
+    static constexpr std::array<const char*, 2> kIblKtxCandidates = {
+        "assets/textures/ibl/altanka_4k_ibl.ktx",
+        "assets/textures/ibl/altanka_4k/ibl.ktx",
+    };
+    static constexpr std::array<const char*, 1> kHdrCandidates = {
+        "assets/textures/ibl/altanka_4k.hdr",
+    };
+
+    EnvironmentPaths paths;
+    paths.skyboxKtx  = ResolveAssetPath(kSkyboxKtxCandidates);
+    paths.iblKtx     = ResolveAssetPath(kIblKtxCandidates);
+    paths.hdrEquirect = ResolveAssetPath(kHdrCandidates);
+    return paths;
+}
+
+filament::Texture* LoadKtxTexture(filament::Engine* engine, const std::filesystem::path& path, bool srgb) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        spdlog::warn("Failed to open KTX texture '{}'", path.string());
+        return nullptr;
+    }
+
+    const std::streamsize fileSize = file.tellg();
+    if (fileSize <= 0) {
+        spdlog::warn("Invalid KTX texture size for '{}'", path.string());
+        return nullptr;
+    }
+    file.seekg(0, std::ios::beg);
+
+    std::vector<uint8_t> bytes(static_cast<size_t>(fileSize));
+    if (!file.read(reinterpret_cast<char*>(bytes.data()), fileSize)) {
+        spdlog::warn("Failed to read KTX texture '{}'", path.string());
+        return nullptr;
+    }
+
+    auto* bundle = new image::Ktx1Bundle(bytes.data(), static_cast<uint32_t>(bytes.size()));
+    auto* texture = ktxreader::Ktx1Reader::createTexture(engine, bundle, srgb);
+    if (!texture) {
+        delete bundle;
+        spdlog::warn("Failed to decode KTX texture '{}'", path.string());
+        return nullptr;
+    }
+    return texture;
 }
 
 filament::Texture* CreateHdrEquirectTexture(filament::Engine* engine,
@@ -186,10 +253,68 @@ void FilamentContext::Init(GLFWwindow* window, uint32_t width, uint32_t height,
     // Create the scene
     scene_ = engine_->createScene();
 
-    // Create environment lighting from altanka_4k.hdr. Fallback to procedural sky if loading fails.
+    // Create environment lighting from precomputed KTX first, then HDR fallback.
+    auto cleanupEnvironmentResources = [this]() {
+        if (indirect_light_) {
+            engine_->destroy(indirect_light_);
+            indirect_light_ = nullptr;
+        }
+        if (skybox_) {
+            engine_->destroy(skybox_);
+            skybox_ = nullptr;
+        }
+        if (ibl_texture_ == skybox_texture_ && ibl_texture_) {
+            engine_->destroy(ibl_texture_);
+            ibl_texture_ = nullptr;
+            skybox_texture_ = nullptr;
+        } else {
+            if (ibl_texture_) {
+                engine_->destroy(ibl_texture_);
+                ibl_texture_ = nullptr;
+            }
+            if (skybox_texture_) {
+                engine_->destroy(skybox_texture_);
+                skybox_texture_ = nullptr;
+            }
+        }
+    };
+
     bool environmentReady = false;
-    if (const auto hdrPath = ResolveAltankaHdrPath(); !hdrPath.empty()) {
-        auto* equirectTexture = CreateHdrEquirectTexture(engine_, hdrPath);
+    const EnvironmentPaths environmentPaths = ResolveAltankaEnvironmentPaths();
+
+    if (environmentPaths.HasPrecomputedKtx()) {
+        skybox_texture_ = LoadKtxTexture(engine_, environmentPaths.skyboxKtx, false);
+        ibl_texture_    = LoadKtxTexture(engine_, environmentPaths.iblKtx, false);
+
+        if (skybox_texture_ && ibl_texture_) {
+            skybox_ = filament::Skybox::Builder()
+                .environment(skybox_texture_)
+                .build(*engine_);
+            indirect_light_ = filament::IndirectLight::Builder()
+                .reflections(ibl_texture_)
+                .intensity(30000.0f)
+                .build(*engine_);
+
+            if (skybox_ && indirect_light_) {
+                scene_->setSkybox(skybox_);
+                scene_->setIndirectLight(indirect_light_);
+                environmentReady = true;
+                spdlog::info("Using precomputed IBL assets: skybox='{}', ibl='{}'",
+                             environmentPaths.skyboxKtx.string(),
+                             environmentPaths.iblKtx.string());
+            } else {
+                cleanupEnvironmentResources();
+            }
+        } else {
+            cleanupEnvironmentResources();
+            spdlog::warn("Precomputed IBL assets were found but could not be loaded.");
+        }
+    } else {
+        spdlog::warn("Precomputed IBL assets for altanka_4k not found. Falling back to runtime HDR prefilter.");
+    }
+
+    if (!environmentReady && !environmentPaths.hdrEquirect.empty()) {
+        auto* equirectTexture = CreateHdrEquirectTexture(engine_, environmentPaths.hdrEquirect);
         if (equirectTexture) {
             try {
                 IBLPrefilterContext prefilter(*engine_);
@@ -215,46 +340,31 @@ void FilamentContext::Init(GLFWwindow* window, uint32_t width, uint32_t height,
                         scene_->setSkybox(skybox_);
                         scene_->setIndirectLight(indirect_light_);
                         environmentReady = true;
-                        spdlog::info("Using HDR skybox: {}", hdrPath.string());
+                        spdlog::info("Using runtime HDR prefilter from '{}'",
+                                     environmentPaths.hdrEquirect.string());
                     }
                 }
             } catch (const utils::Panic& panic) {
-                spdlog::warn("Failed to generate IBL from '{}': {}", hdrPath.string(), panic.what());
+                spdlog::warn("Failed to generate IBL from '{}': {}",
+                             environmentPaths.hdrEquirect.string(), panic.what());
             } catch (const std::exception& e) {
-                spdlog::warn("Failed to generate IBL from '{}': {}", hdrPath.string(), e.what());
+                spdlog::warn("Failed to generate IBL from '{}': {}",
+                             environmentPaths.hdrEquirect.string(), e.what());
             } catch (...) {
-                spdlog::warn("Failed to generate IBL from '{}': unknown error", hdrPath.string());
+                spdlog::warn("Failed to generate IBL from '{}': unknown error",
+                             environmentPaths.hdrEquirect.string());
             }
 
             engine_->destroy(equirectTexture);
         }
-    } else {
+    }
+
+    if (!environmentReady && environmentPaths.hdrEquirect.empty()) {
         spdlog::warn("HDR skybox not found: assets/textures/ibl/altanka_4k.hdr");
     }
 
     if (!environmentReady) {
-        if (indirect_light_) {
-            engine_->destroy(indirect_light_);
-            indirect_light_ = nullptr;
-        }
-        if (skybox_) {
-            engine_->destroy(skybox_);
-            skybox_ = nullptr;
-        }
-        if (ibl_texture_ == skybox_texture_ && ibl_texture_) {
-            engine_->destroy(ibl_texture_);
-            ibl_texture_ = nullptr;
-            skybox_texture_ = nullptr;
-        } else {
-            if (ibl_texture_) {
-                engine_->destroy(ibl_texture_);
-                ibl_texture_ = nullptr;
-            }
-            if (skybox_texture_) {
-                engine_->destroy(skybox_texture_);
-                skybox_texture_ = nullptr;
-            }
-        }
+        cleanupEnvironmentResources();
 
         skybox_ = filament::Skybox::Builder()
             .color({0.52f, 0.67f, 0.88f, 1.0f})
@@ -293,8 +403,8 @@ void FilamentContext::Init(GLFWwindow* window, uint32_t width, uint32_t height,
     camera_ = engine_->createCamera(cameraEntity);
     view_->setCamera(camera_);
 
-    // Store the entity for cleanup (use heap allocation to avoid header dependency)
-    camera_entity_ = new utils::Entity(cameraEntity);
+    camera_entity_ = cameraEntity;
+    has_camera_entity_ = true;
 
     spdlog::info("FilamentContext initialized: {}x{}, Backend={}",
                  width, height,
@@ -337,11 +447,10 @@ void FilamentContext::Shutdown() {
         }
     }
 
-    if (camera_entity_) {
-        engine_->destroyCameraComponent(*camera_entity_);
-        utils::EntityManager::get().destroy(*camera_entity_);
-        delete camera_entity_;
-        camera_entity_ = nullptr;
+    if (has_camera_entity_) {
+        engine_->destroyCameraComponent(camera_entity_);
+        utils::EntityManager::get().destroy(camera_entity_);
+        has_camera_entity_ = false;
         camera_ = nullptr;
     }
 

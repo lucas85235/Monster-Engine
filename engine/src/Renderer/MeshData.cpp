@@ -1,5 +1,6 @@
 #include "engine/renderer/MeshData.h"
 
+#include <algorithm>
 #include <cmath>
 
 #ifndef M_PI
@@ -8,6 +9,51 @@
 
 namespace se {
 namespace MeshPrimitives {
+
+namespace {
+
+void EnsureConsistentWinding(MeshData& mesh) {
+    if (mesh.indices.size() % 3 != 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < mesh.indices.size(); i += 3) {
+        const uint32_t i0 = mesh.indices[i + 0];
+        const uint32_t i1 = mesh.indices[i + 1];
+        const uint32_t i2 = mesh.indices[i + 2];
+
+        if (i0 >= mesh.vertices.size() || i1 >= mesh.vertices.size() || i2 >= mesh.vertices.size()) {
+            continue;
+        }
+
+        const auto& v0 = mesh.vertices[i0];
+        const auto& v1 = mesh.vertices[i1];
+        const auto& v2 = mesh.vertices[i2];
+
+        const float e1x = v1.position[0] - v0.position[0];
+        const float e1y = v1.position[1] - v0.position[1];
+        const float e1z = v1.position[2] - v0.position[2];
+
+        const float e2x = v2.position[0] - v0.position[0];
+        const float e2y = v2.position[1] - v0.position[1];
+        const float e2z = v2.position[2] - v0.position[2];
+
+        const float faceNx = e1y * e2z - e1z * e2y;
+        const float faceNy = e1z * e2x - e1x * e2z;
+        const float faceNz = e1x * e2y - e1y * e2x;
+
+        const float avgNx = v0.normal[0] + v1.normal[0] + v2.normal[0];
+        const float avgNy = v0.normal[1] + v1.normal[1] + v2.normal[1];
+        const float avgNz = v0.normal[2] + v1.normal[2] + v2.normal[2];
+
+        const float alignment = faceNx * avgNx + faceNy * avgNy + faceNz * avgNz;
+        if (alignment < 0.0f) {
+            std::swap(mesh.indices[i + 1], mesh.indices[i + 2]);
+        }
+    }
+}
+
+} // namespace
 
 MeshData CreateBox(float width, float height, float depth) {
     MeshData mesh;
@@ -73,6 +119,7 @@ MeshData CreateBox(float width, float height, float depth) {
     { float p0[] = {-hw,-hh,-hd}, p1[] = {-hw,-hh, hd}, p2[] = {-hw, hh, hd}, p3[] = {-hw, hh,-hd};
       float n[] = {-1,0,0}, t[] = {0,0,1}; addFace(p0,p1,p2,p3,n,t); }
 
+    EnsureConsistentWinding(mesh);
     return mesh;
 }
 
@@ -127,6 +174,7 @@ MeshData CreateSphere(float radius, uint32_t segments, uint32_t rings) {
         }
     }
 
+    EnsureConsistentWinding(mesh);
     return mesh;
 }
 
@@ -176,6 +224,7 @@ MeshData CreatePlane(float width, float depth, uint32_t subdivisions) {
         }
     }
 
+    EnsureConsistentWinding(mesh);
     return mesh;
 }
 
@@ -286,6 +335,7 @@ MeshData CreateCylinder(float radius, float height, uint32_t segments) {
         mesh.indices.push_back(botRingStart + i + 1);
     }
 
+    EnsureConsistentWinding(mesh);
     return mesh;
 }
 

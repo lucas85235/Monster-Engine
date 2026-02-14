@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 #include "engine/renderer/TextureHandle.h"
 
@@ -9,6 +10,8 @@ class MaterialInstance;
 } // namespace filament
 
 namespace se {
+
+class MaterialSystem;
 
 /**
  * Opaque handle to a Filament MaterialInstance.
@@ -24,7 +27,7 @@ public:
     MaterialHandle() = default;
 
     /** Check if handle points to a valid material instance. */
-    bool IsValid() const { return instance_ != nullptr; }
+    bool IsValid() const;
     explicit operator bool() const { return IsValid(); }
 
     /** Set base color (linear RGBA). */
@@ -55,14 +58,18 @@ public:
     void SetAOMap(const TextureHandle& texture);
 
     /** Direct access for advanced use (e.g., setting textures via Filament API). */
-    filament::MaterialInstance* GetNative() const { return instance_; }
+    filament::MaterialInstance* GetNative() const;
 
 private:
     friend class MaterialSystem;
-    explicit MaterialHandle(filament::MaterialInstance* instance)
-        : instance_(instance) {}
+    static constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
 
-    filament::MaterialInstance* instance_ = nullptr;
+    MaterialHandle(MaterialSystem* owner, uint32_t index, uint32_t generation)
+        : owner_(owner), index_(index), generation_(generation) {}
+
+    MaterialSystem* owner_      = nullptr;
+    uint32_t        index_      = kInvalidIndex;
+    uint32_t        generation_ = 0;
 };
 
 } // namespace se

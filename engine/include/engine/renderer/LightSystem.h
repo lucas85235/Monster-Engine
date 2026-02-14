@@ -1,16 +1,13 @@
 #pragma once
 
 #include <vector>
+#include <utils/Entity.h>
 
 namespace filament {
 class Engine;
 class Scene;
 class LightManager;
 } // namespace filament
-
-namespace utils {
-class Entity;
-} // namespace utils
 
 namespace se {
 
@@ -72,10 +69,11 @@ private:
     filament::Scene*  scene_  = nullptr;
 
     // Directional light entity (only one at a time)
-    utils::Entity* directional_light_ = nullptr;
+    utils::Entity directional_light_{};
+    bool          has_directional_light_ = false;
 
     // Point/spot light entities
-    std::vector<utils::Entity*> point_lights_;
+    std::vector<utils::Entity> point_lights_;
 };
 
 } // namespace se

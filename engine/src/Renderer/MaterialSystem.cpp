@@ -96,10 +96,15 @@ void MaterialSystem::Shutdown() {
     if (!engine_) return;
 
     // Destroy all material instances
-    for (auto* instance : instances_) {
-        engine_->destroy(instance);
+    for (auto& slot : material_slots_) {
+        if (slot.alive && slot.instance) {
+            engine_->destroy(slot.instance);
+            slot.instance = nullptr;
+            slot.alive    = false;
+        }
     }
-    instances_.clear();
+    material_slots_.clear();
+    free_slots_.clear();
 
     // Destroy base materials
     if (lit_material_) {
@@ -173,8 +178,7 @@ void MaterialSystem::CreateBuiltInMaterials() {
         instance->setParameter("hasMetallicRoughnessMap", false);
         instance->setParameter("hasAOMap", false);
 
-        instances_.push_back(instance);
-        default_lit_ = MaterialHandle(instance);
+        default_lit_ = AddInstance(instance);
     }
 
     // --- Build unlit material ---
@@ -201,8 +205,7 @@ void MaterialSystem::CreateBuiltInMaterials() {
         auto* instance = unlit_material_->createInstance("DefaultUnlitInstance");
         instance->setParameter("baseColor", filament::math::float4{1.0f, 1.0f, 1.0f, 1.0f});
 
-        instances_.push_back(instance);
-        default_unlit_ = MaterialHandle(instance);
+        default_unlit_ = AddInstance(instance);
     }
 }
 
@@ -253,8 +256,7 @@ MaterialHandle MaterialSystem::CreateMaterial(const MaterialConfig& config) {
         instance->setParameter("aoMap", config.aoMap.GetNative(), sampler);
     }
 
-    instances_.push_back(instance);
-    return MaterialHandle(instance);
+    return AddInstance(instance);
 }
 
 MaterialHandle MaterialSystem::GetDefaultLit() {
@@ -265,72 +267,133 @@ MaterialHandle MaterialSystem::GetDefaultUnlit() {
     return default_unlit_;
 }
 
+MaterialHandle MaterialSystem::AddInstance(filament::MaterialInstance* instance) {
+    if (!instance) {
+        return MaterialHandle();
+    }
+
+    uint32_t slotIndex = 0;
+    if (!free_slots_.empty()) {
+        slotIndex = free_slots_.back();
+        free_slots_.pop_back();
+    } else {
+        slotIndex = static_cast<uint32_t>(material_slots_.size());
+        material_slots_.emplace_back();
+    }
+
+    auto& slot   = material_slots_[slotIndex];
+    slot.instance = instance;
+    slot.alive    = true;
+
+    return MaterialHandle(this, slotIndex, slot.generation);
+}
+
+filament::MaterialInstance* MaterialSystem::Resolve(const MaterialHandle& handle) const {
+    if (!IsAlive(handle)) {
+        return nullptr;
+    }
+    return material_slots_[handle.index_].instance;
+}
+
+bool MaterialSystem::IsAlive(const MaterialHandle& handle) const {
+    if (handle.owner_ != this) {
+        return false;
+    }
+    if (handle.index_ == MaterialHandle::kInvalidIndex) {
+        return false;
+    }
+    if (handle.index_ >= material_slots_.size()) {
+        return false;
+    }
+
+    const auto& slot = material_slots_[handle.index_];
+    return slot.alive && slot.generation == handle.generation_;
+}
+
 // ─── MaterialHandle texture setters ─────────────────────────────────────────
 
 void MaterialHandle::SetColor(float r, float g, float b, float a) {
-    if (!instance_) return;
-    instance_->setParameter("baseColor", filament::math::float4{r, g, b, a});
+    auto* instance = GetNative();
+    if (!instance) return;
+    instance->setParameter("baseColor", filament::math::float4{r, g, b, a});
 }
 
 void MaterialHandle::SetMetallic(float metallic) {
-    if (!instance_) return;
-    instance_->setParameter("metallic", metallic);
+    auto* instance = GetNative();
+    if (!instance) return;
+    instance->setParameter("metallic", metallic);
 }
 
 void MaterialHandle::SetRoughness(float roughness) {
-    if (!instance_) return;
-    instance_->setParameter("roughness", roughness);
+    auto* instance = GetNative();
+    if (!instance) return;
+    instance->setParameter("roughness", roughness);
 }
 
 void MaterialHandle::SetReflectance(float reflectance) {
-    if (!instance_) return;
-    instance_->setParameter("reflectance", reflectance);
+    auto* instance = GetNative();
+    if (!instance) return;
+    instance->setParameter("reflectance", reflectance);
 }
 
 void MaterialHandle::SetEmissive(float r, float g, float b, float intensity) {
-    if (!instance_) return;
-    instance_->setParameter("emissive", filament::math::float4{
+    auto* instance = GetNative();
+    if (!instance) return;
+    instance->setParameter("emissive", filament::math::float4{
         r * intensity, g * intensity, b * intensity, 0.0f});
 }
 
 void MaterialHandle::SetBaseColorMap(const TextureHandle& texture) {
-    if (!instance_) return;
+    auto* instance = GetNative();
+    if (!instance) return;
     if (texture.IsValid()) {
-        instance_->setParameter("baseColorMap", texture.GetNative(), getDefaultSampler());
-        instance_->setParameter("hasBaseColorMap", true);
+        instance->setParameter("baseColorMap", texture.GetNative(), getDefaultSampler());
+        instance->setParameter("hasBaseColorMap", true);
     } else {
-        instance_->setParameter("hasBaseColorMap", false);
+        instance->setParameter("hasBaseColorMap", false);
     }
 }
 
 void MaterialHandle::SetNormalMap(const TextureHandle& texture) {
-    if (!instance_) return;
+    auto* instance = GetNative();
+    if (!instance) return;
     if (texture.IsValid()) {
-        instance_->setParameter("normalMap", texture.GetNative(), getDefaultSampler());
-        instance_->setParameter("hasNormalMap", true);
+        instance->setParameter("normalMap", texture.GetNative(), getDefaultSampler());
+        instance->setParameter("hasNormalMap", true);
     } else {
-        instance_->setParameter("hasNormalMap", false);
+        instance->setParameter("hasNormalMap", false);
     }
 }
 
 void MaterialHandle::SetMetallicRoughnessMap(const TextureHandle& texture) {
-    if (!instance_) return;
+    auto* instance = GetNative();
+    if (!instance) return;
     if (texture.IsValid()) {
-        instance_->setParameter("metallicRoughnessMap", texture.GetNative(), getDefaultSampler());
-        instance_->setParameter("hasMetallicRoughnessMap", true);
+        instance->setParameter("metallicRoughnessMap", texture.GetNative(), getDefaultSampler());
+        instance->setParameter("hasMetallicRoughnessMap", true);
     } else {
-        instance_->setParameter("hasMetallicRoughnessMap", false);
+        instance->setParameter("hasMetallicRoughnessMap", false);
     }
 }
 
 void MaterialHandle::SetAOMap(const TextureHandle& texture) {
-    if (!instance_) return;
+    auto* instance = GetNative();
+    if (!instance) return;
     if (texture.IsValid()) {
-        instance_->setParameter("aoMap", texture.GetNative(), getDefaultSampler());
-        instance_->setParameter("hasAOMap", true);
+        instance->setParameter("aoMap", texture.GetNative(), getDefaultSampler());
+        instance->setParameter("hasAOMap", true);
     } else {
-        instance_->setParameter("hasAOMap", false);
+        instance->setParameter("hasAOMap", false);
     }
+}
+
+bool MaterialHandle::IsValid() const {
+    return owner_ && owner_->IsAlive(*this);
+}
+
+filament::MaterialInstance* MaterialHandle::GetNative() const {
+    if (!owner_) return nullptr;
+    return owner_->Resolve(*this);
 }
 
 } // namespace se

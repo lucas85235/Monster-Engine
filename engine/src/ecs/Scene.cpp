@@ -3,10 +3,13 @@
 #include "engine/Application.h"
 #include "engine/Camera.h"
 #include "engine/Log.h"
+#include "engine/core/ServiceLocator.h"
 #include "engine/ecs/AnimationSystem.h"
 #include "engine/ecs/ComponentSystem.h"
+#include "engine/ecs/FilamentComponents.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
+#include "engine/renderer/FilamentRenderBridge.h"
 
 namespace se {
 
@@ -69,6 +72,16 @@ void Scene::DestroyEntity(Entity entity) {
 
     auto& nameComp = entity.GetComponent<NameComponent>();
     SE_LOG_INFO("Entity '{}' destroyed", nameComp.Name);
+
+    // Release associated Filament renderable before removing ECS entity.
+    if (registry_.any_of<FilamentRenderableComponent>(entity.GetHandle())) {
+        auto& renderable = registry_.get<FilamentRenderableComponent>(entity.GetHandle());
+        if (renderable.handle.IsValid()) {
+            if (auto* meshSystem = ServiceLocator::Get().GetMeshSystemPtr()) {
+                meshSystem->DestroyRenderable(renderable.handle);
+            }
+        }
+    }
 
     registry_.destroy(entity.GetHandle());
 }
@@ -165,15 +178,18 @@ void Scene::OnUpdate(float deltaTime) {
 }
 
 void Scene::OnRender(const Camera& camera, float aspectRatio) {
-    // TODO: Implement Filament-based rendering pipeline
-    // RenderSystem now uses Filament instead of OpenGL
+    (void)aspectRatio;
+
+    // Sync ECS world transforms to Filament renderables.
+    FilamentRenderBridge::SyncScene(*this);
 
     if (physics_system_) { physics_system_->RenderDebug(camera); }
 }
 
 void Scene::OnRender() {
     if (!active_camera_) {
-        SE_LOG_WARN("Scene::OnRender() called but no active camera set!");
+        // Filament transform sync does not require an active Camera.
+        FilamentRenderBridge::SyncScene(*this);
         return;
     }
 
@@ -185,6 +201,18 @@ void Scene::OnRender() {
 
 void Scene::Clear() {
     SE_LOG_INFO("Clearing scene '{}'", name_);
+
+    // Ensure all Filament handles tracked by ECS are released.
+    if (auto* meshSystem = ServiceLocator::Get().GetMeshSystemPtr()) {
+        auto view = registry_.view<FilamentRenderableComponent>();
+        for (auto entity : view) {
+            auto& renderable = view.get<FilamentRenderableComponent>(entity);
+            if (renderable.handle.IsValid()) {
+                meshSystem->DestroyRenderable(renderable.handle);
+            }
+        }
+    }
+
     registry_.clear();
 }
 

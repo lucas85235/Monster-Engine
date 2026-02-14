@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -81,12 +82,28 @@ public:
     TextureHandle GetDefaultBlack();
 
 private:
+    friend class TextureHandle;
+
+    struct TextureSlot {
+        filament::Texture* texture    = nullptr;
+        uint32_t           width      = 0;
+        uint32_t           height     = 0;
+        uint32_t           generation = 1;
+        bool               alive      = false;
+    };
+
     void CreateDefaultTextures();
+    TextureHandle AddTexture(filament::Texture* texture, uint32_t width, uint32_t height);
+    filament::Texture* Resolve(const TextureHandle& handle) const;
+    bool IsAlive(const TextureHandle& handle) const;
+    uint32_t GetWidth(const TextureHandle& handle) const;
+    uint32_t GetHeight(const TextureHandle& handle) const;
 
     filament::Engine* engine_ = nullptr;
 
-    // All textures owned by this system
-    std::vector<filament::Texture*> textures_;
+    // All textures owned by this system, tracked via generation slots.
+    std::vector<TextureSlot> slots_;
+    std::vector<uint32_t>    free_slots_;
 
     // Cache: canonical file path → TextureHandle
     std::unordered_map<std::string, TextureHandle> cache_;

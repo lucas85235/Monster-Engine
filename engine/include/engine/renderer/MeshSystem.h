@@ -1,9 +1,11 @@
 #pragma once
 
-#include <unordered_map>
+#include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "engine/renderer/MaterialHandle.h"
+#include <utils/Entity.h>
 
 namespace filament {
 class Engine;
@@ -11,10 +13,6 @@ class Scene;
 class VertexBuffer;
 class IndexBuffer;
 } // namespace filament
-
-namespace utils {
-class Entity;
-} // namespace utils
 
 namespace se {
 
@@ -27,8 +25,12 @@ struct MeshData;
  * Destroy via MeshSystem::DestroyRenderable().
  */
 struct RenderableHandle {
-    utils::Entity* filamentEntity = nullptr; // Filament entity (heap-allocated for ABI safety)
-    bool IsValid() const { return filamentEntity != nullptr; }
+    static constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
+
+    uint32_t index      = kInvalidIndex;
+    uint32_t generation = 0;
+
+    bool IsValid() const { return index != kInvalidIndex; }
 };
 
 /**
@@ -84,17 +86,25 @@ public:
      */
     void SetTransform(const RenderableHandle& handle, const float* transform);
 
+    /**
+     * Returns true only if this handle still references a live renderable slot.
+     */
+    bool IsAlive(const RenderableHandle& handle) const;
+
 private:
     struct ManagedRenderable {
-        utils::Entity*         entity       = nullptr;
+        utils::Entity          entity{};
         filament::VertexBuffer* vertexBuffer = nullptr;
         filament::IndexBuffer*  indexBuffer  = nullptr;
+        uint32_t                generation   = 1;
+        bool                    alive        = false;
     };
 
     filament::Engine* engine_ = nullptr;
     filament::Scene*  scene_  = nullptr;
 
     std::vector<ManagedRenderable> renderables_;
+    std::vector<uint32_t>          free_slots_;
 };
 
 } // namespace se

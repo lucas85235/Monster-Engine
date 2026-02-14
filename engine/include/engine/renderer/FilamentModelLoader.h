@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "engine/renderer/ModelHandle.h"
@@ -88,6 +89,7 @@ private:
 
     // All loaded assets (owned by this system)
     std::vector<filament::gltfio::FilamentAsset*> assets_;
+    std::unordered_map<filament::gltfio::FilamentAsset*, float> animation_times_;
 };
 
 } // namespace se

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utils/Entity.h>
 
 // Forward declarations - avoid including heavy Filament headers in the engine header
 struct GLFWwindow;
@@ -16,10 +17,6 @@ class Skybox;
 class IndirectLight;
 class Texture;
 } // namespace filament
-
-namespace utils {
-class Entity;
-} // namespace utils
 
 namespace se {
 
@@ -110,7 +107,8 @@ private:
     filament::Texture*   ibl_texture_ = nullptr;
 
     // Filament uses its own Entity system for cameras
-    utils::Entity*       camera_entity_ = nullptr;
+    utils::Entity        camera_entity_{};
+    bool                 has_camera_entity_ = false;
 
     Backend              active_backend_ = Backend::Default;
 };

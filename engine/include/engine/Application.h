@@ -16,6 +16,7 @@
 #include "engine/renderer/LightSystem.h"
 #include "engine/renderer/TextureSystem.h"
 #include "engine/renderer/FilamentModelLoader.h"
+#include "engine/renderer/RenderSettingsSystem.h"
 
 namespace se {
 
@@ -81,6 +82,9 @@ class Application {
     FilamentModelLoader& GetModelLoader() {
         return *model_loader_;
     }
+    RenderSettingsSystem& GetRenderSettingsSystem() {
+        return *render_settings_system_;
+    }
     EventBus& GetEventBus() {
         return *event_bus_;
     }
@@ -114,6 +118,7 @@ class Application {
     std::unique_ptr<LightSystem>      light_system_;
     std::unique_ptr<TextureSystem>    texture_system_;
     std::unique_ptr<FilamentModelLoader> model_loader_;
+    std::unique_ptr<RenderSettingsSystem> render_settings_system_;
     std::unique_ptr<ImGuiLayer>       imgui_layer_;
 
     ApplicationSpecification specification_;

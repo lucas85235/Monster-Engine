@@ -1,12 +1,15 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 namespace filament {
 class Texture;
 } // namespace filament
 
 namespace se {
+
+class TextureSystem;
 
 /**
  * Opaque handle to a Filament Texture.
@@ -20,24 +23,26 @@ public:
     TextureHandle() = default;
 
     /** Check if handle points to a valid texture. */
-    bool IsValid() const { return texture_ != nullptr; }
+    bool IsValid() const;
     explicit operator bool() const { return IsValid(); }
 
     /** Get the texture dimensions. */
-    uint32_t GetWidth() const { return width_; }
-    uint32_t GetHeight() const { return height_; }
+    uint32_t GetWidth() const;
+    uint32_t GetHeight() const;
 
     /** Direct access for advanced use (e.g., setting on MaterialInstance). */
-    filament::Texture* GetNative() const { return texture_; }
+    filament::Texture* GetNative() const;
 
 private:
     friend class TextureSystem;
-    TextureHandle(filament::Texture* texture, uint32_t width, uint32_t height)
-        : texture_(texture), width_(width), height_(height) {}
+    static constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
 
-    filament::Texture* texture_ = nullptr;
-    uint32_t width_  = 0;
-    uint32_t height_ = 0;
+    TextureHandle(TextureSystem* owner, uint32_t index, uint32_t generation)
+        : owner_(owner), index_(index), generation_(generation) {}
+
+    TextureSystem* owner_      = nullptr;
+    uint32_t       index_      = kInvalidIndex;
+    uint32_t       generation_ = 0;
 };
 
 } // namespace se

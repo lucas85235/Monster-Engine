@@ -43,10 +43,15 @@ void TextureSystem::Shutdown() {
 
     cache_.clear();
 
-    for (auto* texture : textures_) {
-        engine_->destroy(texture);
+    for (auto& slot : slots_) {
+        if (slot.alive && slot.texture) {
+            engine_->destroy(slot.texture);
+            slot.texture = nullptr;
+            slot.alive   = false;
+        }
     }
-    textures_.clear();
+    slots_.clear();
+    free_slots_.clear();
 
     default_white_  = TextureHandle();
     default_normal_ = TextureHandle();
@@ -134,6 +139,7 @@ TextureHandle TextureSystem::CreateTexture(const uint8_t* data, uint32_t width, 
         spdlog::error("TextureSystem::CreateTexture called before Init()!");
         return TextureHandle();
     }
+    (void)channels;
 
     uint32_t mipLevels = computeMipLevels(width, height);
 
@@ -181,12 +187,10 @@ TextureHandle TextureSystem::CreateTexture(const uint8_t* data, uint32_t width, 
         texture->generateMipmaps(*engine_);
     }
 
-    textures_.push_back(texture);
-
     spdlog::debug("TextureSystem: Created texture '{}' ({}x{}, {} mip levels)",
                   name, width, height, mipLevels);
 
-    return TextureHandle(texture, width, height);
+    return AddTexture(texture, width, height);
 }
 
 TextureHandle TextureSystem::GetDefaultWhite() {
@@ -199,6 +203,84 @@ TextureHandle TextureSystem::GetDefaultNormal() {
 
 TextureHandle TextureSystem::GetDefaultBlack() {
     return default_black_;
+}
+
+TextureHandle TextureSystem::AddTexture(filament::Texture* texture, uint32_t width, uint32_t height) {
+    if (!texture) {
+        return TextureHandle();
+    }
+
+    uint32_t slotIndex = 0;
+    if (!free_slots_.empty()) {
+        slotIndex = free_slots_.back();
+        free_slots_.pop_back();
+    } else {
+        slotIndex = static_cast<uint32_t>(slots_.size());
+        slots_.emplace_back();
+    }
+
+    auto& slot    = slots_[slotIndex];
+    slot.texture  = texture;
+    slot.width    = width;
+    slot.height   = height;
+    slot.alive    = true;
+
+    return TextureHandle(this, slotIndex, slot.generation);
+}
+
+filament::Texture* TextureSystem::Resolve(const TextureHandle& handle) const {
+    if (!IsAlive(handle)) {
+        return nullptr;
+    }
+    return slots_[handle.index_].texture;
+}
+
+bool TextureSystem::IsAlive(const TextureHandle& handle) const {
+    if (handle.owner_ != this) {
+        return false;
+    }
+    if (handle.index_ == TextureHandle::kInvalidIndex) {
+        return false;
+    }
+    if (handle.index_ >= slots_.size()) {
+        return false;
+    }
+
+    const auto& slot = slots_[handle.index_];
+    return slot.alive && slot.generation == handle.generation_;
+}
+
+uint32_t TextureSystem::GetWidth(const TextureHandle& handle) const {
+    if (!IsAlive(handle)) {
+        return 0;
+    }
+    return slots_[handle.index_].width;
+}
+
+uint32_t TextureSystem::GetHeight(const TextureHandle& handle) const {
+    if (!IsAlive(handle)) {
+        return 0;
+    }
+    return slots_[handle.index_].height;
+}
+
+bool TextureHandle::IsValid() const {
+    return owner_ && owner_->IsAlive(*this);
+}
+
+uint32_t TextureHandle::GetWidth() const {
+    if (!owner_) return 0;
+    return owner_->GetWidth(*this);
+}
+
+uint32_t TextureHandle::GetHeight() const {
+    if (!owner_) return 0;
+    return owner_->GetHeight(*this);
+}
+
+filament::Texture* TextureHandle::GetNative() const {
+    if (!owner_) return nullptr;
+    return owner_->Resolve(*this);
 }
 
 } // namespace se

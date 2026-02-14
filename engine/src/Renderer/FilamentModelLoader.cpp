@@ -107,6 +107,7 @@ void FilamentModelLoader::Shutdown() {
         }
     }
     assets_.clear();
+    animation_times_.clear();
 
     // Destroy providers and loaders
     if (resource_loader_) {
@@ -192,6 +193,7 @@ ModelHandle FilamentModelLoader::LoadModel(const std::string& path) {
     scene_->addEntities(asset->getEntities(), asset->getEntityCount());
 
     assets_.push_back(asset);
+    animation_times_[asset] = 0.0f;
 
     spdlog::info("FilamentModelLoader: Loaded model '{}' ({} entities, {} renderables)",
                  std::filesystem::path(path).filename().string(),
@@ -214,6 +216,7 @@ void FilamentModelLoader::DestroyModel(ModelHandle& handle) {
     if (it != assets_.end()) {
         assets_.erase(it);
     }
+    animation_times_.erase(asset);
 
     // Destroy the asset
     asset_loader_->destroyAsset(asset);
@@ -243,7 +246,9 @@ void FilamentModelLoader::UpdateAnimations(float deltaTime) {
 
         // If the asset has animations, apply the first one
         if (animator->getAnimationCount() > 0) {
-            animator->applyAnimation(0, deltaTime);
+            float& elapsed = animation_times_[asset];
+            elapsed += deltaTime;
+            animator->applyAnimation(0, elapsed);
             animator->updateBoneMatrices();
         }
     }

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <engine/Application.h>
 #include <engine/Log.h>
+#include <engine/ecs/FilamentComponents.h>
 #include <engine/ecs/SimpleComponents.h>
 #include <engine/input/InputManager.h>
 #include <engine/core/ServiceLocator.h>
@@ -12,10 +13,10 @@
 #include <engine/renderer/MeshSystem.h>
 #include <engine/renderer/LightSystem.h>
 #include <engine/renderer/FilamentRenderer.h>
+#include <engine/renderer/RenderSettingsSystem.h>
 #include <mmath/MathUtils.h>
 
 #include "engine/physics/Collider.h"
-#include "engine/physics/PhysicsDebugDraw.h"
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/physics/RigidbodyComponent.h"
 
@@ -132,33 +133,12 @@ void ThirdPersonLayer::OnAttach() {
 
     // Disable physics debug drawing by default.
     if (auto* physics = scene_->GetPhysicsSystem()) {
-        if (auto* debugDrawer = physics->GetDebugDrawer()) {
-            debugDrawer->setDebugMode(btIDebugDraw::DBG_NoDebug);
-        }
+        physics->SetDebugDrawMode(btIDebugDraw::DBG_NoDebug);
     }
 
-    InitializeFilamentUiState();
 }
 
 void ThirdPersonLayer::OnDetach() {
-    auto& meshes = ServiceLocator::Get().GetMeshSystem();
-
-    // Destroy all bullet renderables
-    for (auto& r : bulletRenderables_) meshes.DestroyRenderable(r);
-    bulletRenderables_.clear();
-
-    // Destroy small wall renderables
-    for (auto& r : smallWallRenderables_) meshes.DestroyRenderable(r);
-    smallWallRenderables_.clear();
-
-    // Destroy wall renderables
-    for (auto& r : wallRenderables_) meshes.DestroyRenderable(r);
-    wallRenderables_.clear();
-
-    meshes.DestroyRenderable(cubeRenderable_);
-    meshes.DestroyRenderable(playerRenderable_);
-    meshes.DestroyRenderable(floorRenderable_);
-
     bullets_.clear();
     smallWalls_.clear();
     walls_.clear();
@@ -181,10 +161,11 @@ void ThirdPersonLayer::CreateScene() {
         floor_entity_.AddComponent<RigidbodyComponent>(data);
 
         auto meshData = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
-        floorRenderable_ = meshes.CreateRenderable(meshData, floorMaterial_, false);
+        auto floorRenderable = meshes.CreateRenderable(meshData, floorMaterial_, false);
+        floor_entity_.AddComponent<FilamentRenderableComponent>(floorRenderable);
         float mat[16];
         buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
-        meshes.SetTransform(floorRenderable_, mat);
+        meshes.SetTransform(floorRenderable, mat);
     }
 
     // ─── Boundary Walls ─────────────────────────────────────────
@@ -203,8 +184,6 @@ void ThirdPersonLayer::CreateScene() {
         };
 
         walls_.reserve(std::size(wallDefinitions));
-        wallRenderables_.reserve(std::size(wallDefinitions));
-
         auto wallMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
 
         for (const auto& def : wallDefinitions) {
@@ -217,7 +196,7 @@ void ThirdPersonLayer::CreateScene() {
             wall.AddComponent<RigidbodyComponent>(data);
 
             auto renderable = meshes.CreateRenderable(wallMesh, wallMaterial_, false);
-            wallRenderables_.push_back(renderable);
+            wall.AddComponent<FilamentRenderableComponent>(renderable);
             float mat[16];
             buildTransformMatrix(mat, wallTransform.Position, wallTransform.Rotation, wallTransform.Scale);
             meshes.SetTransform(renderable, mat);
@@ -231,7 +210,8 @@ void ThirdPersonLayer::CreateScene() {
 
         // Use a cylinder as capsule approximation
         auto playerMesh = MeshPrimitives::CreateCylinder(0.5f, 2.0f, 16);
-        playerRenderable_ = meshes.CreateRenderable(playerMesh, playerMaterial_);
+        auto playerRenderable = meshes.CreateRenderable(playerMesh, playerMaterial_);
+        playerEntity_.AddComponent<FilamentRenderableComponent>(playerRenderable);
 
         playerEntity_.AddComponent<CapsuleCollider>(0.5f, 1.0f);
 
@@ -242,6 +222,10 @@ void ThirdPersonLayer::CreateScene() {
         RigidbodyData data = RigidbodyData{.mass = 10.0f, .gravityScale = 1.0f};
         auto& rb = playerEntity_.AddComponent<RigidbodyComponent>(data);
         rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
+
+        float mat[16];
+        buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
+        meshes.SetTransform(playerRenderable, mat);
     }
 
     // ─── Physics Cube ───────────────────────────────────────────
@@ -254,7 +238,13 @@ void ThirdPersonLayer::CreateScene() {
         cube_entity_.AddComponent<RigidbodyComponent>(data);
 
         auto cubeMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
-        cubeRenderable_ = meshes.CreateRenderable(cubeMesh, cubeMaterial_);
+        auto cubeRenderable = meshes.CreateRenderable(cubeMesh, cubeMaterial_);
+        cube_entity_.AddComponent<FilamentRenderableComponent>(cubeRenderable);
+
+        auto& cubeTransform = cube_entity_.GetComponent<TransformComponent>();
+        float mat[16];
+        buildTransformMatrix(mat, cubeTransform.Position, cubeTransform.Rotation, cubeTransform.Scale);
+        meshes.SetTransform(cubeRenderable, mat);
     }
 
     // ─── Small Walls (Occlusion Testing) ────────────────────────
@@ -290,7 +280,7 @@ void ThirdPersonLayer::CreateScene() {
             wall.AddComponent<RigidbodyComponent>(data);
 
             auto renderable = meshes.CreateRenderable(wallMesh, wallMaterial_, false);
-            smallWallRenderables_.push_back(renderable);
+            wall.AddComponent<FilamentRenderableComponent>(renderable);
             float mat[16];
             buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
             meshes.SetTransform(renderable, mat);
@@ -298,119 +288,6 @@ void ThirdPersonLayer::CreateScene() {
         }
 
         SE_LOG_INFO("Created {} small walls for occlusion testing", smallWallDefs.size());
-    }
-}
-
-void ThirdPersonLayer::InitializeFilamentUiState() {
-    auto& filamentRenderer = ServiceLocator::Get().GetFilamentRenderer();
-    auto* view             = filamentRenderer.GetView();
-    auto* renderer         = filamentRenderer.GetRenderer();
-    if (!view || !renderer) return;
-
-    const auto& clear = renderer->getClearOptions();
-    clearColor_[0]    = clear.clearColor[0];
-    clearColor_[1]    = clear.clearColor[1];
-    clearColor_[2]    = clear.clearColor[2];
-    clearColor_[3]    = clear.clearColor[3];
-    clearEnabled_     = clear.clear;
-    clearDiscard_     = clear.discard;
-
-    postProcessingEnabled_        = view->isPostProcessingEnabled();
-    shadowingEnabled_             = view->isShadowingEnabled();
-    screenSpaceRefractionEnabled_ = view->isScreenSpaceRefractionEnabled();
-    antiAliasing_                 = static_cast<int>(view->getAntiAliasing());
-    dithering_                    = static_cast<int>(view->getDithering());
-    shadowType_                   = static_cast<int>(view->getShadowType());
-    hdrQuality_                   = static_cast<int>(view->getRenderQuality().hdrColorBuffer);
-
-    dynamicResOptions_ = view->getDynamicResolutionOptions();
-    msaaOptions_       = view->getMultiSampleAntiAliasingOptions();
-    taaOptions_        = view->getTemporalAntiAliasingOptions();
-    aoOptions_         = view->getAmbientOcclusionOptions();
-    ssrOptions_        = view->getScreenSpaceReflectionsOptions();
-    bloomOptions_      = view->getBloomOptions();
-    fogOptions_        = view->getFogOptions();
-    vignetteOptions_   = view->getVignetteOptions();
-    guardBandOptions_  = view->getGuardBandOptions();
-    vsmShadowOptions_  = view->getVsmShadowOptions();
-    softShadowOptions_ = view->getSoftShadowOptions();
-
-    // Renderer has no getter for frame-rate options; seed with sane defaults.
-    frameRateOptions_ = filament::Renderer::FrameRateOptions{};
-
-    filamentUiInitialized_ = true;
-    filamentSettingsDirty_ = false;
-}
-
-void ThirdPersonLayer::ApplyFilamentUiState() {
-    auto& filamentRenderer = ServiceLocator::Get().GetFilamentRenderer();
-    auto* view             = filamentRenderer.GetView();
-    auto* renderer         = filamentRenderer.GetRenderer();
-    if (!view || !renderer) return;
-
-    antiAliasing_ = std::clamp(antiAliasing_, 0, 1);
-    dithering_    = std::clamp(dithering_, 0, 1);
-    shadowType_   = std::clamp(shadowType_, 0, 3);
-    hdrQuality_   = std::clamp(hdrQuality_, 0, 3);
-
-    filament::Renderer::ClearOptions clear = renderer->getClearOptions();
-    clear.clearColor = {clearColor_[0], clearColor_[1], clearColor_[2], clearColor_[3]};
-    clear.clear      = clearEnabled_;
-    clear.discard    = clearDiscard_;
-    renderer->setClearOptions(clear);
-    renderer->setFrameRateOptions(frameRateOptions_);
-
-    view->setPostProcessingEnabled(postProcessingEnabled_);
-    view->setShadowingEnabled(shadowingEnabled_);
-    view->setScreenSpaceRefractionEnabled(screenSpaceRefractionEnabled_);
-    view->setAntiAliasing(static_cast<filament::AntiAliasing>(antiAliasing_));
-    view->setDithering(static_cast<filament::Dithering>(dithering_));
-    view->setShadowType(static_cast<filament::ShadowType>(shadowType_));
-    view->setDynamicResolutionOptions(dynamicResOptions_);
-    view->setMultiSampleAntiAliasingOptions(msaaOptions_);
-    view->setTemporalAntiAliasingOptions(taaOptions_);
-    view->setAmbientOcclusionOptions(aoOptions_);
-    view->setScreenSpaceReflectionsOptions(ssrOptions_);
-    view->setBloomOptions(bloomOptions_);
-    view->setFogOptions(fogOptions_);
-    view->setVignetteOptions(vignetteOptions_);
-    view->setGuardBandOptions(guardBandOptions_);
-    view->setVsmShadowOptions(vsmShadowOptions_);
-    view->setSoftShadowOptions(softShadowOptions_);
-
-    auto renderQuality         = view->getRenderQuality();
-    renderQuality.hdrColorBuffer = static_cast<filament::QualityLevel>(hdrQuality_);
-    view->setRenderQuality(renderQuality);
-
-    filamentSettingsDirty_ = false;
-}
-
-void ThirdPersonLayer::SyncPhysicsToRenderables() {
-    auto& meshes = ServiceLocator::Get().GetMeshSystem();
-
-    // Sync player (dynamic)
-    {
-        auto& t = playerEntity_.GetComponent<TransformComponent>();
-        float mat[16];
-        buildTransformMatrix(mat, t.Position, t.Rotation, t.Scale);
-        meshes.SetTransform(playerRenderable_, mat);
-    }
-
-    // Sync cube (dynamic)
-    {
-        auto& t = cube_entity_.GetComponent<TransformComponent>();
-        float mat[16];
-        buildTransformMatrix(mat, t.Position, t.Rotation, t.Scale);
-        meshes.SetTransform(cubeRenderable_, mat);
-    }
-
-    // Sync bullets (dynamic)
-    for (size_t i = 0; i < bullets_.size() && i < bulletRenderables_.size(); i++) {
-        if (!bullets_[i].IsValid()) continue;
-        auto& t = bullets_[i].GetComponent<TransformComponent>();
-        float mat[16];
-        buildTransformMatrix(mat, t.Position, t.Rotation, t.Scale);
-        meshes.SetTransform(bulletRenderables_[i], mat);
     }
 }
 
@@ -423,9 +300,6 @@ void ThirdPersonLayer::OnUpdate(float ts) {
 
     // Update camera after physics
     UpdateCamera();
-
-    // Sync physics transforms to Filament renderables
-    SyncPhysicsToRenderables();
 }
 
 void ThirdPersonLayer::UpdatePlayer(float ts) {
@@ -563,7 +437,12 @@ void ThirdPersonLayer::Shoot() {
     auto& meshes = ServiceLocator::Get().GetMeshSystem();
     auto bulletMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
     auto renderable = meshes.CreateRenderable(bulletMesh, bulletMaterial_, false);
-    bulletRenderables_.push_back(renderable);
+    box.AddComponent<FilamentRenderableComponent>(renderable);
+
+    float mat[16];
+    auto& bulletTransform = box.GetComponent<TransformComponent>();
+    buildTransformMatrix(mat, bulletTransform.Position, bulletTransform.Rotation, bulletTransform.Scale);
+    meshes.SetTransform(renderable, mat);
 
     bullets_.push_back(box);
 }
@@ -734,16 +613,16 @@ void ThirdPersonLayer::UpdateGrabSystem(float ts) {
 }
 
 void ThirdPersonLayer::OnRender() {
-    // Filament rendering is handled by FilamentRenderer in the Application loop.
-    // The camera is already configured in UpdateCamera().
-    // All renderables are synced in SyncPhysicsToRenderables().
+    if (scene_) {
+        // Scene render stage now handles ECS -> Filament transform sync.
+        scene_->OnRender();
+    }
 }
 
 void ThirdPersonLayer::OnImGuiRender() {
-    if (!filamentUiInitialized_) {
-        InitializeFilamentUiState();
-    }
-    if (!filamentUiInitialized_) return;
+    auto* settingsSystem = ServiceLocator::Get().GetRenderSettingsSystemPtr();
+    if (!settingsSystem || !settingsSystem->IsInitialized()) return;
+    auto& settings = settingsSystem->GetMutableSettings();
 
     if (showImGuiDemo_) {
         ImGui::ShowDemoWindow(&showImGuiDemo_);
@@ -758,143 +637,145 @@ void ThirdPersonLayer::OnImGuiRender() {
 
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         ImGui::Text("AO prerequisites: post=%s, indirectLight=%s",
-                    postProcessingEnabled_ ? "on" : "off",
+                    settings.postProcessingEnabled ? "on" : "off",
                     hasIbl ? "on" : "off");
         ImGui::Separator();
         ImGui::Checkbox("Show ImGui Demo", &showImGuiDemo_);
 
         if (ImGui::CollapsingHeader("Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
-            changed |= ImGui::ColorEdit4("Clear Color", clearColor_);
-            changed |= ImGui::Checkbox("Clear Target", &clearEnabled_);
-            changed |= ImGui::Checkbox("Discard Target", &clearDiscard_);
-            int frameInterval = static_cast<int>(frameRateOptions_.interval);
+            changed |= ImGui::ColorEdit4("Clear Color", settings.clearColor);
+            changed |= ImGui::Checkbox("Clear Target", &settings.clearEnabled);
+            changed |= ImGui::Checkbox("Discard Target", &settings.clearDiscard);
+            int frameInterval = static_cast<int>(settings.frameRateOptions.interval);
             if (ImGui::SliderInt("Frame Interval", &frameInterval, 1, 4)) {
-                frameRateOptions_.interval = static_cast<uint8_t>(frameInterval);
+                settings.frameRateOptions.interval = static_cast<uint8_t>(frameInterval);
                 changed = true;
             }
-            int frameHistory = static_cast<int>(frameRateOptions_.history);
+            int frameHistory = static_cast<int>(settings.frameRateOptions.history);
             if (ImGui::SliderInt("Frame History", &frameHistory, 1, 31)) {
-                frameRateOptions_.history = static_cast<uint8_t>(frameHistory);
+                settings.frameRateOptions.history = static_cast<uint8_t>(frameHistory);
                 changed = true;
             }
-            changed |= ImGui::SliderFloat("Headroom", &frameRateOptions_.headRoomRatio, 0.0f, 0.5f);
-            changed |= ImGui::SliderFloat("Scale Rate", &frameRateOptions_.scaleRate, 0.01f, 1.0f);
+            changed |= ImGui::SliderFloat("Headroom", &settings.frameRateOptions.headRoomRatio, 0.0f, 0.5f);
+            changed |= ImGui::SliderFloat("Scale Rate", &settings.frameRateOptions.scaleRate, 0.01f, 1.0f);
         }
 
         if (ImGui::CollapsingHeader("View Core", ImGuiTreeNodeFlags_DefaultOpen)) {
-            changed |= ImGui::Checkbox("Post Processing", &postProcessingEnabled_);
-            changed |= ImGui::Checkbox("Shadowing", &shadowingEnabled_);
-            changed |= ImGui::Checkbox("Screen Space Refraction", &screenSpaceRefractionEnabled_);
-            changed |= ImGui::Combo("Post AA", &antiAliasing_, kAaItems, IM_ARRAYSIZE(kAaItems));
-            changed |= ImGui::Combo("Dithering", &dithering_, kDitherItems, IM_ARRAYSIZE(kDitherItems));
-            changed |= ImGui::Combo("Shadow Type", &shadowType_, kShadowTypeItems, IM_ARRAYSIZE(kShadowTypeItems));
-            changed |= ImGui::Combo("HDR Buffer Quality", &hdrQuality_, kQualityItems, IM_ARRAYSIZE(kQualityItems));
+            changed |= ImGui::Checkbox("Post Processing", &settings.postProcessingEnabled);
+            changed |= ImGui::Checkbox("Shadowing", &settings.shadowingEnabled);
+            changed |= ImGui::Checkbox("Screen Space Refraction", &settings.screenSpaceRefractionEnabled);
+            changed |= ImGui::Checkbox("Invert Front-Face Winding", &settings.frontFaceWindingInverted);
+            changed |= ImGui::Checkbox("Frustum Culling", &settings.frustumCullingEnabled);
+            changed |= ImGui::Combo("Post AA", &settings.antiAliasing, kAaItems, IM_ARRAYSIZE(kAaItems));
+            changed |= ImGui::Combo("Dithering", &settings.dithering, kDitherItems, IM_ARRAYSIZE(kDitherItems));
+            changed |= ImGui::Combo("Shadow Type", &settings.shadowType, kShadowTypeItems, IM_ARRAYSIZE(kShadowTypeItems));
+            changed |= ImGui::Combo("HDR Buffer Quality", &settings.hdrQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems));
         }
 
         if (ImGui::CollapsingHeader("Dynamic Resolution")) {
-            changed |= ImGui::Checkbox("Enabled##dsr", &dynamicResOptions_.enabled);
-            changed |= ImGui::Checkbox("Homogeneous Scaling", &dynamicResOptions_.homogeneousScaling);
-            changed |= ImGui::SliderFloat2("Min Scale", &dynamicResOptions_.minScale[0], 0.25f, 1.0f);
-            changed |= ImGui::SliderFloat2("Max Scale", &dynamicResOptions_.maxScale[0], 0.5f, 2.0f);
-            changed |= ImGui::SliderFloat("Sharpness##dsr", &dynamicResOptions_.sharpness, 0.0f, 1.0f);
-            int quality = static_cast<int>(dynamicResOptions_.quality);
+            changed |= ImGui::Checkbox("Enabled##dsr", &settings.dynamicResOptions.enabled);
+            changed |= ImGui::Checkbox("Homogeneous Scaling", &settings.dynamicResOptions.homogeneousScaling);
+            changed |= ImGui::SliderFloat2("Min Scale", &settings.dynamicResOptions.minScale[0], 0.25f, 1.0f);
+            changed |= ImGui::SliderFloat2("Max Scale", &settings.dynamicResOptions.maxScale[0], 0.5f, 2.0f);
+            changed |= ImGui::SliderFloat("Sharpness##dsr", &settings.dynamicResOptions.sharpness, 0.0f, 1.0f);
+            int quality = static_cast<int>(settings.dynamicResOptions.quality);
             if (ImGui::Combo("Upscale Quality", &quality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
-                dynamicResOptions_.quality = static_cast<filament::QualityLevel>(quality);
+                settings.dynamicResOptions.quality = static_cast<filament::QualityLevel>(quality);
                 changed = true;
             }
         }
 
         if (ImGui::CollapsingHeader("MSAA / TAA")) {
-            changed |= ImGui::Checkbox("MSAA Enabled", &msaaOptions_.enabled);
-            int msaaSamples = static_cast<int>(msaaOptions_.sampleCount);
+            changed |= ImGui::Checkbox("MSAA Enabled", &settings.msaaOptions.enabled);
+            int msaaSamples = static_cast<int>(settings.msaaOptions.sampleCount);
             if (ImGui::SliderInt("MSAA Samples", &msaaSamples, 1, 8)) {
-                msaaOptions_.sampleCount = static_cast<uint8_t>(msaaSamples);
+                settings.msaaOptions.sampleCount = static_cast<uint8_t>(msaaSamples);
                 changed = true;
             }
-            changed |= ImGui::Checkbox("MSAA Custom Resolve", &msaaOptions_.customResolve);
+            changed |= ImGui::Checkbox("MSAA Custom Resolve", &settings.msaaOptions.customResolve);
 
-            changed |= ImGui::Checkbox("TAA Enabled", &taaOptions_.enabled);
-            changed |= ImGui::SliderFloat("TAA Feedback", &taaOptions_.feedback, 0.0f, 1.0f);
-            changed |= ImGui::SliderFloat("TAA Sharpness", &taaOptions_.sharpness, 0.0f, 2.0f);
-            changed |= ImGui::SliderFloat("TAA Upscaling", &taaOptions_.upscaling, 1.0f, 2.0f);
-            changed |= ImGui::Checkbox("TAA Prevent Flickering", &taaOptions_.preventFlickering);
+            changed |= ImGui::Checkbox("TAA Enabled", &settings.taaOptions.enabled);
+            changed |= ImGui::SliderFloat("TAA Feedback", &settings.taaOptions.feedback, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("TAA Sharpness", &settings.taaOptions.sharpness, 0.0f, 2.0f);
+            changed |= ImGui::SliderFloat("TAA Upscaling", &settings.taaOptions.upscaling, 1.0f, 2.0f);
+            changed |= ImGui::Checkbox("TAA Prevent Flickering", &settings.taaOptions.preventFlickering);
         }
 
         if (ImGui::CollapsingHeader("Ambient Occlusion / SSR")) {
-            changed |= ImGui::Checkbox("SSAO Enabled", &aoOptions_.enabled);
-            int aoType = static_cast<int>(aoOptions_.aoType);
+            changed |= ImGui::Checkbox("SSAO Enabled", &settings.aoOptions.enabled);
+            int aoType = static_cast<int>(settings.aoOptions.aoType);
             if (ImGui::Combo("AO Type", &aoType, kAoTypeItems, IM_ARRAYSIZE(kAoTypeItems))) {
-                aoOptions_.aoType = static_cast<filament::AmbientOcclusionOptions::AmbientOcclusionType>(aoType);
+                settings.aoOptions.aoType = static_cast<filament::AmbientOcclusionOptions::AmbientOcclusionType>(aoType);
                 changed = true;
             }
-            changed |= ImGui::SliderFloat("AO Radius", &aoOptions_.radius, 0.05f, 5.0f);
-            changed |= ImGui::SliderFloat("AO Power", &aoOptions_.power, 0.1f, 5.0f);
-            changed |= ImGui::SliderFloat("AO Intensity", &aoOptions_.intensity, 0.0f, 5.0f);
-            int aoQuality = static_cast<int>(aoOptions_.quality);
+            changed |= ImGui::SliderFloat("AO Radius", &settings.aoOptions.radius, 0.05f, 5.0f);
+            changed |= ImGui::SliderFloat("AO Power", &settings.aoOptions.power, 0.1f, 5.0f);
+            changed |= ImGui::SliderFloat("AO Intensity", &settings.aoOptions.intensity, 0.0f, 5.0f);
+            int aoQuality = static_cast<int>(settings.aoOptions.quality);
             if (ImGui::Combo("AO Quality", &aoQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
-                aoOptions_.quality = static_cast<filament::QualityLevel>(aoQuality);
+                settings.aoOptions.quality = static_cast<filament::QualityLevel>(aoQuality);
                 changed = true;
             }
 
-            changed |= ImGui::Checkbox("SSR Enabled", &ssrOptions_.enabled);
-            changed |= ImGui::SliderFloat("SSR Thickness", &ssrOptions_.thickness, 0.01f, 2.0f);
-            changed |= ImGui::SliderFloat("SSR Bias", &ssrOptions_.bias, 0.0f, 0.2f);
-            changed |= ImGui::SliderFloat("SSR Max Distance", &ssrOptions_.maxDistance, 0.1f, 25.0f);
-            changed |= ImGui::SliderFloat("SSR Stride", &ssrOptions_.stride, 0.5f, 8.0f);
-            changed |= ImGui::Checkbox("Guard Band", &guardBandOptions_.enabled);
+            changed |= ImGui::Checkbox("SSR Enabled", &settings.ssrOptions.enabled);
+            changed |= ImGui::SliderFloat("SSR Thickness", &settings.ssrOptions.thickness, 0.01f, 2.0f);
+            changed |= ImGui::SliderFloat("SSR Bias", &settings.ssrOptions.bias, 0.0f, 0.2f);
+            changed |= ImGui::SliderFloat("SSR Max Distance", &settings.ssrOptions.maxDistance, 0.1f, 25.0f);
+            changed |= ImGui::SliderFloat("SSR Stride", &settings.ssrOptions.stride, 0.5f, 8.0f);
+            changed |= ImGui::Checkbox("Guard Band", &settings.guardBandOptions.enabled);
         }
 
         if (ImGui::CollapsingHeader("Bloom / Fog / Vignette")) {
-            changed |= ImGui::Checkbox("Bloom Enabled", &bloomOptions_.enabled);
-            changed |= ImGui::SliderFloat("Bloom Strength", &bloomOptions_.strength, 0.0f, 1.0f);
-            int bloomLevels = static_cast<int>(bloomOptions_.levels);
+            changed |= ImGui::Checkbox("Bloom Enabled", &settings.bloomOptions.enabled);
+            changed |= ImGui::SliderFloat("Bloom Strength", &settings.bloomOptions.strength, 0.0f, 1.0f);
+            int bloomLevels = static_cast<int>(settings.bloomOptions.levels);
             if (ImGui::SliderInt("Bloom Levels", &bloomLevels, 1, 11)) {
-                bloomOptions_.levels = static_cast<uint8_t>(bloomLevels);
+                settings.bloomOptions.levels = static_cast<uint8_t>(bloomLevels);
                 changed = true;
             }
-            changed |= ImGui::SliderFloat("Bloom Highlight", &bloomOptions_.highlight, 10.0f, 3000.0f);
-            int bloomQuality = static_cast<int>(bloomOptions_.quality);
+            changed |= ImGui::SliderFloat("Bloom Highlight", &settings.bloomOptions.highlight, 10.0f, 3000.0f);
+            int bloomQuality = static_cast<int>(settings.bloomOptions.quality);
             if (ImGui::Combo("Bloom Quality", &bloomQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
-                bloomOptions_.quality = static_cast<filament::QualityLevel>(bloomQuality);
+                settings.bloomOptions.quality = static_cast<filament::QualityLevel>(bloomQuality);
                 changed = true;
             }
 
-            changed |= ImGui::Checkbox("Fog Enabled", &fogOptions_.enabled);
-            changed |= ImGui::SliderFloat("Fog Distance", &fogOptions_.distance, 0.0f, 200.0f);
-            changed |= ImGui::SliderFloat("Fog Density", &fogOptions_.density, 0.0f, 1.0f);
-            changed |= ImGui::SliderFloat("Fog Height", &fogOptions_.height, -50.0f, 50.0f);
-            changed |= ImGui::SliderFloat("Fog Height Falloff", &fogOptions_.heightFalloff, 0.0f, 4.0f);
-            changed |= ImGui::ColorEdit3("Fog Color", &fogOptions_.color[0]);
+            changed |= ImGui::Checkbox("Fog Enabled", &settings.fogOptions.enabled);
+            changed |= ImGui::SliderFloat("Fog Distance", &settings.fogOptions.distance, 0.0f, 200.0f);
+            changed |= ImGui::SliderFloat("Fog Density", &settings.fogOptions.density, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Fog Height", &settings.fogOptions.height, -50.0f, 50.0f);
+            changed |= ImGui::SliderFloat("Fog Height Falloff", &settings.fogOptions.heightFalloff, 0.0f, 4.0f);
+            changed |= ImGui::ColorEdit3("Fog Color", &settings.fogOptions.color[0]);
 
-            changed |= ImGui::Checkbox("Vignette Enabled", &vignetteOptions_.enabled);
-            changed |= ImGui::SliderFloat("Vignette Midpoint", &vignetteOptions_.midPoint, 0.0f, 1.0f);
-            changed |= ImGui::SliderFloat("Vignette Roundness", &vignetteOptions_.roundness, 0.0f, 1.0f);
-            changed |= ImGui::SliderFloat("Vignette Feather", &vignetteOptions_.feather, 0.0f, 1.0f);
+            changed |= ImGui::Checkbox("Vignette Enabled", &settings.vignetteOptions.enabled);
+            changed |= ImGui::SliderFloat("Vignette Midpoint", &settings.vignetteOptions.midPoint, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Vignette Roundness", &settings.vignetteOptions.roundness, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Vignette Feather", &settings.vignetteOptions.feather, 0.0f, 1.0f);
         }
 
         if (ImGui::CollapsingHeader("Shadow Filters")) {
-            int anisotropy = static_cast<int>(vsmShadowOptions_.anisotropy);
+            int anisotropy = static_cast<int>(settings.vsmShadowOptions.anisotropy);
             if (ImGui::SliderInt("VSM Anisotropy", &anisotropy, 0, 4)) {
-                vsmShadowOptions_.anisotropy = static_cast<uint8_t>(anisotropy);
+                settings.vsmShadowOptions.anisotropy = static_cast<uint8_t>(anisotropy);
                 changed = true;
             }
-            changed |= ImGui::Checkbox("VSM Mipmapping", &vsmShadowOptions_.mipmapping);
-            int vsmMsaa = static_cast<int>(vsmShadowOptions_.msaaSamples);
+            changed |= ImGui::Checkbox("VSM Mipmapping", &settings.vsmShadowOptions.mipmapping);
+            int vsmMsaa = static_cast<int>(settings.vsmShadowOptions.msaaSamples);
             if (ImGui::SliderInt("VSM MSAA Samples", &vsmMsaa, 1, 8)) {
-                vsmShadowOptions_.msaaSamples = static_cast<uint8_t>(vsmMsaa);
+                settings.vsmShadowOptions.msaaSamples = static_cast<uint8_t>(vsmMsaa);
                 changed = true;
             }
-            changed |= ImGui::Checkbox("VSM High Precision", &vsmShadowOptions_.highPrecision);
-            changed |= ImGui::SliderFloat("VSM Min Variance", &vsmShadowOptions_.minVarianceScale, 0.01f, 2.0f);
-            changed |= ImGui::SliderFloat("VSM Light Bleed Reduction", &vsmShadowOptions_.lightBleedReduction, 0.0f, 1.0f);
-            changed |= ImGui::SliderFloat("Soft Penumbra Scale", &softShadowOptions_.penumbraScale, 0.1f, 3.0f);
-            changed |= ImGui::SliderFloat("Soft Penumbra Ratio", &softShadowOptions_.penumbraRatioScale, 1.0f, 4.0f);
+            changed |= ImGui::Checkbox("VSM High Precision", &settings.vsmShadowOptions.highPrecision);
+            changed |= ImGui::SliderFloat("VSM Min Variance", &settings.vsmShadowOptions.minVarianceScale, 0.01f, 2.0f);
+            changed |= ImGui::SliderFloat("VSM Light Bleed Reduction", &settings.vsmShadowOptions.lightBleedReduction, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Soft Penumbra Scale", &settings.softShadowOptions.penumbraScale, 0.1f, 3.0f);
+            changed |= ImGui::SliderFloat("Soft Penumbra Ratio", &settings.softShadowOptions.penumbraRatioScale, 1.0f, 4.0f);
         }
     }
     ImGui::End();
 
     if (changed) {
-        filamentSettingsDirty_ = true;
-        ApplyFilamentUiState();
+        settingsSystem->MarkDirty();
+        settingsSystem->Apply();
     }
 }

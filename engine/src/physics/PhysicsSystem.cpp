@@ -141,6 +141,14 @@ void PhysicsSystem::Shutdown() {
     }
 }
 
+void PhysicsSystem::SetDebugDrawMode(int mode) {
+    if (dynamics_world_) {
+        if (auto* debugDrawer = dynamics_world_->getDebugDrawer()) {
+            debugDrawer->setDebugMode(mode);
+        }
+    }
+}
+
 // PhysicsLoop removed - Bullet MT runs on main thread and manages its own workers
 
 void PhysicsSystem::ProcessPendingCommands() {
@@ -589,4 +597,3 @@ bool PhysicsSystem::OverlapAABB(const glm::vec3& min, const glm::vec3& max) {
     return callback.hasOverlap;
 }
 }  // namespace se
-

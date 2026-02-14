@@ -1,7 +1,7 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "engine/renderer/MaterialHandle.h"
@@ -83,7 +83,18 @@ public:
     filament::Material* GetLitMaterial() const { return lit_material_; }
 
 private:
+    friend class MaterialHandle;
+
+    struct MaterialSlot {
+        filament::MaterialInstance* instance   = nullptr;
+        uint32_t                    generation = 1;
+        bool                        alive      = false;
+    };
+
     void CreateBuiltInMaterials();
+    MaterialHandle AddInstance(filament::MaterialInstance* instance);
+    filament::MaterialInstance* Resolve(const MaterialHandle& handle) const;
+    bool IsAlive(const MaterialHandle& handle) const;
 
     filament::Engine*   engine_ = nullptr;
 
@@ -91,8 +102,9 @@ private:
     filament::Material* lit_material_   = nullptr;
     filament::Material* unlit_material_ = nullptr;
 
-    // All created instances (owned by this system)
-    std::vector<filament::MaterialInstance*> instances_;
+    // All created instances (owned by this system), tracked via generation slots.
+    std::vector<MaterialSlot> material_slots_;
+    std::vector<uint32_t>     free_slots_;
 
     // Default instances
     MaterialHandle default_lit_;

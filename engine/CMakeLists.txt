@@ -50,6 +50,9 @@ set(bullet_DIR ${third_party_dir}/bullet)
 set(assimp_DIR ${third_party_dir}/assimp)
 
 option(SE_ENABLE_RMLUI "Build RmlUi integration" OFF)
+option(SE_ENABLE_LEGACY_OPENGL_RENDERER
+       "Build legacy OpenGL renderer stack still outside _legacy/"
+       OFF)
 
 
 add_library(stb STATIC
@@ -180,6 +183,20 @@ file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
 # Exclude legacy OpenGL files from the build
 list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/_legacy/.*")
 
+# Keep Filament as the default/primary rendering path.
+# During migration, a subset of OpenGL-era files still lives outside _legacy/.
+# Exclude them by default to avoid mixing two render backends in one target.
+if(NOT SE_ENABLE_LEGACY_OPENGL_RENDERER)
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/Renderer\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/ecs/RenderSystem\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/AssimpModelLoader\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/MaterialManager\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/MeshManager\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/Model\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/physics/PhysicsDebugDraw\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/Renderer/(Buffer|CulledInstanceBatch|Frustum|GraphicsContext|InstancedMesh|Material|OcclusionCuller|OpenGLBackend|OpenGLInstanceBuffer|OpenGLOcclusionQuery|RenderCommand|SceneRenderer|VertexArray)\\.cpp$")
+endif()
+
 # Optional RmlUi integration (disabled by default)
 if(NOT SE_ENABLE_RMLUI)
     list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/RmlUi.*\\.cpp$")
@@ -280,6 +297,12 @@ target_compile_definitions(simple_engine PUBLIC
         GLM_ENABLE_EXPERIMENTAL
         BT_THREADSAFE=1
 )
+
+if(SE_ENABLE_LEGACY_OPENGL_RENDERER)
+    target_compile_definitions(simple_engine PUBLIC
+            SE_ENABLE_LEGACY_OPENGL_RENDERER=1
+    )
+endif()
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

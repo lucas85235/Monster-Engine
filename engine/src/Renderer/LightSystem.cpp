@@ -42,12 +42,11 @@ void LightSystem::SetDirectionalLight(float dirX, float dirY, float dirZ,
     if (!engine_ || !scene_) return;
 
     // Remove existing directional light
-    if (directional_light_) {
-        scene_->remove(*directional_light_);
-        engine_->destroy(*directional_light_);
-        utils::EntityManager::get().destroy(*directional_light_);
-        delete directional_light_;
-        directional_light_ = nullptr;
+    if (has_directional_light_) {
+        scene_->remove(directional_light_);
+        engine_->destroy(directional_light_);
+        utils::EntityManager::get().destroy(directional_light_);
+        has_directional_light_ = false;
     }
 
     auto& em = utils::EntityManager::get();
@@ -64,7 +63,8 @@ void LightSystem::SetDirectionalLight(float dirX, float dirY, float dirZ,
         .build(*engine_, entity);
 
     scene_->addEntity(entity);
-    directional_light_ = new utils::Entity(entity);
+    directional_light_ = entity;
+    has_directional_light_ = true;
 
     spdlog::debug("Directional light set: dir=({},{},{}), color=({},{},{}), intensity={}",
                   dirX, dirY, dirZ, r, g, b, intensity);
@@ -87,8 +87,7 @@ size_t LightSystem::AddPointLight(float posX, float posY, float posZ,
 
     scene_->addEntity(entity);
 
-    auto* entityPtr = new utils::Entity(entity);
-    point_lights_.push_back(entityPtr);
+    point_lights_.push_back(entity);
 
     spdlog::debug("Point light added at ({},{},{}), intensity={}", posX, posY, posZ, intensity);
 
@@ -99,22 +98,18 @@ void LightSystem::ClearLights() {
     if (!engine_ || !scene_) return;
 
     // Destroy directional light
-    if (directional_light_) {
-        scene_->remove(*directional_light_);
-        engine_->destroy(*directional_light_);
-        utils::EntityManager::get().destroy(*directional_light_);
-        delete directional_light_;
-        directional_light_ = nullptr;
+    if (has_directional_light_) {
+        scene_->remove(directional_light_);
+        engine_->destroy(directional_light_);
+        utils::EntityManager::get().destroy(directional_light_);
+        has_directional_light_ = false;
     }
 
     // Destroy point lights
-    for (auto* entity : point_lights_) {
-        if (entity) {
-            scene_->remove(*entity);
-            engine_->destroy(*entity);
-            utils::EntityManager::get().destroy(*entity);
-            delete entity;
-        }
+    for (auto entity : point_lights_) {
+        scene_->remove(entity);
+        engine_->destroy(entity);
+        utils::EntityManager::get().destroy(entity);
     }
     point_lights_.clear();
 }
