@@ -18,6 +18,7 @@ Application::Application(const ApplicationSpecification& specification) {
         return;
     }
     s_Instance = this;
+    specification_ = specification;
 
 #ifdef DEBUG
     LogInit(true);
@@ -41,6 +42,12 @@ Application::Application(const ApplicationSpecification& specification) {
     // Create window (GLFW_NO_API — no OpenGL context)
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
     window_->Init();
+
+    // ImGui runs in a dedicated control window so it works regardless of Filament backend.
+    if (specification.EnableImGui) {
+        imgui_layer_ = std::make_unique<ImGuiLayer>(specification.Name);
+        imgui_layer_->OnAttach();
+    }
 
     // Create Filament context and renderer
     filament_context_ = std::make_unique<FilamentContext>();
@@ -117,6 +124,11 @@ Application::~Application() {
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
     layer_stack_.clear();
 
+    if (imgui_layer_) {
+        imgui_layer_->OnDetach();
+        imgui_layer_.reset();
+    }
+
     // Cleanup rendering subsystems (reverse init order)
     model_loader_.reset();
     texture_system_.reset();
@@ -187,6 +199,16 @@ int Application::Run() {
 
             // End Filament frame (render + present)
             filament_renderer_->EndFrame();
+        }
+
+        if (imgui_layer_) {
+            imgui_layer_->Begin();
+            if (imgui_layer_->IsFrameActive()) {
+                for (const std::unique_ptr<Layer>& layer : layer_stack_) {
+                    layer->OnImGuiRender();
+                }
+            }
+            imgui_layer_->End();
         }
 
         // Apply FPS limiting if set

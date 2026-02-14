@@ -137,6 +137,10 @@ TextureHandle TextureSystem::CreateTexture(const uint8_t* data, uint32_t width, 
 
     uint32_t mipLevels = computeMipLevels(width, height);
 
+    auto usage = static_cast<filament::Texture::Usage>(
+        static_cast<uint16_t>(filament::Texture::Usage::DEFAULT) |
+        static_cast<uint16_t>(filament::Texture::Usage::GEN_MIPMAPPABLE));
+
     // Choose the appropriate Filament internal format
     filament::Texture::InternalFormat format;
     if (sRGB) {
@@ -151,6 +155,7 @@ TextureHandle TextureSystem::CreateTexture(const uint8_t* data, uint32_t width, 
         .levels(static_cast<uint8_t>(mipLevels))
         .format(format)
         .sampler(filament::Texture::Sampler::SAMPLER_2D)
+        .usage(usage)
         .build(*engine_);
 
     if (!texture) {
@@ -171,8 +176,10 @@ TextureHandle TextureSystem::CreateTexture(const uint8_t* data, uint32_t width, 
     );
     texture->setImage(*engine_, 0, std::move(buffer));
 
-    // Generate mipmaps for filtering quality
-    texture->generateMipmaps(*engine_);
+    // Only generate mipmaps when there is a mip pyramid.
+    if (mipLevels > 1) {
+        texture->generateMipmaps(*engine_);
+    }
 
     textures_.push_back(texture);
 

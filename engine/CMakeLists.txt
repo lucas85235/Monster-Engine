@@ -49,6 +49,8 @@ set(rmlui_DIR ${third_party_dir}/RmlUi)
 set(bullet_DIR ${third_party_dir}/bullet)
 set(assimp_DIR ${third_party_dir}/assimp)
 
+option(SE_ENABLE_RMLUI "Build RmlUi integration" OFF)
+
 
 add_library(stb STATIC
         ${stb_DIR}/stb_image.cpp
@@ -79,9 +81,11 @@ add_subdirectory(${freetype_DIR})
 add_library(Freetype::Freetype ALIAS freetype)
 
 # RmlUi Configuration
-set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
-add_subdirectory(${rmlui_DIR})
+if(SE_ENABLE_RMLUI)
+    set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
+    set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
+    add_subdirectory(${rmlui_DIR})
+endif()
 
 # Assimp Configuration
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -176,6 +180,12 @@ file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
 # Exclude legacy OpenGL files from the build
 list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/_legacy/.*")
 
+# Optional RmlUi integration (disabled by default)
+if(NOT SE_ENABLE_RMLUI)
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/RmlUi.*\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/Canvas\\.cpp$")
+endif()
+
 # Add Objective-C++ sources on Apple platforms
 if(APPLE)
     file(GLOB_RECURSE PROJECT_MM_SRCS CONFIGURE_DEPENDS
@@ -197,7 +207,6 @@ target_include_directories(simple_engine PUBLIC
         ${glfw_DIR}/include
         ${stb_DIR}
         ${entt_DIR}
-        ${rmlui_DIR}/Include
         ${bullet_DIR}/src
         ${assimp_DIR}/include
         ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
@@ -206,6 +215,12 @@ target_include_directories(simple_engine PUBLIC
         # Filament SDK headers
         ${FILAMENT_INCLUDE_DIR}
 )
+
+if(SE_ENABLE_RMLUI)
+    target_include_directories(simple_engine PUBLIC
+            ${rmlui_DIR}/Include
+    )
+endif()
 
 # --- ENGINE DEPENDENCIES ---
 
@@ -224,8 +239,6 @@ target_link_libraries(simple_engine PUBLIC
         stb
         Entt
         freetype
-        rmlui_core
-        rmlui_debugger
         BulletDynamics
         BulletCollision
         LinearMath
@@ -233,6 +246,13 @@ target_link_libraries(simple_engine PUBLIC
         # Filament libraries
         ${FILAMENT_LINK_LIBS}
 )
+
+if(SE_ENABLE_RMLUI)
+    target_link_libraries(simple_engine PUBLIC
+            rmlui_core
+            rmlui_debugger
+    )
+endif()
 
 # Platform-specific frameworks required by Filament
 if(APPLE)
@@ -319,4 +339,3 @@ if (MSVC)
     target_compile_options(simple_engine PUBLIC
             /MP)
 endif ()
-

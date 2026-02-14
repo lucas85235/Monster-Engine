@@ -118,12 +118,12 @@ MeshData CreateSphere(float radius, uint32_t segments, uint32_t rings) {
             uint32_t i3 = i2 + 1;
 
             mesh.indices.push_back(i0);
-            mesh.indices.push_back(i2);
             mesh.indices.push_back(i1);
+            mesh.indices.push_back(i2);
 
             mesh.indices.push_back(i1);
-            mesh.indices.push_back(i2);
             mesh.indices.push_back(i3);
+            mesh.indices.push_back(i2);
         }
     }
 
@@ -222,12 +222,12 @@ MeshData CreateCylinder(float radius, float height, uint32_t segments) {
         uint32_t t1 = b0 + 3;
 
         mesh.indices.push_back(b0);
-        mesh.indices.push_back(b1);
         mesh.indices.push_back(t0);
+        mesh.indices.push_back(b1);
 
         mesh.indices.push_back(t0);
-        mesh.indices.push_back(b1);
         mesh.indices.push_back(t1);
+        mesh.indices.push_back(b1);
     }
 
     // Top cap center
@@ -254,8 +254,8 @@ MeshData CreateCylinder(float radius, float height, uint32_t segments) {
     }
     for (uint32_t i = 0; i < segments; ++i) {
         mesh.indices.push_back(topCenter);
-        mesh.indices.push_back(topRingStart + i);
         mesh.indices.push_back(topRingStart + i + 1);
+        mesh.indices.push_back(topRingStart + i);
     }
 
     // Bottom cap center
@@ -282,8 +282,8 @@ MeshData CreateCylinder(float radius, float height, uint32_t segments) {
     }
     for (uint32_t i = 0; i < segments; ++i) {
         mesh.indices.push_back(botCenter);
-        mesh.indices.push_back(botRingStart + i + 1);
         mesh.indices.push_back(botRingStart + i);
+        mesh.indices.push_back(botRingStart + i + 1);
     }
 
     return mesh;

@@ -247,8 +247,8 @@ RenderableHandle MeshSystem::CreateRenderable(const MeshData& meshData,
     filament::RenderableManager::Builder(1)
         .geometry(0, filament::RenderableManager::PrimitiveType::TRIANGLES, vb, ib)
         .material(0, material.GetNative())
-        .boundingBox({{center.x - halfExtent.x, center.y - halfExtent.y, center.z - halfExtent.z},
-                      {center.x + halfExtent.x, center.y + halfExtent.y, center.z + halfExtent.z}})
+        // Filament::Box expects {center, halfExtent}, not {min, max}.
+        .boundingBox({center, halfExtent})
         .castShadows(castShadows)
         .receiveShadows(true)
         .build(*engine_, entity);

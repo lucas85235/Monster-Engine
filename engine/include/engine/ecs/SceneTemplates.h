@@ -5,6 +5,10 @@
 
 #include "engine/Log.h"
 #include "engine/ecs/Component.h"
+#include "engine/ecs/ScriptComponent.h"
+
+#include <stdexcept>
+#include <typeinfo>
 
 namespace se {
 
@@ -32,28 +36,77 @@ T& Entity::AddDataComponent(Args&&... args) {
 
 template <typename T>
 const T& Entity::GetComponent() const {
-    if (!HasComponent<T>()) { SE_LOG_ERROR("Entity does not have component!"); }
-    return scene_->registry_.get<T>(entityHandle_);
+    if (!scene_ || entityHandle_ == entt::null) {
+        SE_LOG_ERROR("GetComponent called on invalid entity");
+        throw std::runtime_error("GetComponent on invalid entity");
+    }
+
+    if constexpr (std::is_base_of_v<Component, T>) {
+        if (const auto* script = scene_->registry_.try_get<ScriptComponent>(entityHandle_)) {
+            if (const auto* component = script->Get<T>()) {
+                return *component;
+            }
+        }
+    } else {
+        if (scene_->registry_.all_of<T>(entityHandle_)) {
+            return scene_->registry_.get<T>(entityHandle_);
+        }
+    }
+
+    SE_LOG_ERROR("Entity {} does not have component type {}", GetID(), typeid(T).name());
+    throw std::runtime_error("Entity missing requested component");
 }
 
  template <typename T>
 T& Entity::GetComponent() {
-    if (!HasComponent<T>()) { SE_LOG_ERROR("Entity does not have component!"); }
-    return scene_->registry_.get<T>(entityHandle_);
+    if (!scene_ || entityHandle_ == entt::null) {
+        SE_LOG_ERROR("GetComponent called on invalid entity");
+        throw std::runtime_error("GetComponent on invalid entity");
+    }
+
+    if constexpr (std::is_base_of_v<Component, T>) {
+        if (auto* script = scene_->registry_.try_get<ScriptComponent>(entityHandle_)) {
+            if (auto* component = script->Get<T>()) {
+                return *component;
+            }
+        }
+    } else {
+        if (scene_->registry_.all_of<T>(entityHandle_)) {
+            return scene_->registry_.get<T>(entityHandle_);
+        }
+    }
+
+    SE_LOG_ERROR("Entity {} does not have component type {}", GetID(), typeid(T).name());
+    throw std::runtime_error("Entity missing requested component");
 }
 
 template <typename T>
 bool Entity::HasComponent() const {
-    return scene_->registry_.all_of<T>(entityHandle_);
+    if (!scene_ || entityHandle_ == entt::null) {
+        return false;
+    }
+
+    if constexpr (std::is_base_of_v<Component, T>) {
+        if (const auto* script = scene_->registry_.try_get<ScriptComponent>(entityHandle_)) {
+            return script->Has<T>();
+        }
+        return false;
+    } else {
+        return scene_->registry_.all_of<T>(entityHandle_);
+    }
 }
 
 template <typename T>
 void Entity::RemoveComponent() {
-    if (!HasComponent<T>()) {
-        SE_LOG_WARN("Entity does not have component!");
-        return;
+    if constexpr (std::is_base_of_v<Component, T>) {
+        RemoveLifecycleComponent<T>();
+    } else {
+        if (!HasComponent<T>()) {
+            SE_LOG_WARN("Entity does not have component!");
+            return;
+        }
+        scene_->registry_.remove<T>(entityHandle_);
     }
-    scene_->registry_.remove<T>(entityHandle_);
 }
 
 }  // namespace se

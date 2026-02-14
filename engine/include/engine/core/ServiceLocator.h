@@ -8,6 +8,7 @@ class InputManager;
 class EventBus;
 class FilamentContext;
 class FilamentRenderer;
+class SceneRenderer;
 class MaterialSystem;
 class MeshSystem;
 class LightSystem;
@@ -40,6 +41,9 @@ class ServiceLocator {
     }
     void ProvideFilamentRenderer(FilamentRenderer* renderer) {
         filament_renderer_ = renderer;
+    }
+    void ProvideSceneRenderer(SceneRenderer* renderer) {
+        scene_renderer_ = renderer;
     }
     void ProvideMaterialSystem(MaterialSystem* materials) {
         material_system_ = materials;
@@ -79,6 +83,12 @@ class ServiceLocator {
         if (!filament_renderer_)
             throw std::runtime_error("FilamentRenderer not registered with ServiceLocator");
         return *filament_renderer_;
+    }
+
+    SceneRenderer& GetSceneRenderer() const {
+        if (!scene_renderer_)
+            throw std::runtime_error("SceneRenderer not registered with ServiceLocator");
+        return *scene_renderer_;
     }
 
     MaterialSystem& GetMaterialSystem() const {
@@ -124,6 +134,9 @@ class ServiceLocator {
     FilamentRenderer* GetFilamentRendererPtr() const {
         return filament_renderer_;
     }
+    SceneRenderer* GetSceneRendererPtr() const {
+        return scene_renderer_;
+    }
     MaterialSystem* GetMaterialSystemPtr() const {
         return material_system_;
     }
@@ -153,6 +166,9 @@ class ServiceLocator {
     bool HasFilamentRenderer() const {
         return filament_renderer_ != nullptr;
     }
+    bool HasSceneRenderer() const {
+        return scene_renderer_ != nullptr;
+    }
 
     // Reset all services (for shutdown/testing)
     void Reset() {
@@ -160,6 +176,7 @@ class ServiceLocator {
         event_bus_         = nullptr;
         filament_context_  = nullptr;
         filament_renderer_ = nullptr;
+        scene_renderer_    = nullptr;
         material_system_   = nullptr;
         mesh_system_       = nullptr;
         light_system_      = nullptr;
@@ -180,6 +197,7 @@ class ServiceLocator {
     EventBus*             event_bus_         = nullptr;
     FilamentContext*       filament_context_  = nullptr;
     FilamentRenderer*     filament_renderer_ = nullptr;
+    SceneRenderer*        scene_renderer_    = nullptr;
     MaterialSystem*       material_system_   = nullptr;
     MeshSystem*           mesh_system_       = nullptr;
     LightSystem*          light_system_      = nullptr;

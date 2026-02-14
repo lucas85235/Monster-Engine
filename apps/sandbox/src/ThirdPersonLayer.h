@@ -6,6 +6,8 @@
 #include <engine/renderer/MaterialHandle.h>
 #include <engine/renderer/MeshSystem.h>
 
+#include <filament/Options.h>
+#include <filament/Renderer.h>
 #include <glm.hpp>
 #include <vector>
 
@@ -33,6 +35,7 @@ class ThirdPersonLayer : public Layer {
     virtual void OnDetach() override;
     virtual void OnUpdate(float ts) override;
     virtual void OnRender() override;
+    virtual void OnImGuiRender() override;
 
    private:
     float debugTargetYaw_   = 0.0f;
@@ -51,6 +54,8 @@ class ThirdPersonLayer : public Layer {
     void UpdateGrabSystem(float ts);
     void TryGrabOrRelease();
     void SyncPhysicsToRenderables();
+    void InitializeFilamentUiState();
+    void ApplyFilamentUiState();
 
     std::shared_ptr<Scene> scene_;
 
@@ -108,5 +113,37 @@ class ThirdPersonLayer : public Layer {
     // Mouse toggle
     bool mouseCaptured_ = true;
 
-    int maxBullets_ = 100;
+    int maxBullets_ = 32;
+
+    // Filament runtime tuning panel (ImGui)
+    bool filamentUiInitialized_ = false;
+    bool showImGuiDemo_         = false;
+
+    float clearColor_[4] = {0.1f, 0.1f, 0.15f, 1.0f};
+    bool  clearEnabled_  = true;
+    bool  clearDiscard_  = true;
+
+    bool shadowingEnabled_             = true;
+    bool screenSpaceRefractionEnabled_ = true;
+    bool postProcessingEnabled_        = true;
+
+    int antiAliasing_ = static_cast<int>(filament::AntiAliasing::FXAA);
+    int dithering_    = static_cast<int>(filament::Dithering::TEMPORAL);
+    int shadowType_   = static_cast<int>(filament::ShadowType::PCF);
+    int hdrQuality_   = static_cast<int>(filament::QualityLevel::HIGH);
+
+    filament::DynamicResolutionOptions       dynamicResOptions_;
+    filament::MultiSampleAntiAliasingOptions msaaOptions_;
+    filament::TemporalAntiAliasingOptions    taaOptions_;
+    filament::AmbientOcclusionOptions        aoOptions_;
+    filament::ScreenSpaceReflectionsOptions  ssrOptions_;
+    filament::BloomOptions                   bloomOptions_;
+    filament::FogOptions                     fogOptions_;
+    filament::VignetteOptions                vignetteOptions_;
+    filament::GuardBandOptions               guardBandOptions_;
+    filament::VsmShadowOptions               vsmShadowOptions_;
+    filament::SoftShadowOptions              softShadowOptions_;
+
+    filament::Renderer::FrameRateOptions frameRateOptions_;
+    bool filamentSettingsDirty_ = false;
 };

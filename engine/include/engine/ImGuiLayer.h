@@ -21,12 +21,16 @@ class ImGuiLayer : public Layer {
 
     void Begin();  // Start new ImGui frame
     void End();    // Render ImGui draw data
+    bool IsFrameActive() const;
 
     void SetWindow(GLFWwindow* window);
     void SetAppName(const std::string& appName);
 
    private:
     GLFWwindow* window_ = nullptr;
+    bool ownsWindow_ = false;
+    bool initialized_ = false;
+    bool frameActive_ = false;
     std::string appName_ = "default";
     std::string iniFilePath_;
 };
