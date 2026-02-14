@@ -37,6 +37,7 @@ public:
     void Start() override;
 
     void Update(float dt) override;
+    void OnDestroy() override;
 
     // State queries
 
@@ -61,5 +62,7 @@ private:
 
     // State
     bool mouseCaptured_ = false;
+
+    const std::string inputMapName_ = "third_person_game.character";
 };
 } // namespace FirstGame

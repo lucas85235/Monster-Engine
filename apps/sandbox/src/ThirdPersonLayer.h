@@ -103,4 +103,6 @@ class ThirdPersonLayer : public Layer {
 
     // Filament runtime tuning panel (ImGui)
     bool showImGuiDemo_ = false;
+
+    const std::string inputMapName_ = "sandbox.third_person";
 };

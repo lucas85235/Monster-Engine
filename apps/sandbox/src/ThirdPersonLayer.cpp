@@ -113,22 +113,22 @@ void ThirdPersonLayer::OnAttach() {
 
     // Bind input axes and actions
     auto& input = InputManager::Get();
-    input.BindAxis("MoveForward", Key::W, 1.0f);
-    input.BindAxis("MoveForward", Key::S, -1.0f);
-    input.BindAxis("MoveRight", Key::D, 1.0f);
-    input.BindAxis("MoveRight", Key::A, -1.0f);
-    input.BindAction("Jump", Key::Space);
-    input.BindAction("Grab", Key::E);
-    input.BindAction("Sprint", Key::LeftShift);
-    input.BindAction("ToggleMouse", Key::Tab);
-    input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
-    input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
-    input.BindAxis("ScrollWheel", Key::MouseScrollY, 1.0f);
+    input.CreateActionMap(inputMapName_);
+    input.PushContext(inputMapName_);
+    input.BindAxis(inputMapName_, "MoveForward", Key::W, 1.0f);
+    input.BindAxis(inputMapName_, "MoveForward", Key::S, -1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::D, 1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::A, -1.0f);
+    input.BindAction(inputMapName_, "Jump", Key::Space);
+    input.BindAction(inputMapName_, "Grab", Key::E);
+    input.BindAction(inputMapName_, "Sprint", Key::LeftShift);
+    input.BindAction(inputMapName_, "ToggleMouse", Key::Tab);
+    input.BindAxis(inputMapName_, "CameraRotateX", Key::MouseX, 1.0f);
+    input.BindAxis(inputMapName_, "CameraRotateY", Key::MouseY, -1.0f);
+    input.BindAxis(inputMapName_, "ScrollWheel", Key::MouseScrollY, 1.0f);
 
     // Capture and hide cursor
-    auto& app    = Application::Get();
-    auto* window = app.GetWindow().GetNativeWindow();
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    input.SetCursorMode(CursorMode::Locked);
     mouseCaptured_ = true;
 
     // Disable physics debug drawing by default.
@@ -139,6 +139,10 @@ void ThirdPersonLayer::OnAttach() {
 }
 
 void ThirdPersonLayer::OnDetach() {
+    auto& input = InputManager::Get();
+    input.PopContext(inputMapName_);
+    input.RemoveActionMap(inputMapName_);
+
     bullets_.clear();
     smallWalls_.clear();
     walls_.clear();
@@ -386,11 +390,8 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
     // Toggle mouse capture with Tab
     if (input.IsActionJustPressed("ToggleMouse")) {
-        auto& app      = Application::Get();
-        auto* window   = app.GetWindow().GetNativeWindow();
         mouseCaptured_ = !mouseCaptured_;
-        glfwSetInputMode(window, GLFW_CURSOR,
-                         mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        input.SetCursorMode(mouseCaptured_ ? CursorMode::Locked : CursorMode::Normal);
         SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
     }
 

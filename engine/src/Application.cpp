@@ -1,13 +1,19 @@
 #include "engine/Application.h"
 
+#include <chrono>
 #include <GLFW/glfw3.h>
 
 #include "Engine.h"
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/core/Time.h"
+#include "engine/core/PerformanceProfiler.h"
+#include "engine/console/ConsoleSystem.h"
+#include "engine/console/DeveloperConsoleLayer.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
+#include "engine/ui/native/NativeUiRenderer.h"
+#include "engine/ui/native/retained/RetainedUi.h"
 
 namespace se {
 Application* Application::s_Instance = nullptr;
@@ -43,10 +49,8 @@ Application::Application(const ApplicationSpecification& specification) {
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
     window_->Init();
 
-    // ImGui runs in a dedicated control window so it works regardless of Filament backend.
     if (specification.EnableImGui) {
-        imgui_layer_ = std::make_unique<ImGuiLayer>(specification.Name);
-        imgui_layer_->OnAttach();
+        SE_LOG_WARN("EnableImGui is ignored in Filament-first runtime; using native UI overlays.");
     }
 
     // Create Filament context and renderer
@@ -93,14 +97,33 @@ Application::Application(const ApplicationSpecification& specification) {
     ServiceLocator::Get().ProvideModelLoader(model_loader_.get());
     ServiceLocator::Get().ProvideRenderSettingsSystem(render_settings_system_.get());
 
+    // Init receives window size (screen points) for UI layout.
+    // The framebuffer size will be corrected on the first OnResize from the main loop.
+    {
+        int winW = static_cast<int>(specification.WindowWidth);
+        int winH = static_cast<int>(specification.WindowHeight);
+        glfwGetWindowSize(window_->GetNativeWindow(), &winW, &winH);
+        ui::NativeUiRenderer::Get().Init(filament_context_.get(), filament_renderer_.get(),
+                                         static_cast<uint32_t>(winW), static_cast<uint32_t>(winH));
+        ui::retained::RetainedUiContext::Get().Init();
+        ui::retained::RetainedUiContext::Get().SetViewport(static_cast<float>(winW),
+                                                           static_cast<float>(winH));
+    }
+
+    ConsoleSystem::Get().Init();
+    ServiceLocator::Get().ProvideConsoleSystem(&ConsoleSystem::Get());
+    PushOverlay<DeveloperConsoleLayer>();
+
     // Register event listeners
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
     event_bus_->AddListener<WindowMinimizeEvent>(SE_BIND_EVENT_FN(OnWindowMinimize));
     event_bus_->AddListener<WindowCloseEvent>(SE_BIND_EVENT_FN(OnWindowClose));
+    event_bus_->AddListener<WindowFocusEvent>(
+        [](const WindowFocusEvent& e) { InputManager::Get().OnWindowFocusChanged(e.focused); });
 
     // Forward input events to InputManager
     event_bus_->AddListener<KeyPressedEvent>(
-        [](const KeyPressedEvent& e) { InputManager::Get().OnKeyPressed(e.keyCode); });
+        [](const KeyPressedEvent& e) { InputManager::Get().OnKeyPressed(e.keyCode, e.IsRepeat()); });
     event_bus_->AddListener<KeyReleasedEvent>(
         [](const KeyReleasedEvent& e) { InputManager::Get().OnKeyReleased(e.keyCode); });
     event_bus_->AddListener<MouseButtonPressedEvent>([](const MouseButtonPressedEvent& e) {
@@ -113,12 +136,17 @@ Application::Application(const ApplicationSpecification& specification) {
         [](const MouseMovedEvent& e) { InputManager::Get().OnMouseMoved(e.x, e.y); });
     event_bus_->AddListener<MouseScrolledEvent>(
         [](const MouseScrolledEvent& e) { InputManager::Get().OnMouseScrolled(e.yOffset); });
+    event_bus_->AddListener<TextInputEvent>(
+        [](const TextInputEvent& e) { InputManager::Get().OnTextInput(e.codepoint); });
 
     SE_LOG_INFO("Application initialized successfully (Filament renderer)");
 }
 
 Application::~Application() {
     SE_LOG_INFO("Shutting down Monster Engine");
+
+    // Shutdown console before input, because it persists bindings through InputManager.
+    ConsoleSystem::Get().Shutdown();
 
     // Shutdown input manager
     InputManager::Get().Shutdown();
@@ -127,10 +155,8 @@ Application::~Application() {
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
     layer_stack_.clear();
 
-    if (imgui_layer_) {
-        imgui_layer_->OnDetach();
-        imgui_layer_.reset();
-    }
+    ui::NativeUiRenderer::Get().Shutdown();
+    ui::retained::RetainedUiContext::Get().Shutdown();
 
     // Reset service pointers before tearing down subsystem instances to avoid
     // stale pointer access during late object destruction.
@@ -158,11 +184,22 @@ int Application::Run() {
     running_       = true;
     float lastTime = GetTime();
 
+    using Clock = std::chrono::high_resolution_clock;
+    auto toMs = [](const Clock::time_point& start, const Clock::time_point& end) -> float {
+        return std::chrono::duration<float, std::milli>(end - start).count();
+    };
+
     SE_LOG_INFO("Application main loop started");
 
     while (running_) {
+        auto& perf = PerformanceProfiler::Get();
+        perf.BeginFrame();
+        PerformanceProfiler::FrameSectionTimes sections{};
+
         // Check for window close (Escape key)
-        if (InputManager::Get().IsKeyDown(Key::Escape)) { window_->RequestClose(); }
+        if (!ConsoleSystem::Get().IsVisible() && InputManager::Get().IsKeyDown(Key::Escape)) {
+            window_->RequestClose();
+        }
 
         // Calculate timestep
         float currentTime = GetTime();
@@ -174,62 +211,93 @@ int Application::Run() {
         Time::Update(timestep);
 
         // Update Input Manager
+        auto inputStart = Clock::now();
         InputManager::Get().Update();
+        sections.inputUpdateTimeMs = toMs(inputStart, Clock::now());
 
         // Poll GLFW events
+        auto eventStart = Clock::now();
         window_->OnUpdate();
 
         // Dispatch events from the EventBus
         event_bus_->dispatch();
+        sections.eventPumpTimeMs = toMs(eventStart, Clock::now());
 
-        // Skip rendering if minimized
-        if (minimized_) continue;
+        // Update gameplay/UI layers even if Filament skips a frame.
+        // This avoids losing edge-triggered input (mouse/key clicks) under low FPS.
+        auto layerUpdateStart = Clock::now();
+        for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+        sections.layerUpdateTimeMs = toMs(layerUpdateStart, Clock::now());
 
-        if (render_settings_system_ && render_settings_system_->IsDirty()) {
-            render_settings_system_->Apply();
+        // Advance glTF skeletal animation clocks independently from rendering.
+        auto animStart = Clock::now();
+        if (model_loader_) {
+            model_loader_->UpdateAnimations(timestep);
         }
+        sections.animationTimeMs = toMs(animStart, Clock::now());
 
-        // Update framebuffer size
-        int width, height;
-        glfwGetFramebufferSize(window_->GetNativeWindow(), &width, &height);
-        if (width > 0 && height > 0) {
-            if (window_->GetWidth() != static_cast<uint32_t>(width) ||
-                window_->GetHeight() != static_cast<uint32_t>(height)) {
-                window_->SetWidth(width);
-                window_->SetHeight(height);
-                filament_context_->OnResize(width, height);
+        if (!minimized_) {
+            auto settingsStart = Clock::now();
+            if (render_settings_system_ && render_settings_system_->IsDirty()) {
+                render_settings_system_->Apply();
             }
-        }
+            sections.settingsApplyTimeMs = toMs(settingsStart, Clock::now());
 
-        // Begin Filament frame
-        if (filament_renderer_->BeginFrame()) {
-            // Update layers
-            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
-
-            // Advance glTF skeletal animation clocks before scene rendering.
-            if (model_loader_) {
-                model_loader_->UpdateAnimations(timestep);
-            }
-
-            // Render layers
-            for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
-
-            // End Filament frame (render + present)
-            filament_renderer_->EndFrame();
-        }
-
-        if (imgui_layer_) {
-            imgui_layer_->Begin();
-            if (imgui_layer_->IsFrameActive()) {
-                for (const std::unique_ptr<Layer>& layer : layer_stack_) {
-                    layer->OnImGuiRender();
+            // Update framebuffer size
+            auto resizeStart = Clock::now();
+            int fbWidth, fbHeight;
+            glfwGetFramebufferSize(window_->GetNativeWindow(), &fbWidth, &fbHeight);
+            int winWidth, winHeight;
+            glfwGetWindowSize(window_->GetNativeWindow(), &winWidth, &winHeight);
+            if (fbWidth > 0 && fbHeight > 0 && winWidth > 0 && winHeight > 0) {
+                if (window_->GetWidth() != static_cast<uint32_t>(fbWidth) ||
+                    window_->GetHeight() != static_cast<uint32_t>(fbHeight)) {
+                    window_->SetWidth(fbWidth);
+                    window_->SetHeight(fbHeight);
+                    filament_context_->OnResize(fbWidth, fbHeight);
+                    ui::NativeUiRenderer::Get().OnResize(
+                        static_cast<uint32_t>(fbWidth), static_cast<uint32_t>(fbHeight),
+                        static_cast<uint32_t>(winWidth), static_cast<uint32_t>(winHeight));
+                    ui::retained::RetainedUiContext::Get().SetViewport(
+                        static_cast<float>(winWidth), static_cast<float>(winHeight));
                 }
             }
-            imgui_layer_->End();
+            sections.resizeHandlingTimeMs = toMs(resizeStart, Clock::now());
+
+            // Begin Filament frame
+            if (filament_renderer_->BeginFrame()) {
+                auto renderSetupStart = Clock::now();
+                ui::NativeUiRenderer::Get().BeginFrame();
+                sections.renderSetupTimeMs = toMs(renderSetupStart, Clock::now());
+
+                // Render layers
+                auto layerRenderStart = Clock::now();
+                for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
+                sections.layerRenderTimeMs = toMs(layerRenderStart, Clock::now());
+
+                auto uiEndStart = Clock::now();
+                ui::NativeUiRenderer::Get().EndFrame();
+                sections.uiEndFrameTimeMs = toMs(uiEndStart, Clock::now());
+
+                // End Filament frame (render + present)
+                auto presentStart = Clock::now();
+                filament_renderer_->EndFrame();
+                sections.presentTimeMs = toMs(presentStart, Clock::now());
+            }
         }
 
         // Apply FPS limiting if set
+        auto limiterStart = Clock::now();
         window_->ApplyFrameRateLimit();
+        sections.frameLimiterTimeMs = toMs(limiterStart, Clock::now());
+
+        perf.SetFrameSectionTimes(sections);
+        perf.SetUpdateTime(sections.inputUpdateTimeMs + sections.eventPumpTimeMs +
+                           sections.settingsApplyTimeMs + sections.resizeHandlingTimeMs);
+        perf.SetRenderTime(sections.renderSetupTimeMs + sections.layerUpdateTimeMs +
+                           sections.animationTimeMs + sections.layerRenderTimeMs +
+                           sections.uiEndFrameTimeMs + sections.presentTimeMs);
+        perf.EndFrame();
 
         if (window_->ShouldClose()) {
             Close();
@@ -260,6 +328,19 @@ bool Application::OnWindowResize(const WindowResizeEvent& e) {
     }
     minimized_ = false;
     filament_context_->OnResize(e.width, e.height);
+
+    // e.width/height are framebuffer pixels (from glfwSetFramebufferSizeCallback).
+    // Retrieve window size in screen points for UI layout.
+    int winW = static_cast<int>(e.width);
+    int winH = static_cast<int>(e.height);
+    if (window_) {
+        glfwGetWindowSize(window_->GetNativeWindow(), &winW, &winH);
+    }
+    ui::NativeUiRenderer::Get().OnResize(e.width, e.height,
+                                         static_cast<uint32_t>(winW),
+                                         static_cast<uint32_t>(winH));
+    ui::retained::RetainedUiContext::Get().SetViewport(static_cast<float>(winW),
+                                                       static_cast<float>(winH));
     return false;
 }
 

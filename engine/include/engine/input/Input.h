@@ -1,54 +1,30 @@
 #pragma once
 
 #include <glm.hpp>
-#include <unordered_map>
 
 #include "Engine.h"
 #include "engine/input/KeyCodes.h"
 
-struct GLFWwindow;
-
 namespace se {
 
-struct KeyData {
-    KeyCode  Key{};
-    KeyState State    = KeyState::None;
-    KeyState OldState = KeyState::None;
-};
-
-struct MouseButtonData {
-    MouseButton Button{};
-    KeyState    State    = KeyState::None;
-    KeyState    OldState = KeyState::None;
-};
-
-class EventBus;
-
+// Compatibility wrapper kept for transitional callsites.
+// New code should use InputManager directly.
 class Input {
    public:
     Input() = delete;
 
     static bool IsKeyPressed(KeyCode key);
-    static bool IsKeyDown(KeyCode keycode);
-
+    static bool IsKeyDown(KeyCode key);
     static bool IsKeyHeld(KeyCode key);
-
     static bool IsKeyReleased(KeyCode key);
 
     static void UpdateKeyState(KeyCode key, KeyState newState);
 
     static Vector2 GetMousePosition();
+    static float   GetMouseX();
+    static float   GetMouseY();
 
-    static float GetMouseX();
-
-    static float GetMouseY();
-
-    // Internal: Used by Window to set the context
     static void SetWindow(WindowHandle window);
-
-   private:
-    static WindowHandle window_;
-
-    inline static std::unordered_map<KeyCode, KeyData> key_states_;
 };
+
 }  // namespace se

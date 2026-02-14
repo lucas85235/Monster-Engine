@@ -2,7 +2,7 @@
 
 #include "engine/Application.h"
 #include "engine/events/Events.h"
-#include "engine/input/Input.h"
+#include "engine/input/InputManager.h"
 #include "engine/input/KeyCodes.h"
 
 InputSampleLayer::InputSampleLayer() : Layer("InputSampleLayer") {}
@@ -37,7 +37,7 @@ void InputSampleLayer::OnImGuiRender() {}
 
 void InputSampleLayer::OnKeyPressed(const KeyPressedEvent& e) {
     // With a modifier logic and no repeat
-    if (!e.IsRepeat() && Input::IsKeyDown(Key::LeftControl)) {
+    if (!e.IsRepeat() && InputManager::Get().IsKeyDown(Key::LeftControl)) {
         switch (e.keyCode) {
             case Key::F3:
                 SE_LOG_INFO("F3");

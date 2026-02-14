@@ -49,6 +49,10 @@ struct KeyTypedEvent {
     KeyCode keyCode;
 };
 
+struct TextInputEvent {
+    uint32_t codepoint;
+};
+
 // ==================== Mouse Events ====================
 
 struct MouseMovedEvent {

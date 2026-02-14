@@ -126,6 +126,7 @@ void Window::Init() {
     glfwSetKeyCallback(
         window_handle_, [](WindowHandle window, int key, int scancode, int action, int mods) {
             if (!event_bus_) return;
+            if (key < 0) return;
 
             switch (action) {
                 case GLFW_PRESS: {
@@ -143,9 +144,18 @@ void Window::Init() {
             }
         });
 
+    glfwSetCharCallback(window_handle_, [](WindowHandle window, unsigned int codepoint) {
+        if (!event_bus_) return;
+        event_bus_->Invoke<TextInputEvent>(codepoint);
+        if (codepoint <= 0xFFFFu) {
+            event_bus_->Invoke<KeyTypedEvent>(static_cast<KeyCode>(codepoint));
+        }
+    });
+
     glfwSetMouseButtonCallback(
         window_handle_, [](WindowHandle window, int button, int action, int mods) {
             if (!event_bus_) return;
+            if (button < 0) return;
 
             switch (action) {
                 case GLFW_PRESS: {

@@ -158,7 +158,6 @@ set(FILAMENT_LIBS
     uberzlib
     utils
     camutils
-    viewer
     stb
     zstd
     # gltfio model loading
@@ -226,10 +225,15 @@ target_include_directories(simple_engine PUBLIC
         ${entt_DIR}
         ${bullet_DIR}/src
         ${assimp_DIR}/include
+        ${assimp_DIR}/contrib/rapidjson/include
         ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
         ${freetype_DIR}/include
         ${third_party_dir}/legit-profiler
-        # Filament SDK headers
+)
+
+# Treat Filament headers as system includes to avoid third-party deprecation noise
+# (e.g. libc++ C++23 warnings inside Filament's half.h).
+target_include_directories(simple_engine SYSTEM PUBLIC
         ${FILAMENT_INCLUDE_DIR}
 )
 

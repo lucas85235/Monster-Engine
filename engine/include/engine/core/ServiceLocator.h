@@ -17,6 +17,7 @@ class LightSystem;
 class TextureSystem;
 class FilamentModelLoader;
 class RenderSettingsSystem;
+class ConsoleSystem;
 
 /**
  * ServiceLocator provides centralized access to engine services.
@@ -67,6 +68,9 @@ class ServiceLocator {
     }
     void ProvideRenderSettingsSystem(RenderSettingsSystem* settings) {
         render_settings_system_ = settings;
+    }
+    void ProvideConsoleSystem(ConsoleSystem* console) {
+        console_system_ = console;
     }
 
     // Service access with validation
@@ -135,6 +139,12 @@ class ServiceLocator {
         }
         return *render_settings_system_;
     }
+    ConsoleSystem& GetConsoleSystem() const {
+        if (!console_system_) {
+            throw std::runtime_error("ConsoleSystem not registered with ServiceLocator");
+        }
+        return *console_system_;
+    }
 
     // Raw pointer access for optional checks
     InputManager* GetInputManagerPtr() const {
@@ -172,6 +182,9 @@ class ServiceLocator {
     RenderSettingsSystem* GetRenderSettingsSystemPtr() const {
         return render_settings_system_;
     }
+    ConsoleSystem* GetConsoleSystemPtr() const {
+        return console_system_;
+    }
 
     // Availability checks
     bool HasInputManager() const {
@@ -188,6 +201,9 @@ class ServiceLocator {
     }
     bool HasRenderSettingsSystem() const {
         return render_settings_system_ != nullptr;
+    }
+    bool HasConsoleSystem() const {
+        return console_system_ != nullptr;
     }
 #if defined(SE_ENABLE_LEGACY_OPENGL_RENDERER) && SE_ENABLE_LEGACY_OPENGL_RENDERER
     bool HasSceneRenderer() const {
@@ -210,6 +226,7 @@ class ServiceLocator {
         texture_system_    = nullptr;
         model_loader_      = nullptr;
         render_settings_system_ = nullptr;
+        console_system_    = nullptr;
     }
 
    private:
@@ -234,6 +251,7 @@ class ServiceLocator {
     TextureSystem*        texture_system_    = nullptr;
     FilamentModelLoader*  model_loader_      = nullptr;
     RenderSettingsSystem* render_settings_system_ = nullptr;
+    ConsoleSystem*        console_system_    = nullptr;
 };
 
 }  // namespace se

@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "Engine.h"
-#include "engine/ImGuiLayer.h"
 #include "engine/Layer.h"
 #include "engine/Window.h"
 #include "engine/events/EventBus.h"
@@ -29,7 +28,7 @@ struct ApplicationSpecification {
     std::string           WorkingDirectory;
     bool                  StartMaximized = true;
     bool                  Resizable      = true;
-    bool                  EnableImGui    = true;
+    bool                  EnableImGui    = false;
     std::filesystem::path IconPath;
 };
 
@@ -119,7 +118,6 @@ class Application {
     std::unique_ptr<TextureSystem>    texture_system_;
     std::unique_ptr<FilamentModelLoader> model_loader_;
     std::unique_ptr<RenderSettingsSystem> render_settings_system_;
-    std::unique_ptr<ImGuiLayer>       imgui_layer_;
 
     ApplicationSpecification specification_;
 

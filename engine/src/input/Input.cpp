@@ -1,48 +1,31 @@
 #include "engine/input/Input.h"
 
-#include <GLFW/glfw3.h>
-
-#include "engine/Application.h"
+#include "engine/input/InputManager.h"
 
 namespace se {
 
-WindowHandle Input::window_ = nullptr;
-
-void Input::SetWindow(WindowHandle window) {
-    window_ = window;
-}
-
 bool Input::IsKeyPressed(KeyCode key) {
-    return key_states_.contains(key) && key_states_[key].State == KeyState::Pressed;
+    return InputManager::Get().IsKeyJustPressed(key);
 }
 
-bool Input::IsKeyDown(KeyCode keycode) {
-    auto& window = static_cast<Window&>(Application::Get().GetWindow());
-    auto  state  = glfwGetKey(window.GetNativeWindow(), keycode);
-    return state == GLFW_PRESS || state == GLFW_REPEAT;
+bool Input::IsKeyDown(KeyCode key) {
+    return InputManager::Get().IsKeyDown(key);
 }
 
 bool Input::IsKeyHeld(KeyCode key) {
-    return key_states_.contains(key) && key_states_[key].State == KeyState::Held;
+    return InputManager::Get().IsKeyDown(key);
 }
 
 bool Input::IsKeyReleased(KeyCode key) {
-    return key_states_.contains(key) && key_states_[key].State == KeyState::Released;
+    return InputManager::Get().IsKeyJustReleased(key);
 }
 
-void Input::UpdateKeyState(KeyCode key, KeyState newState) {
-    auto& keyData    = key_states_[key];
-    keyData.Key      = key;
-    keyData.OldState = keyData.State;
-    keyData.State    = newState;
+void Input::UpdateKeyState(KeyCode /*key*/, KeyState /*newState*/) {
+    // Deprecated legacy API: state is fully event-driven in InputManager.
 }
 
 Vector2 Input::GetMousePosition() {
-    if (!window_) return {0.0f, 0.0f};
-    double xpos, ypos;
-    glfwGetCursorPos(window_, &xpos, &ypos);
-    SE_LOG_DEBUG("Mouse position: ({}, {})", xpos, ypos);
-    return {static_cast<float>(xpos), static_cast<float>(ypos)};
+    return InputManager::Get().GetMousePosition();
 }
 
 float Input::GetMouseX() {
@@ -51,6 +34,10 @@ float Input::GetMouseX() {
 
 float Input::GetMouseY() {
     return GetMousePosition().y;
+}
+
+void Input::SetWindow(WindowHandle /*window*/) {
+    // Deprecated legacy API: window ownership is handled by Application/Window.
 }
 
 }  // namespace se

@@ -11,6 +11,7 @@ namespace filament {
 class Engine;
 class Material;
 class MaterialInstance;
+class Texture;
 class TextureSampler;
 } // namespace filament
 
@@ -92,6 +93,7 @@ private:
     };
 
     void CreateBuiltInMaterials();
+    void EnsureFallbackTextures();
     MaterialHandle AddInstance(filament::MaterialInstance* instance);
     filament::MaterialInstance* Resolve(const MaterialHandle& handle) const;
     bool IsAlive(const MaterialHandle& handle) const;
@@ -101,6 +103,11 @@ private:
     // Built-in Filament Materials (template materials)
     filament::Material* lit_material_   = nullptr;
     filament::Material* unlit_material_ = nullptr;
+
+    // Internal fallback textures to guarantee all required samplers are always bound.
+    filament::Texture* fallback_white_texture_  = nullptr;
+    filament::Texture* fallback_normal_texture_ = nullptr;
+    filament::Texture* fallback_black_texture_  = nullptr;
 
     // All created instances (owned by this system), tracked via generation slots.
     std::vector<MaterialSlot> material_slots_;

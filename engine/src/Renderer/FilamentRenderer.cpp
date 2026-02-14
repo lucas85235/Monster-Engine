@@ -12,6 +12,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace se {
@@ -46,6 +47,12 @@ void FilamentRenderer::EndFrame() {
 
     // Render the main view
     renderer->render(view);
+
+    // Render overlay views (UI/debug) on top of the main view.
+    for (filament::View* overlayView : overlay_views_) {
+        if (!overlayView) continue;
+        renderer->render(overlayView);
+    }
 
     // End the frame — this presents to the swap chain
     renderer->endFrame();
@@ -114,6 +121,20 @@ filament::Camera* FilamentRenderer::GetCamera() const {
 
 filament::Renderer* FilamentRenderer::GetRenderer() const {
     return context_.GetRenderer();
+}
+
+void FilamentRenderer::RegisterOverlayView(filament::View* view) {
+    if (!view) return;
+    if (std::find(overlay_views_.begin(), overlay_views_.end(), view) != overlay_views_.end()) {
+        return;
+    }
+    overlay_views_.push_back(view);
+}
+
+void FilamentRenderer::UnregisterOverlayView(filament::View* view) {
+    if (!view) return;
+    overlay_views_.erase(std::remove(overlay_views_.begin(), overlay_views_.end(), view),
+                         overlay_views_.end());
 }
 
 } // namespace se

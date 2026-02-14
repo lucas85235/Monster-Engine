@@ -12,6 +12,8 @@
 
 #include <math/vec4.h>
 
+#include <cstring>
+
 namespace se {
 
 // ─── Textured PBR lit material shader ───────────────────────────────────────
@@ -72,6 +74,34 @@ static filament::TextureSampler getDefaultSampler() {
     return sampler;
 }
 
+static filament::Texture* createSolidTexture(filament::Engine* engine, uint8_t r, uint8_t g,
+                                             uint8_t b, uint8_t a, bool sRGB) {
+    if (!engine) return nullptr;
+
+    auto* texture = filament::Texture::Builder()
+                        .width(1)
+                        .height(1)
+                        .levels(1)
+                        .sampler(filament::Texture::Sampler::SAMPLER_2D)
+                        .format(sRGB ? filament::Texture::InternalFormat::SRGB8_A8
+                                     : filament::Texture::InternalFormat::RGBA8)
+                        .build(*engine);
+    if (!texture) return nullptr;
+
+    auto* pixel = new uint8_t[4];
+    pixel[0] = r;
+    pixel[1] = g;
+    pixel[2] = b;
+    pixel[3] = a;
+
+    texture->setImage(*engine, 0,
+                      filament::Texture::PixelBufferDescriptor(
+                          pixel, 4, filament::Texture::Format::RGBA,
+                          filament::Texture::Type::UBYTE,
+                          [](void* data, size_t, void*) { delete[] static_cast<uint8_t*>(data); }));
+    return texture;
+}
+
 MaterialSystem::~MaterialSystem() {
     Shutdown();
 }
@@ -115,6 +145,18 @@ void MaterialSystem::Shutdown() {
         engine_->destroy(unlit_material_);
         unlit_material_ = nullptr;
     }
+    if (fallback_white_texture_) {
+        engine_->destroy(fallback_white_texture_);
+        fallback_white_texture_ = nullptr;
+    }
+    if (fallback_normal_texture_) {
+        engine_->destroy(fallback_normal_texture_);
+        fallback_normal_texture_ = nullptr;
+    }
+    if (fallback_black_texture_) {
+        engine_->destroy(fallback_black_texture_);
+        fallback_black_texture_ = nullptr;
+    }
 
     default_lit_   = MaterialHandle();
     default_unlit_ = MaterialHandle();
@@ -123,6 +165,29 @@ void MaterialSystem::Shutdown() {
 
     engine_ = nullptr;
     spdlog::info("MaterialSystem shut down.");
+}
+
+void MaterialSystem::EnsureFallbackTextures() {
+    if (!engine_) return;
+
+    if (!fallback_white_texture_) {
+        fallback_white_texture_ = createSolidTexture(engine_, 255, 255, 255, 255, true);
+        if (!fallback_white_texture_) {
+            spdlog::error("MaterialSystem: failed creating fallback white texture.");
+        }
+    }
+    if (!fallback_normal_texture_) {
+        fallback_normal_texture_ = createSolidTexture(engine_, 128, 128, 255, 255, false);
+        if (!fallback_normal_texture_) {
+            spdlog::error("MaterialSystem: failed creating fallback normal texture.");
+        }
+    }
+    if (!fallback_black_texture_) {
+        fallback_black_texture_ = createSolidTexture(engine_, 0, 0, 0, 255, false);
+        if (!fallback_black_texture_) {
+            spdlog::error("MaterialSystem: failed creating fallback black texture.");
+        }
+    }
 }
 
 void MaterialSystem::CreateBuiltInMaterials() {
@@ -166,6 +231,24 @@ void MaterialSystem::CreateBuiltInMaterials() {
             .package(package.getData(), package.getSize())
             .build(*engine_);
 
+        EnsureFallbackTextures();
+
+        // Bind fallback textures as *material-level* defaults so that every
+        // instance created from this material already has valid sampler state.
+        // This eliminates Filament's per-frame "sampler parameters not set"
+        // warnings which were the primary cause of the log-spam FPS drop.
+        {
+            auto sampler = getDefaultSampler();
+            if (fallback_white_texture_)
+                lit_material_->setDefaultParameter("baseColorMap", fallback_white_texture_, sampler);
+            if (fallback_normal_texture_)
+                lit_material_->setDefaultParameter("normalMap", fallback_normal_texture_, sampler);
+            if (fallback_white_texture_)
+                lit_material_->setDefaultParameter("metallicRoughnessMap", fallback_white_texture_, sampler);
+            if (fallback_black_texture_)
+                lit_material_->setDefaultParameter("aoMap", fallback_black_texture_, sampler);
+        }
+
         // Create default instance (no textures active)
         auto* instance = lit_material_->createInstance("DefaultLitInstance");
         instance->setParameter("baseColor", filament::math::float4{0.8f, 0.8f, 0.8f, 1.0f});
@@ -177,6 +260,19 @@ void MaterialSystem::CreateBuiltInMaterials() {
         instance->setParameter("hasNormalMap", false);
         instance->setParameter("hasMetallicRoughnessMap", false);
         instance->setParameter("hasAOMap", false);
+        auto sampler = getDefaultSampler();
+        if (fallback_white_texture_) {
+            instance->setParameter("baseColorMap", fallback_white_texture_, sampler);
+        }
+        if (fallback_normal_texture_) {
+            instance->setParameter("normalMap", fallback_normal_texture_, sampler);
+        }
+        if (fallback_white_texture_) {
+            instance->setParameter("metallicRoughnessMap", fallback_white_texture_, sampler);
+        }
+        if (fallback_black_texture_) {
+            instance->setParameter("aoMap", fallback_black_texture_, sampler);
+        }
 
         default_lit_ = AddInstance(instance);
     }
@@ -214,6 +310,7 @@ MaterialHandle MaterialSystem::CreateMaterial(const MaterialConfig& config) {
         spdlog::error("MaterialSystem::CreateMaterial called before Init()!");
         return MaterialHandle();
     }
+    EnsureFallbackTextures();
 
     auto* instance = lit_material_->createInstance();
     instance->setParameter("baseColor", filament::math::float4{
@@ -243,17 +340,26 @@ MaterialHandle MaterialSystem::CreateMaterial(const MaterialConfig& config) {
     instance->setParameter("hasMetallicRoughnessMap", hasMR);
     instance->setParameter("hasAOMap",                hasAO);
 
-    if (hasBaseColor) {
-        instance->setParameter("baseColorMap", config.baseColorMap.GetNative(), sampler);
+    filament::Texture* baseColorTex =
+        hasBaseColor ? config.baseColorMap.GetNative() : fallback_white_texture_;
+    filament::Texture* normalTex =
+        hasNormal ? config.normalMap.GetNative() : fallback_normal_texture_;
+    filament::Texture* mrTex =
+        hasMR ? config.metallicRoughnessMap.GetNative() : fallback_white_texture_;
+    filament::Texture* aoTex =
+        hasAO ? config.aoMap.GetNative() : fallback_black_texture_;
+
+    if (baseColorTex) {
+        instance->setParameter("baseColorMap", baseColorTex, sampler);
     }
-    if (hasNormal) {
-        instance->setParameter("normalMap", config.normalMap.GetNative(), sampler);
+    if (normalTex) {
+        instance->setParameter("normalMap", normalTex, sampler);
     }
-    if (hasMR) {
-        instance->setParameter("metallicRoughnessMap", config.metallicRoughnessMap.GetNative(), sampler);
+    if (mrTex) {
+        instance->setParameter("metallicRoughnessMap", mrTex, sampler);
     }
-    if (hasAO) {
-        instance->setParameter("aoMap", config.aoMap.GetNative(), sampler);
+    if (aoTex) {
+        instance->setParameter("aoMap", aoTex, sampler);
     }
 
     return AddInstance(instance);
@@ -350,6 +456,9 @@ void MaterialHandle::SetBaseColorMap(const TextureHandle& texture) {
         instance->setParameter("baseColorMap", texture.GetNative(), getDefaultSampler());
         instance->setParameter("hasBaseColorMap", true);
     } else {
+        if (owner_ && owner_->fallback_white_texture_) {
+            instance->setParameter("baseColorMap", owner_->fallback_white_texture_, getDefaultSampler());
+        }
         instance->setParameter("hasBaseColorMap", false);
     }
 }
@@ -361,6 +470,9 @@ void MaterialHandle::SetNormalMap(const TextureHandle& texture) {
         instance->setParameter("normalMap", texture.GetNative(), getDefaultSampler());
         instance->setParameter("hasNormalMap", true);
     } else {
+        if (owner_ && owner_->fallback_normal_texture_) {
+            instance->setParameter("normalMap", owner_->fallback_normal_texture_, getDefaultSampler());
+        }
         instance->setParameter("hasNormalMap", false);
     }
 }
@@ -372,6 +484,9 @@ void MaterialHandle::SetMetallicRoughnessMap(const TextureHandle& texture) {
         instance->setParameter("metallicRoughnessMap", texture.GetNative(), getDefaultSampler());
         instance->setParameter("hasMetallicRoughnessMap", true);
     } else {
+        if (owner_ && owner_->fallback_white_texture_) {
+            instance->setParameter("metallicRoughnessMap", owner_->fallback_white_texture_, getDefaultSampler());
+        }
         instance->setParameter("hasMetallicRoughnessMap", false);
     }
 }
@@ -383,6 +498,9 @@ void MaterialHandle::SetAOMap(const TextureHandle& texture) {
         instance->setParameter("aoMap", texture.GetNative(), getDefaultSampler());
         instance->setParameter("hasAOMap", true);
     } else {
+        if (owner_ && owner_->fallback_black_texture_) {
+            instance->setParameter("aoMap", owner_->fallback_black_texture_, getDefaultSampler());
+        }
         instance->setParameter("hasAOMap", false);
     }
 }

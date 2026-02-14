@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include <mmath/Luma.h>
 
 namespace filament {
@@ -84,8 +85,13 @@ public:
     filament::Camera*   GetCamera()   const;
     filament::Renderer* GetRenderer() const;
 
+    // Overlay view support (rendered after the main view each frame).
+    void RegisterOverlayView(filament::View* view);
+    void UnregisterOverlayView(filament::View* view);
+
 private:
     FilamentContext& context_;
+    std::vector<filament::View*> overlay_views_;
 };
 
 } // namespace se
