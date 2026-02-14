@@ -12,6 +12,9 @@ class Renderer;
 class Scene;
 class View;
 class Camera;
+class Skybox;
+class IndirectLight;
+class Texture;
 } // namespace filament
 
 namespace utils {
@@ -101,6 +104,10 @@ private:
     filament::Scene*     scene_      = nullptr;
     filament::View*      view_       = nullptr;
     filament::Camera*    camera_     = nullptr;
+    filament::Skybox*    skybox_     = nullptr;
+    filament::IndirectLight* indirect_light_ = nullptr;
+    filament::Texture*   skybox_texture_ = nullptr;
+    filament::Texture*   ibl_texture_ = nullptr;
 
     // Filament uses its own Entity system for cameras
     utils::Entity*       camera_entity_ = nullptr;

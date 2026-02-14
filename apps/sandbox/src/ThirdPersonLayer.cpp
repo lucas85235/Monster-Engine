@@ -21,6 +21,7 @@
 
 #include <GLFW/glfw3.h>
 #include <filament/Renderer.h>
+#include <filament/Scene.h>
 #include <filament/View.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
@@ -751,8 +752,14 @@ void ThirdPersonLayer::OnImGuiRender() {
     bool changed = false;
 
     if (ImGui::Begin("Filament Render Controls")) {
+        auto* view  = ServiceLocator::Get().GetFilamentRenderer().GetView();
+        auto* scene = view ? view->getScene() : nullptr;
+        const bool hasIbl = scene && scene->getIndirectLight();
+
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("Draw calls / GPU timings use Filament internals.");
+        ImGui::Text("AO prerequisites: post=%s, indirectLight=%s",
+                    postProcessingEnabled_ ? "on" : "off",
+                    hasIbl ? "on" : "off");
         ImGui::Separator();
         ImGui::Checkbox("Show ImGui Demo", &showImGuiDemo_);
 
