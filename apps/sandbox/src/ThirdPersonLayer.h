@@ -1,10 +1,10 @@
 #pragma once
 
-#include <engine/Camera.h>
 #include <engine/Layer.h>
-#include <engine/ecs/Entity.h>
 #include <engine/ecs/Scene.h>
-#include <engine/renderer/Material.h>
+#include <engine/ecs/Entity.h>
+#include <engine/renderer/MaterialHandle.h>
+#include <engine/renderer/MeshSystem.h>
 
 #include <glm.hpp>
 #include <vector>
@@ -13,6 +13,17 @@ class btRigidBody;
 
 using namespace se;
 
+/**
+ * Third-person player controller layer, now using Filament rendering.
+ *
+ * Replaces legacy OpenGL rendering with:
+ * - MeshSystem for procedural geometry (floor, walls, player capsule)
+ * - MaterialSystem for PBR materials
+ * - LightSystem for directional light
+ * - FilamentRenderer for camera control
+ *
+ * Physics (Bullet), input, and gameplay logic remain unchanged.
+ */
 class ThirdPersonLayer : public Layer {
    public:
     ThirdPersonLayer();
@@ -22,7 +33,6 @@ class ThirdPersonLayer : public Layer {
     virtual void OnDetach() override;
     virtual void OnUpdate(float ts) override;
     virtual void OnRender() override;
-    virtual void OnImGuiRender() override;
 
    private:
     float debugTargetYaw_   = 0.0f;
@@ -40,18 +50,32 @@ class ThirdPersonLayer : public Layer {
     void Shoot();
     void UpdateGrabSystem(float ts);
     void TryGrabOrRelease();
-    void CleanupBullets();
+    void SyncPhysicsToRenderables();
 
-    std::shared_ptr<Scene>    scene_;
-    std::shared_ptr<Material> material_;
-    Camera                    camera_;
+    std::shared_ptr<Scene> scene_;
 
-    // Player
+    // Filament renderables (replacing MeshRenderComponent)
+    RenderableHandle floorRenderable_;
+    RenderableHandle playerRenderable_;
+    RenderableHandle cubeRenderable_;
+    std::vector<RenderableHandle> wallRenderables_;
+    std::vector<RenderableHandle> smallWallRenderables_;
+    std::vector<RenderableHandle> bulletRenderables_;
+
+    // Materials
+    MaterialHandle floorMaterial_;
+    MaterialHandle playerMaterial_;
+    MaterialHandle wallMaterial_;
+    MaterialHandle cubeMaterial_;
+    MaterialHandle bulletMaterial_;
+
+    // Player entity (for physics + transform)
     Entity              playerEntity_;
     Entity              cube_entity_;
     Entity              floor_entity_;
     std::vector<Entity> walls_;
-    std::vector<Entity> bullets_;  // Track shot cubes for cleanup
+    std::vector<Entity> smallWalls_;
+    std::vector<Entity> bullets_;
     glm::vec3           playerVelocity_{0.0f};
     bool                isGrounded_ = false;
 
@@ -59,26 +83,30 @@ class ThirdPersonLayer : public Layer {
     const float gravity_     = 20.0f;
     const float jumpForce_   = 10.0f;
     const float moveSpeed_   = 5.0f;
-    const float sprintSpeed_ = 12.0f;  // Shift speed
+    const float sprintSpeed_ = 12.0f;
     const float floorHeight_ = 0.0f;
 
-    // Camera settings
-    float cameraDistance_ = 10.0f;
-    float cameraHeight_   = 5.0f;
-    float cameraAngle_    = 0.0f;
+    // Camera settings (spring arm style)
+    float springArmYaw_     = 0.0f;
+    float springArmPitch_   = -30.0f;
+    float springArmLength_  = 8.0f;
+    float currentArmLength_ = 8.0f;
+    glm::vec3 socketOffset_ = {0.0f, 1.5f, 0.0f};
 
     // Grab system (Half-Life style)
     btRigidBody* grabbedBody_     = nullptr;
     float        grabDistance_    = 100.0f;
     float        grabMaxDistance_ = 30.0f;
-    float        grabMinDistance_ = 2.0f;  // Minimum grab distance (scroll wheel)
+    float        grabMinDistance_ = 2.0f;
     glm::vec3    savedGravity_{0.0f};
+
+    // Camera state for shooting/grab raycasts
+    glm::vec3 cameraPosition_{0.0f, 5.0f, 10.0f};
+    float     cameraYaw_   = 0.0f;
+    float     cameraPitch_ = 0.0f;
 
     // Mouse toggle
     bool mouseCaptured_ = true;
 
-    // Culling settings (exposed via ImGui)
-    bool enableFrustumCulling_   = true;
-    bool enableOcclusionCulling_ = true;
-    int  maxBullets_             = 100;
+    int maxBullets_ = 100;
 };

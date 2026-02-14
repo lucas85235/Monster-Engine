@@ -100,7 +100,7 @@ add_subdirectory(${assimp_DIR})
 set(FILAMENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${third_party_dir}/filament)
 set(FILAMENT_INCLUDE_DIR ${FILAMENT_DIR}/include)
 
-# Determine Filament library directory based on architecture
+# Determine Filament library directory based on platform and architecture
 if (APPLE)
     execute_process(
         COMMAND uname -m
@@ -115,8 +115,22 @@ if (APPLE)
 elseif(WIN32)
     set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
 else()
-    set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+    # Linux — check for x86_64 libs first, fall back to arm64 for cross-compile setups
+    if (EXISTS "${FILAMENT_DIR}/lib/x86_64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+    elseif(EXISTS "${FILAMENT_DIR}/lib/arm64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/arm64)
+        message(WARNING "Only arm64 Filament libraries found — cross-compilation or native ARM Linux assumed")
+    else()
+        message(FATAL_ERROR "No Filament libraries found! Download the Filament SDK for your platform and place libraries in ${FILAMENT_DIR}/lib/")
+    endif()
 endif()
+
+# Verify Filament library directory exists
+if (NOT EXISTS "${FILAMENT_LIB_DIR}")
+    message(FATAL_ERROR "Filament library directory not found: ${FILAMENT_LIB_DIR}")
+endif()
+message(STATUS "Using Filament libraries from: ${FILAMENT_LIB_DIR}")
 
 # Create IMPORTED targets for Filament libraries
 set(FILAMENT_LIBS
@@ -140,6 +154,12 @@ set(FILAMENT_LIBS
     viewer
     stb
     zstd
+    # gltfio model loading
+    gltfio
+    gltfio_core
+    dracodec
+    ktxreader
+    basis_transcoder
 )
 
 foreach(lib ${FILAMENT_LIBS})

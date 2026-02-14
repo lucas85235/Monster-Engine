@@ -11,6 +11,8 @@ class FilamentRenderer;
 class MaterialSystem;
 class MeshSystem;
 class LightSystem;
+class TextureSystem;
+class FilamentModelLoader;
 
 /**
  * ServiceLocator provides centralized access to engine services.
@@ -47,6 +49,12 @@ class ServiceLocator {
     }
     void ProvideLightSystem(LightSystem* lights) {
         light_system_ = lights;
+    }
+    void ProvideTextureSystem(TextureSystem* textures) {
+        texture_system_ = textures;
+    }
+    void ProvideModelLoader(FilamentModelLoader* loader) {
+        model_loader_ = loader;
     }
 
     // Service access with validation
@@ -91,6 +99,18 @@ class ServiceLocator {
         return *light_system_;
     }
 
+    TextureSystem& GetTextureSystem() const {
+        if (!texture_system_)
+            throw std::runtime_error("TextureSystem not registered with ServiceLocator");
+        return *texture_system_;
+    }
+
+    FilamentModelLoader& GetModelLoader() const {
+        if (!model_loader_)
+            throw std::runtime_error("FilamentModelLoader not registered with ServiceLocator");
+        return *model_loader_;
+    }
+
     // Raw pointer access for optional checks
     InputManager* GetInputManagerPtr() const {
         return input_manager_;
@@ -112,6 +132,12 @@ class ServiceLocator {
     }
     LightSystem* GetLightSystemPtr() const {
         return light_system_;
+    }
+    TextureSystem* GetTextureSystemPtr() const {
+        return texture_system_;
+    }
+    FilamentModelLoader* GetModelLoaderPtr() const {
+        return model_loader_;
     }
 
     // Availability checks
@@ -137,6 +163,8 @@ class ServiceLocator {
         material_system_   = nullptr;
         mesh_system_       = nullptr;
         light_system_      = nullptr;
+        texture_system_    = nullptr;
+        model_loader_      = nullptr;
     }
 
    private:
@@ -148,13 +176,15 @@ class ServiceLocator {
     ServiceLocator(ServiceLocator&&)                 = delete;
     ServiceLocator& operator=(ServiceLocator&&)      = delete;
 
-    InputManager*     input_manager_     = nullptr;
-    EventBus*         event_bus_         = nullptr;
-    FilamentContext*  filament_context_  = nullptr;
-    FilamentRenderer* filament_renderer_ = nullptr;
-    MaterialSystem*   material_system_   = nullptr;
-    MeshSystem*       mesh_system_       = nullptr;
-    LightSystem*      light_system_      = nullptr;
+    InputManager*         input_manager_     = nullptr;
+    EventBus*             event_bus_         = nullptr;
+    FilamentContext*       filament_context_  = nullptr;
+    FilamentRenderer*     filament_renderer_ = nullptr;
+    MaterialSystem*       material_system_   = nullptr;
+    MeshSystem*           mesh_system_       = nullptr;
+    LightSystem*          light_system_      = nullptr;
+    TextureSystem*        texture_system_    = nullptr;
+    FilamentModelLoader*  model_loader_      = nullptr;
 };
 
 }  // namespace se

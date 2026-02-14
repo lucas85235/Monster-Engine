@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "engine/renderer/TextureHandle.h"
+
 namespace filament {
 class MaterialInstance;
 } // namespace filament
@@ -12,7 +14,7 @@ namespace se {
  * Opaque handle to a Filament MaterialInstance.
  *
  * Engine/game code uses this instead of touching filament::MaterialInstance directly.
- * Provides type-safe setters for common PBR parameters.
+ * Provides type-safe setters for common PBR parameters and texture maps.
  *
  * Lifetime: owned by MaterialSystem. Handle becomes invalid if the
  * MaterialSystem destroys the underlying instance.
@@ -39,6 +41,18 @@ public:
 
     /** Set emissive color (linear RGB) and intensity. */
     void SetEmissive(float r, float g, float b, float intensity = 1.0f);
+
+    /** Set base color texture map (sRGB). Overrides uniform baseColor. */
+    void SetBaseColorMap(const TextureHandle& texture);
+
+    /** Set normal map (linear, tangent-space). */
+    void SetNormalMap(const TextureHandle& texture);
+
+    /** Set metallic-roughness map (linear). R=unused, G=roughness, B=metallic. */
+    void SetMetallicRoughnessMap(const TextureHandle& texture);
+
+    /** Set ambient occlusion map (linear, single-channel). */
+    void SetAOMap(const TextureHandle& texture);
 
     /** Direct access for advanced use (e.g., setting textures via Filament API). */
     filament::MaterialInstance* GetNative() const { return instance_; }

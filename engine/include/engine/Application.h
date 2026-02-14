@@ -13,6 +13,8 @@
 #include "engine/renderer/MaterialSystem.h"
 #include "engine/renderer/MeshSystem.h"
 #include "engine/renderer/LightSystem.h"
+#include "engine/renderer/TextureSystem.h"
+#include "engine/renderer/FilamentModelLoader.h"
 
 namespace se {
 
@@ -72,6 +74,12 @@ class Application {
     LightSystem& GetLightSystem() {
         return *light_system_;
     }
+    TextureSystem& GetTextureSystem() {
+        return *texture_system_;
+    }
+    FilamentModelLoader& GetModelLoader() {
+        return *model_loader_;
+    }
     EventBus& GetEventBus() {
         return *event_bus_;
     }
@@ -103,6 +111,8 @@ class Application {
     std::unique_ptr<MaterialSystem>   material_system_;
     std::unique_ptr<MeshSystem>       mesh_system_;
     std::unique_ptr<LightSystem>      light_system_;
+    std::unique_ptr<TextureSystem>    texture_system_;
+    std::unique_ptr<FilamentModelLoader> model_loader_;
 
     ApplicationSpecification specification_;
 

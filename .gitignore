@@ -11,3 +11,9 @@ compile_commands.json
 
 !.idea/fileTemplates/
 !.idea/fileTemplates/**
+
+# Filament SDK (downloaded by scripts/setup.sh, ~130MB)
+engine/third_party/filament/
+
+# macOS
+.DS_Store

@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
-# Minimal Filament test — only main.cpp (old layers depend on OpenGL)
+# Filament sandbox — ThirdPersonLayer with Filament rendering backend
 add_executable(sandbox
-        src/main.cpp)
+        src/main.cpp
+        src/ThirdPersonLayer.cpp)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set_property(TARGET ImGui PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")

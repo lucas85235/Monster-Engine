@@ -66,6 +66,12 @@ Application::Application(const ApplicationSpecification& specification) {
     light_system_ = std::make_unique<LightSystem>();
     light_system_->Init(filament_context_->GetEngine(), filament_context_->GetScene());
 
+    texture_system_ = std::make_unique<TextureSystem>();
+    texture_system_->Init(filament_context_->GetEngine());
+
+    model_loader_ = std::make_unique<FilamentModelLoader>();
+    model_loader_->Init(filament_context_->GetEngine(), filament_context_->GetScene());
+
     // Register services with ServiceLocator
     ServiceLocator::Get().ProvideInputManager(&InputManager::Get());
     ServiceLocator::Get().ProvideEventBus(event_bus_.get());
@@ -74,6 +80,8 @@ Application::Application(const ApplicationSpecification& specification) {
     ServiceLocator::Get().ProvideMaterialSystem(material_system_.get());
     ServiceLocator::Get().ProvideMeshSystem(mesh_system_.get());
     ServiceLocator::Get().ProvideLightSystem(light_system_.get());
+    ServiceLocator::Get().ProvideTextureSystem(texture_system_.get());
+    ServiceLocator::Get().ProvideModelLoader(model_loader_.get());
 
     // Register event listeners
     event_bus_->AddListener<WindowResizeEvent>(SE_BIND_EVENT_FN(OnWindowResize));
@@ -110,6 +118,8 @@ Application::~Application() {
     layer_stack_.clear();
 
     // Cleanup rendering subsystems (reverse init order)
+    model_loader_.reset();
+    texture_system_.reset();
     light_system_.reset();
     mesh_system_.reset();
     material_system_.reset();

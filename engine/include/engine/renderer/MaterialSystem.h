@@ -5,17 +5,20 @@
 #include <vector>
 
 #include "engine/renderer/MaterialHandle.h"
+#include "engine/renderer/TextureHandle.h"
 
 namespace filament {
 class Engine;
 class Material;
 class MaterialInstance;
+class TextureSampler;
 } // namespace filament
 
 namespace se {
 
 /**
  * Configuration for creating a material instance.
+ * Supports both uniform-only and texture-mapped PBR workflows.
  */
 struct MaterialConfig {
     float baseColor[4]  = {0.8f, 0.8f, 0.8f, 1.0f}; // Linear RGBA
@@ -24,6 +27,12 @@ struct MaterialConfig {
     float reflectance   = 0.5f;
     float emissive[3]   = {0.0f, 0.0f, 0.0f};
     float emissiveIntensity = 0.0f;
+
+    // Optional texture maps — leave invalid for uniform-only mode
+    TextureHandle baseColorMap;
+    TextureHandle normalMap;
+    TextureHandle metallicRoughnessMap;
+    TextureHandle aoMap;
 };
 
 /**
