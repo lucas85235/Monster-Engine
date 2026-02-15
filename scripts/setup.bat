@@ -43,7 +43,8 @@ if defined VCVARS_PATH (
     echo       Build may fail until MSVC tools are installed.
 )
 
-if exist "%FILAMENT_DIR%\lib" if exist "%FILAMENT_DIR%\include" (
+call :is_filament_ready
+if not errorlevel 1 (
     echo.
     echo Filament SDK already present at "%FILAMENT_DIR%"
     set "REDOWNLOAD="
@@ -61,18 +62,26 @@ if exist "%FILAMENT_DIR%\lib" if exist "%FILAMENT_DIR%\include" (
 
 echo.
 echo === Setup Complete ===
-if exist "%FILAMENT_DIR%\lib\x86_64" (
+if exist "%FILAMENT_DIR%\lib\x86_64\filament.lib" (
     echo   [OK] Filament SDK (x86_64)
-) else if exist "%FILAMENT_DIR%\lib\arm64" (
-    echo   [OK] Filament SDK (arm64)
 ) else (
-    echo   [WARN] Filament SDK present, but no expected library directory was found.
+    if exist "%FILAMENT_DIR%\lib\arm64\filament.lib" (
+        echo   [OK] Filament SDK (arm64)
+    ) else (
+        echo   [WARN] Filament SDK present, but no expected library directory was found.
+    )
 )
 echo.
 echo To build:
 echo   scripts\build.bat
 echo.
 exit /b 0
+
+:is_filament_ready
+if not exist "%FILAMENT_DIR%\include\filament\Engine.h" exit /b 1
+if exist "%FILAMENT_DIR%\lib\x86_64\filament.lib" exit /b 0
+if exist "%FILAMENT_DIR%\lib\arm64\filament.lib" exit /b 0
+exit /b 1
 
 :download_filament
 echo.
