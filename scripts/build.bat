@@ -6,15 +6,39 @@ for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fI"
 set "BUILD_DIR=%PROJECT_ROOT%\build"
 set "GENERATOR=Visual Studio 17 2022"
 
+if /I "%~1"=="/?" goto :usage
+if /I "%~1"=="-h" goto :usage
+if /I "%~1"=="--help" goto :usage
+
 set "BUILD_TYPE=%BUILD_TYPE%"
 if not defined BUILD_TYPE set "BUILD_TYPE=RelWithDebInfo"
 if not "%~1"=="" set "BUILD_TYPE=%~1"
+
+set "BUILD_TARGET=%BUILD_TARGET%"
+if not defined BUILD_TARGET set "BUILD_TARGET=sandbox"
+if not "%~2"=="" set "BUILD_TARGET=%~2"
+if /I "%BUILD_TARGET%"=="animation" set "BUILD_TARGET=animation_test"
+if /I "%BUILD_TARGET%"=="anim_test" set "BUILD_TARGET=animation_test"
+
+set "CMAKE_APP_FLAGS=-DSE_BUILD_APP_SANDBOX=ON -DSE_BUILD_APP_ANIMATION_TEST=OFF"
+if /I "%BUILD_TARGET%"=="animation_test" (
+    set "CMAKE_APP_FLAGS=-DSE_BUILD_APP_SANDBOX=OFF -DSE_BUILD_APP_ANIMATION_TEST=ON"
+) else if /I "%BUILD_TARGET%"=="all" (
+    set "CMAKE_APP_FLAGS=-DSE_BUILD_APP_SANDBOX=ON -DSE_BUILD_APP_ANIMATION_TEST=ON"
+) else if /I "%BUILD_TARGET%"=="sandbox" (
+    set "CMAKE_APP_FLAGS=-DSE_BUILD_APP_SANDBOX=ON -DSE_BUILD_APP_ANIMATION_TEST=OFF"
+) else (
+    rem Unknown custom target: keep known apps enabled so generated targets stay available.
+    set "CMAKE_APP_FLAGS=-DSE_BUILD_APP_SANDBOX=ON -DSE_BUILD_APP_ANIMATION_TEST=ON"
+)
 
 set "FILAMENT_DIR=%PROJECT_ROOT%\engine\third_party\filament"
 
 echo === Monster Engine Build ===
 echo   Generator: %GENERATOR%
 echo   Config:    %BUILD_TYPE%
+echo   Target:    %BUILD_TARGET%
+echo   AppFlags:  %CMAKE_APP_FLAGS%
 echo.
 
 where cmake >nul 2>&1
@@ -66,6 +90,7 @@ if defined LATEST_VER (
 cmake -S "%PROJECT_ROOT%" -B "%BUILD_DIR%" -G "%GENERATOR%" ^
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ^
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ^
+      %CMAKE_APP_FLAGS% ^
       %TOOLSET_FLAG% ^
       %SCCACHE_FLAGS%
 if errorlevel 1 (
@@ -73,20 +98,58 @@ if errorlevel 1 (
     exit /b %errorlevel%
 )
 
-cmake --build "%BUILD_DIR%" --config "%BUILD_TYPE%" --parallel
+if /I not "%BUILD_TARGET%"=="all" (
+    dir /s /b "%BUILD_DIR%\*.vcxproj" | findstr /I /R /C:"\\%BUILD_TARGET%\.vcxproj$" >nul
+    if errorlevel 1 (
+        echo ERROR: Target "%BUILD_TARGET%" was not generated in this build directory.
+        echo HINT: if this is a new app target, ensure it is added in the root CMakeLists.txt.
+        echo HINT: known app targets for this script are: sandbox, animation_test, all.
+        exit /b 1
+    )
+)
+
+set "TARGET_ARGS="
+if /I not "%BUILD_TARGET%"=="all" (
+    set "TARGET_ARGS=--target %BUILD_TARGET%"
+)
+
+cmake --build "%BUILD_DIR%" --config "%BUILD_TYPE%" %TARGET_ARGS% --parallel
 if errorlevel 1 (
     echo ERROR: Build failed.
+    if /I not "%BUILD_TARGET%"=="all" (
+        echo HINT: check if target "%BUILD_TARGET%" exists and is enabled in CMake configure step.
+    )
     exit /b %errorlevel%
 )
 
-set "SANDBOX_EXE=%BUILD_DIR%\apps\sandbox\%BUILD_TYPE%\sandbox.exe"
 echo.
 echo Build completed successfully.
-if exist "%SANDBOX_EXE%" (
-    echo Sandbox executable: "%SANDBOX_EXE%"
+if /I "%BUILD_TARGET%"=="all" (
+    echo Built target set: all
 ) else (
-    echo WARN: Sandbox executable not found at expected location:
-    echo       "%SANDBOX_EXE%"
+    set "TARGET_EXE=%BUILD_DIR%\apps\%BUILD_TARGET%\%BUILD_TYPE%\%BUILD_TARGET%.exe"
+    if exist "%TARGET_EXE%" (
+        echo Executable: "%TARGET_EXE%"
+    ) else (
+        echo WARN: Executable not found at expected location:
+        echo       "%TARGET_EXE%"
+    )
 )
 echo.
+exit /b 0
+
+:usage
+echo Usage:
+echo   scripts\build.bat [config] [target]
+echo.
+echo Examples:
+echo   scripts\build.bat
+echo   scripts\build.bat Debug sandbox
+echo   scripts\build.bat RelWithDebInfo animation_test
+echo   scripts\build.bat RelWithDebInfo animation
+echo   scripts\build.bat RelWithDebInfo all
+echo.
+echo Environment override:
+echo   set BUILD_TARGET=animation_test ^&^& scripts\build.bat
+echo   set BUILD_TYPE=Debug ^&^& scripts\build.bat
 exit /b 0
