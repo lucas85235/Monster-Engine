@@ -9,11 +9,11 @@ namespace se {
 
 void OpenGLBackend::Init() {
     SE_LOG_INFO("OpenGL Backend initialized");
-
+    
     // Enable depth testing by default
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
-
+    
     // Enable back-face culling by default
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -41,7 +41,7 @@ void OpenGLBackend::Clear() {
 
 void OpenGLBackend::DrawIndexed(VertexArray* va) {
     if (!va) return;
-
+    
     va->Bind();
     auto indexBuffer = va->GetIndexBuffer();
     if (indexBuffer) {
@@ -55,13 +55,11 @@ void OpenGLBackend::DrawIndexedInstanced(VertexArray* va, uint32_t instanceCount
     va->Bind();
     auto indexBuffer = va->GetIndexBuffer();
     if (indexBuffer) {
-        glDrawElementsInstanced(GL_TRIANGLES, indexBuffer->GetCount(), GL_UNSIGNED_INT, nullptr,
-                                instanceCount);
+        glDrawElementsInstanced(GL_TRIANGLES, indexBuffer->GetCount(), GL_UNSIGNED_INT, nullptr, instanceCount);
     }
 }
 
-void OpenGLBackend::DrawArraysInstanced(VertexArray* va, uint32_t vertexCount,
-                                        uint32_t instanceCount) {
+void OpenGLBackend::DrawArraysInstanced(VertexArray* va, uint32_t vertexCount, uint32_t instanceCount) {
     if (!va || instanceCount == 0) return;
 
     va->Bind();
@@ -119,8 +117,8 @@ unsigned int OpenGLBackend::CreateDepthTexture(int width, int height) {
     unsigned int texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT,
-                 GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, 
+                 GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);

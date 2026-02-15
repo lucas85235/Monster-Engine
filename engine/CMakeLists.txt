@@ -49,6 +49,11 @@ set(rmlui_DIR ${third_party_dir}/RmlUi)
 set(bullet_DIR ${third_party_dir}/bullet)
 set(assimp_DIR ${third_party_dir}/assimp)
 
+option(SE_ENABLE_RMLUI "Build RmlUi integration" OFF)
+option(SE_ENABLE_LEGACY_OPENGL_RENDERER
+       "Build legacy OpenGL renderer stack still outside _legacy/"
+       OFF)
+
 
 add_library(stb STATIC
         ${stb_DIR}/stb_image.cpp
@@ -79,9 +84,11 @@ add_subdirectory(${freetype_DIR})
 add_library(Freetype::Freetype ALIAS freetype)
 
 # RmlUi Configuration
-set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
-add_subdirectory(${rmlui_DIR})
+if(SE_ENABLE_RMLUI)
+    set(RMLUI_NO_THIRDPARTY_CONTAINERS ON CACHE BOOL "" FORCE)
+    set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
+    add_subdirectory(${rmlui_DIR})
+endif()
 
 # Assimp Configuration
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -92,11 +99,122 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${assimp_DIR})
 
-find_package(OpenGL REQUIRED)
+# OpenGL no longer required — Filament handles all rendering
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃               FILAMENT SDK CONFIGURATION                 ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+set(FILAMENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${third_party_dir}/filament)
+set(FILAMENT_INCLUDE_DIR ${FILAMENT_DIR}/include)
+
+# Determine Filament library directory based on platform and architecture
+if (APPLE)
+    execute_process(
+        COMMAND uname -m
+        OUTPUT_VARIABLE MACHINE_ARCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if (MACHINE_ARCH STREQUAL "arm64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/arm64)
+    else()
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+    endif()
+elseif(WIN32)
+    set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+else()
+    # Linux — check for x86_64 libs first, fall back to arm64 for cross-compile setups
+    if (EXISTS "${FILAMENT_DIR}/lib/x86_64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/x86_64)
+    elseif(EXISTS "${FILAMENT_DIR}/lib/arm64")
+        set(FILAMENT_LIB_DIR ${FILAMENT_DIR}/lib/arm64)
+        message(WARNING "Only arm64 Filament libraries found — cross-compilation or native ARM Linux assumed")
+    else()
+        message(FATAL_ERROR "No Filament libraries found! Download the Filament SDK for your platform and place libraries in ${FILAMENT_DIR}/lib/")
+    endif()
+endif()
+
+# Verify Filament library directory exists
+if (NOT EXISTS "${FILAMENT_LIB_DIR}")
+    message(FATAL_ERROR "Filament library directory not found: ${FILAMENT_LIB_DIR}")
+endif()
+message(STATUS "Using Filament libraries from: ${FILAMENT_LIB_DIR}")
+
+# Create IMPORTED targets for Filament libraries
+set(FILAMENT_LIBS
+    filament
+    backend
+    bluegl
+    bluevk
+    filabridge
+    filaflat
+    filamat
+    filament-iblprefilter
+    geometry
+    ibl
+    image
+    shaders
+    smol-v
+    uberarchive
+    uberzlib
+    utils
+    camutils
+    stb
+    zstd
+    # gltfio model loading
+    gltfio
+    gltfio_core
+    dracodec
+    ktxreader
+    basis_transcoder
+)
+
+foreach(lib ${FILAMENT_LIBS})
+    add_library(filament_${lib} STATIC IMPORTED)
+    if(WIN32)
+        set_target_properties(filament_${lib} PROPERTIES
+            IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/${lib}.lib
+        )
+    else()
+        set_target_properties(filament_${lib} PROPERTIES
+            IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/lib${lib}.a
+        )
+    endif()
+endforeach()
 
 file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
+
+# Exclude legacy OpenGL files from the build
+list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/_legacy/.*")
+
+# Keep Filament as the default/primary rendering path.
+# During migration, a subset of OpenGL-era files still lives outside _legacy/.
+# Exclude them by default to avoid mixing two render backends in one target.
+if(NOT SE_ENABLE_LEGACY_OPENGL_RENDERER)
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/Renderer\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/ecs/RenderSystem\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/AssimpModelLoader\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/MaterialManager\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/MeshManager\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/resources/Model\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/physics/PhysicsDebugDraw\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/src/Renderer/(Buffer|CulledInstanceBatch|Frustum|GraphicsContext|InstancedMesh|Material|OcclusionCuller|OpenGLBackend|OpenGLInstanceBuffer|OpenGLOcclusionQuery|RenderCommand|SceneRenderer|VertexArray)\\.cpp$")
+endif()
+
+# Optional RmlUi integration (disabled by default)
+if(NOT SE_ENABLE_RMLUI)
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/RmlUi.*\\.cpp$")
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/Canvas\\.cpp$")
+endif()
+
+# Add Objective-C++ sources on Apple platforms
+if(APPLE)
+    file(GLOB_RECURSE PROJECT_MM_SRCS CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
+    )
+    list(APPEND PROJECT_SRCS ${PROJECT_MM_SRCS})
+endif()
 
 add_library(simple_engine STATIC
         ${PROJECT_SRCS}
@@ -108,40 +226,97 @@ target_include_directories(simple_engine PUBLIC
         ${imgui_DIR}
         ${imnodes_DIR}
         ${imguizmo_DIR}
-        ${glad_DIR}/include
         ${glfw_DIR}/include
         ${stb_DIR}
         ${entt_DIR}
-        ${rmlui_DIR}/Include
         ${bullet_DIR}/src
         ${assimp_DIR}/include
+        ${assimp_DIR}/contrib/rapidjson/include
         ${CMAKE_BINARY_DIR}/engine/${assimp_DIR}/include
         ${freetype_DIR}/include
         ${third_party_dir}/legit-profiler
 )
 
-# --- LIGAÇÃO DAS DEPENDÊNCIAS DA ENGINE ---
+# Treat Filament headers as system includes to avoid third-party deprecation noise
+# (e.g. libc++ C++23 warnings inside Filament's half.h).
+target_include_directories(simple_engine SYSTEM PUBLIC
+        ${FILAMENT_INCLUDE_DIR}
+)
 
-# Liga a sua engine às suas dependências.
-# Agora voltamos a ligar explicitamente ao ALVO 'glad'.
+if(SE_ENABLE_RMLUI)
+    target_include_directories(simple_engine PUBLIC
+            ${rmlui_DIR}/Include
+    )
+endif()
+
+# --- ENGINE DEPENDENCIES ---
+
+# Filament static libraries (order matters for linker)
+set(FILAMENT_LINK_LIBS)
+foreach(lib ${FILAMENT_LIBS})
+    list(APPEND FILAMENT_LINK_LIBS filament_${lib})
+endforeach()
+
 target_link_libraries(simple_engine PUBLIC
         mmath
-        glad
         glfw
-        OpenGL::GL
         ImGui
         ImGuizmo
         spdlog
         stb
         Entt
         freetype
-        rmlui_core
-        rmlui_debugger
         BulletDynamics
         BulletCollision
         LinearMath
         assimp
+        # Filament libraries
+        ${FILAMENT_LINK_LIBS}
 )
+
+if(SE_ENABLE_RMLUI)
+    target_link_libraries(simple_engine PUBLIC
+            rmlui_core
+            rmlui_debugger
+    )
+endif()
+
+# Platform-specific frameworks required by Filament
+if(APPLE)
+    target_link_libraries(simple_engine PUBLIC
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework Cocoa"
+        "-framework CoreVideo"
+        "-framework IOKit"
+        "-framework QuartzCore"
+        "-framework CoreGraphics"
+        "-framework Foundation"
+    )
+    # Disable PCH for .mm files (PCH was compiled as C++, not Obj-C++)
+    set_source_files_properties(
+        ${PROJECT_MM_SRCS}
+        PROPERTIES
+            SKIP_PRECOMPILE_HEADERS ON
+    )
+endif()
+
+# Windows system libraries required by Filament backends
+if(WIN32)
+    target_link_libraries(simple_engine PUBLIC
+        opengl32
+        gdi32
+        user32
+        dwmapi
+        shlwapi
+    )
+    # Force-include our Windows compatibility header to undef
+    # conflicting macros (OPAQUE, NEAR, FAR, etc.) before any
+    # user code is compiled.
+    target_compile_options(simple_engine PUBLIC
+        /FI"${CMAKE_CURRENT_SOURCE_DIR}/include/platform/win32_compat.h"
+    )
+endif()
 
 # Adiciona definições de compilação necessárias
 target_compile_definitions(simple_engine PUBLIC
@@ -149,6 +324,12 @@ target_compile_definitions(simple_engine PUBLIC
         GLM_ENABLE_EXPERIMENTAL
         BT_THREADSAFE=1
 )
+
+if(SE_ENABLE_LEGACY_OPENGL_RENDERER)
+    target_compile_definitions(simple_engine PUBLIC
+            SE_ENABLE_LEGACY_OPENGL_RENDERER=1
+    )
+endif()
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -208,4 +389,3 @@ if (MSVC)
     target_compile_options(simple_engine PUBLIC
             /MP)
 endif ()
-

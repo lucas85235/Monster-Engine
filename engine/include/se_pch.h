@@ -10,7 +10,26 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#ifndef NOGDI
+#define NOGDI
+#endif
 #include <Windows.h>
+// Cleanup macros that leak from Windows SDK and conflict with Filament
+#ifdef OPAQUE
+#undef OPAQUE
+#endif
+#ifdef TRANSPARENT
+#undef TRANSPARENT
+#endif
+#ifdef NEAR
+#undef NEAR
+#endif
+#ifdef FAR
+#undef FAR
+#endif
+#ifdef ERROR
+#undef ERROR
+#endif
 #endif
 
 // ============================================================================
@@ -48,13 +67,12 @@
 #include <vector>
 
 // ============================================================================
-// OpenGL / GLFW
+// GLFW (windowing only — no OpenGL, rendering via Filament)
 // ============================================================================
 #ifndef GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_NONE
 #endif
 #include <GLFW/glfw3.h>
-#include <glad/glad.h>
 
 // ============================================================================
 // Monster Math Library (includes GLM internally)

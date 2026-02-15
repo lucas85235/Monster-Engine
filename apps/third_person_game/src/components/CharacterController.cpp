@@ -15,32 +15,41 @@ void CharacterController::Awake() {
 
 void CharacterController::Start() {
     CacheComponents();
+    SetMouseCaptured(true);
 }
 
 void CharacterController::Update(float dt) {
     ProcessInput(dt);
 }
 
+void CharacterController::OnDestroy() {
+    auto& input = InputManager::Get();
+    input.PopContext(inputMapName_);
+    input.RemoveActionMap(inputMapName_);
+}
+
 
 
 void CharacterController::BindInputs() {
     auto& input = InputManager::Get();
+    input.CreateActionMap(inputMapName_);
+    input.PushContext(inputMapName_);
 
     // Mouse toggle
-    input.BindAction(cameraBindings_.toggleMouse, Key::Tab);
+    input.BindAction(inputMapName_, cameraBindings_.toggleMouse, Key::Tab);
 
     // Camera rotation
-    input.BindAxis(cameraBindings_.cameraRotateX, Key::MouseX, 1.0f);
-    input.BindAxis(cameraBindings_.cameraRotateY, Key::MouseY, -1.0f);
+    input.BindAxis(inputMapName_, cameraBindings_.cameraRotateX, Key::MouseX, 1.0f);
+    input.BindAxis(inputMapName_, cameraBindings_.cameraRotateY, Key::MouseY, -1.0f);
 
     // Movement
-    input.BindAxis(movementConfig_.moveForward, Key::W, 1.0f);
-    input.BindAxis(movementConfig_.moveForward, Key::S, -1.0f);
-    input.BindAxis(movementConfig_.moveRight, Key::D, 1.0f);
-    input.BindAxis(movementConfig_.moveRight, Key::A, -1.0f);
+    input.BindAxis(inputMapName_, movementConfig_.moveForward, Key::W, 1.0f);
+    input.BindAxis(inputMapName_, movementConfig_.moveForward, Key::S, -1.0f);
+    input.BindAxis(inputMapName_, movementConfig_.moveRight, Key::D, 1.0f);
+    input.BindAxis(inputMapName_, movementConfig_.moveRight, Key::A, -1.0f);
 
     // Actions
-    input.BindAction(movementConfig_.jump, Key::Space);
+    input.BindAction(inputMapName_, movementConfig_.jump, Key::Space);
 }
 
 void CharacterController::CacheComponents() {
@@ -77,10 +86,7 @@ void CharacterController::HandleMouseToggle() {
 
 void CharacterController::SetMouseCaptured(bool captured) {
     mouseCaptured_ = captured;
-
-    auto* window = Application::Get().GetWindow().GetNativeWindow();
-    glfwSetInputMode(window, GLFW_CURSOR,
-                     captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    InputManager::Get().SetCursorMode(captured ? CursorMode::Locked : CursorMode::Normal);
 
     SE_LOG_INFO("Mouse capture: {}", captured ? "enabled" : "disabled");
 }

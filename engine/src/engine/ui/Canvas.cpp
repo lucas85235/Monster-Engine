@@ -1,7 +1,6 @@
 #include "engine/ui/Canvas.h"
-
-#include "engine/Application.h"
 #include "engine/ui/RmlUiLayer.h"
+#include "engine/Application.h"
 
 namespace se {
 
@@ -10,15 +9,18 @@ namespace se {
 UIElement::UIElement(Rml::Element* element) : element_(element) {}
 
 void UIElement::SetText(const std::string& text) {
-    if (element_) element_->SetInnerRML(text);
+    if (element_)
+        element_->SetInnerRML(text);
 }
 
 void UIElement::SetProperty(const std::string& name, const std::string& value) {
-    if (element_) element_->SetProperty(name, value);
+    if (element_)
+        element_->SetProperty(name, value);
 }
 
 void UIElement::SetClass(const std::string& name, bool active) {
-    if (element_) element_->SetClass(name, active);
+    if (element_)
+        element_->SetClass(name, active);
 }
 
 class RmlEventListener : public Rml::EventListener {
@@ -27,14 +29,13 @@ class RmlEventListener : public Rml::EventListener {
     void ProcessEvent(Rml::Event& event) override {
         if (callback_) callback_();
     }
-
    private:
     UIElement::EventCallback callback_;
 };
 
 void UIElement::AddEventListener(const std::string& event, EventCallback callback) {
     if (element_) {
-        // Leak warning: We are newing this listener and RmlUi takes ownership?
+        // Leak warning: We are newing this listener and RmlUi takes ownership? 
         // RmlUi does NOT take ownership of EventListener. We need to manage it.
         // For this simple implementation, we might leak or need a better management strategy.
         // TODO: Store listeners in UIElement to delete them later.
@@ -48,24 +49,28 @@ void UIElement::AddEventListener(const std::string& event, EventCallback callbac
 Canvas::Canvas(const std::string& name) : name_(name) {
     // We need access to the RmlUi Context.
     // Assuming we can get it from the Application -> RmlUiLayer
-    // This is a bit tricky since we don't have direct access to layers by type easily without
-    // casting. But we can assume the user has added the RmlUiLayer.
-
+    // This is a bit tricky since we don't have direct access to layers by type easily without casting.
+    // But we can assume the user has added the RmlUiLayer.
+    
     // For now, let's assume a singleton or static access, or we search for the layer.
     // Or we make the Context global/static in RmlUiLayer.
-
+    
     // Let's rely on Rml::GetContext("main") if we named it "main".
     Rml::Context* context = Rml::GetContext("main");
     if (context) {
         // Create a simple RML document from memory
         std::string rml = "<rml><head><title>" + name + "</title></head><body></body></rml>";
-        document_       = context->LoadDocumentFromMemory(rml, name);
-        if (document_) { document_->SetId(name); }
+        document_ = context->LoadDocumentFromMemory(rml, name);
+        if (document_) {
+            document_->SetId(name);
+        }
     }
 }
 
 Canvas::~Canvas() {
-    if (document_) { document_->Close(); }
+    if (document_) {
+        document_->Close();
+    }
 }
 
 std::shared_ptr<Canvas> Canvas::Create(const std::string& name) {

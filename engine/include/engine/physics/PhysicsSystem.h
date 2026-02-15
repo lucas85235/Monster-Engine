@@ -105,6 +105,7 @@ class PhysicsSystem {
     PhysicsDebugDraw* GetDebugDrawer() {
         return debug_drawer_;
     }
+    void SetDebugDrawMode(int mode);
 
     void UpdateDebugDraw(float dt);
 

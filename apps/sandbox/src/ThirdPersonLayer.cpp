@@ -1,85 +1,179 @@
 #include "ThirdPersonLayer.h"
 
 #include <btBulletDynamicsCommon.h>
+#include <algorithm>
 #include <engine/Application.h>
 #include <engine/Log.h>
+#include <engine/ecs/FilamentComponents.h>
 #include <engine/ecs/SimpleComponents.h>
 #include <engine/input/InputManager.h>
-#include <engine/resources/MeshManager.h>
-#include <imgui.h>
+#include <engine/core/ServiceLocator.h>
+#include <engine/renderer/MeshData.h>
+#include <engine/renderer/MaterialSystem.h>
+#include <engine/renderer/MeshSystem.h>
+#include <engine/renderer/LightSystem.h>
+#include <engine/renderer/FilamentRenderer.h>
+#include <engine/renderer/RenderSettingsSystem.h>
 #include <mmath/MathUtils.h>
 
-#include "../../SampleUtilities.h"
-#include "engine/physics/BoxCollider.h"
-#include "engine/physics/PhysicsDebugDraw.h"
+#include "engine/physics/Collider.h"
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/physics/RigidbodyComponent.h"
-#include "engine/renderer/IBLProcessor.h"
 
-#include <filesystem>
+#include <GLFW/glfw3.h>
+#include <filament/Renderer.h>
+#include <filament/Scene.h>
+#include <filament/View.h>
+#include <glm.hpp>
+#include <gtc/matrix_transform.hpp>
+#include <imgui.h>
+
+namespace {
+
+// Helper: build a column-major mat4 from position, rotation (Euler degrees), and scale
+void buildTransformMatrix(float out[16], const glm::vec3& pos, const glm::vec3& rot, const glm::vec3& scale) {
+    glm::mat4 m(1.0f);
+    m = glm::translate(m, pos);
+    m = glm::rotate(m, glm::radians(rot.y), glm::vec3(0, 1, 0));
+    m = glm::rotate(m, glm::radians(rot.x), glm::vec3(1, 0, 0));
+    m = glm::rotate(m, glm::radians(rot.z), glm::vec3(0, 0, 1));
+    m = glm::scale(m, scale);
+    memcpy(out, &m[0][0], sizeof(float) * 16);
+}
+
+constexpr const char* kQualityItems[]   = {"LOW", "MEDIUM", "HIGH", "ULTRA"};
+constexpr const char* kShadowTypeItems[] = {"PCF", "VSM", "DPCF", "PCSS"};
+constexpr const char* kAaItems[]        = {"NONE", "FXAA"};
+constexpr const char* kDitherItems[]    = {"NONE", "TEMPORAL"};
+constexpr const char* kAoTypeItems[]    = {"SAO", "GTAO"};
+
+} // anonymous namespace
 
 ThirdPersonLayer::ThirdPersonLayer()
-    : Layer("ThirdPersonLayer"), camera_(glm::vec3(0.0f, 5.0f, 10.0f)) {}
+    : Layer("ThirdPersonLayer") {}
 
 ThirdPersonLayer::~ThirdPersonLayer() {}
 
 void ThirdPersonLayer::OnAttach() {
-    SE_LOG_INFO("ThirdPersonLayer attached");
+    SE_LOG_INFO("ThirdPersonLayer attached (Filament)");
 
-    material_ = Utilities::LoadMaterial();
+    // Create PBR materials via MaterialSystem
+    auto& materials = ServiceLocator::Get().GetMaterialSystem();
+
+    MaterialConfig floorConfig;
+    floorConfig.baseColor[0] = 0.4f;
+    floorConfig.baseColor[1] = 0.4f;
+    floorConfig.baseColor[2] = 0.4f;
+    floorConfig.metallic     = 0.0f;
+    floorConfig.roughness    = 0.8f;
+    floorMaterial_ = materials.CreateMaterial(floorConfig);
+
+    MaterialConfig playerConfig;
+    playerConfig.baseColor[0] = 0.2f;
+    playerConfig.baseColor[1] = 0.7f;
+    playerConfig.baseColor[2] = 0.3f;
+    playerConfig.metallic     = 0.1f;
+    playerConfig.roughness    = 0.6f;
+    playerMaterial_ = materials.CreateMaterial(playerConfig);
+
+    MaterialConfig wallConfig;
+    wallConfig.baseColor[0] = 0.5f;
+    wallConfig.baseColor[1] = 0.5f;
+    wallConfig.baseColor[2] = 0.55f;
+    wallConfig.metallic     = 0.0f;
+    wallConfig.roughness    = 0.7f;
+    wallMaterial_ = materials.CreateMaterial(wallConfig);
+
+    MaterialConfig cubeConfig;
+    cubeConfig.baseColor[0] = 0.8f;
+    cubeConfig.baseColor[1] = 0.6f;
+    cubeConfig.baseColor[2] = 0.2f;
+    cubeConfig.metallic     = 0.5f;
+    cubeConfig.roughness    = 0.4f;
+    cubeMaterial_ = materials.CreateMaterial(cubeConfig);
+
+    MaterialConfig bulletConfig;
+    bulletConfig.baseColor[0] = 0.9f;
+    bulletConfig.baseColor[1] = 0.1f;
+    bulletConfig.baseColor[2] = 0.1f;
+    bulletConfig.metallic     = 0.7f;
+    bulletConfig.roughness    = 0.3f;
+    bulletMaterial_ = materials.CreateMaterial(bulletConfig);
+
     CreateScene();
 
-    // Configure scene renderer culling
-    auto& sceneRenderer = Application::Get().GetRenderer().GetSceneRenderer();
-    sceneRenderer.SetFrustumCullingEnabled(enableFrustumCulling_);
-    sceneRenderer.SetOcclusionCullingEnabled(enableOcclusionCulling_);
+    // Set up directional light (sun)
+    auto& lights = ServiceLocator::Get().GetLightSystem();
+    lights.SetDirectionalLight(
+        -0.5f, -1.0f, -0.5f,  // direction
+        1.0f, 0.95f, 0.9f,    // warm white
+        110000.0f,             // outdoor sun intensity
+        true                   // cast shadows
+    );
 
     // Bind input axes and actions
     auto& input = InputManager::Get();
-    input.BindAxis("MoveForward", Key::W, 1.0f);
-    input.BindAxis("MoveForward", Key::S, -1.0f);
-    input.BindAxis("MoveRight", Key::D, 1.0f);
-    input.BindAxis("MoveRight", Key::A, -1.0f);
-    input.BindAction("Jump", Key::Space);
-    input.BindAction("Grab", Key::E);
-    input.BindAction("Sprint", Key::LeftShift);
-    input.BindAction("ToggleMouse", Key::Tab);
-    input.BindAxis("CameraRotateX", Key::MouseX, 1.0f);
-    input.BindAxis("CameraRotateY", Key::MouseY, -1.0f);
-    input.BindAxis("ScrollWheel", Key::MouseScrollY, 1.0f);
+    input.CreateActionMap(inputMapName_);
+    input.PushContext(inputMapName_);
+    input.BindAxis(inputMapName_, "MoveForward", Key::W, 1.0f);
+    input.BindAxis(inputMapName_, "MoveForward", Key::S, -1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::D, 1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::A, -1.0f);
+    input.BindAction(inputMapName_, "Jump", Key::Space);
+    input.BindAction(inputMapName_, "Grab", Key::E);
+    input.BindAction(inputMapName_, "Sprint", Key::LeftShift);
+    input.BindAction(inputMapName_, "ToggleMouse", Key::Tab);
+    input.BindAxis(inputMapName_, "CameraRotateX", Key::MouseX, 1.0f);
+    input.BindAxis(inputMapName_, "CameraRotateY", Key::MouseY, -1.0f);
+    input.BindAxis(inputMapName_, "ScrollWheel", Key::MouseScrollY, 1.0f);
 
     // Capture and hide cursor
-    auto& app    = Application::Get();
-    auto* window = app.GetWindow().GetNativeWindow();
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    input.SetCursorMode(CursorMode::Locked);
     mouseCaptured_ = true;
 
-    // physics debug drawing
-    scene_->GetPhysicsSystem()->GetDebugDrawer()->setDebugMode(btIDebugDraw::DBG_NoDebug);
+    // Disable physics debug drawing by default.
+    if (auto* physics = scene_->GetPhysicsSystem()) {
+        physics->SetDebugDrawMode(btIDebugDraw::DBG_NoDebug);
+    }
+
 }
 
 void ThirdPersonLayer::OnDetach() {
+    auto& input = InputManager::Get();
+    input.PopContext(inputMapName_);
+    input.RemoveActionMap(inputMapName_);
+
     bullets_.clear();
+    smallWalls_.clear();
+    walls_.clear();
     scene_.reset();
 }
 
 void ThirdPersonLayer::CreateScene() {
-    scene_ = CreateScope<Scene>("Third Person Scene");
+    scene_ = std::make_shared<Scene>("Third Person Scene");
 
-    // Create floor and walls
+    auto& meshes = ServiceLocator::Get().GetMeshSystem();
+
+    // ─── Floor ──────────────────────────────────────────────────
     {
         floor_entity_ = scene_->CreateEntity("Floor");
-        auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-        floor_entity_.AddComponent<MeshRenderComponent>(mesh, material_);
-
         auto& transform = floor_entity_.GetComponent<TransformComponent>();
         transform.SetPosition({0.0f, -1.0f, 0.0f});
         transform.SetScale({50.0f, 2.0f, 50.0f});
 
         RigidbodyData data = RigidbodyData{.mass = 0.0f, .gravityScale = 1.0f};
-        floor_entity_.AddComponent<RigidbodyComponent>(data, floor_entity_);
+        floor_entity_.AddComponent<RigidbodyComponent>(data);
 
-        // Create walls - data-driven approach
+        auto meshData = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
+        auto floorRenderable = meshes.CreateRenderable(meshData, floorMaterial_, false);
+        floor_entity_.AddComponent<FilamentRenderableComponent>(floorRenderable);
+        float mat[16];
+        buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
+        meshes.SetTransform(floorRenderable, mat);
+    }
+
+    // ─── Boundary Walls ─────────────────────────────────────────
+    {
         struct WallDef {
             const char* name;
             glm::vec3   position;
@@ -94,33 +188,35 @@ void ThirdPersonLayer::CreateScene() {
         };
 
         walls_.reserve(std::size(wallDefinitions));
+        auto wallMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
 
         for (const auto& def : wallDefinitions) {
             auto wall = scene_->CreateEntity(def.name);
-            wall.AddComponent<MeshRenderComponent>(mesh, material_);
-
             auto& wallTransform = wall.GetComponent<TransformComponent>();
             wallTransform.SetPosition(def.position);
             wallTransform.SetScale(def.scale);
 
-            wall.AddComponent<RigidbodyComponent>(data, wall);
+            RigidbodyData data = RigidbodyData{.mass = 0.0f, .gravityScale = 1.0f};
+            wall.AddComponent<RigidbodyComponent>(data);
+
+            auto renderable = meshes.CreateRenderable(wallMesh, wallMaterial_, false);
+            wall.AddComponent<FilamentRenderableComponent>(renderable);
+            float mat[16];
+            buildTransformMatrix(mat, wallTransform.Position, wallTransform.Rotation, wallTransform.Scale);
+            meshes.SetTransform(renderable, mat);
             walls_.emplace_back(wall);
         }
     }
 
-    // Create player capsule
+    // ─── Player Capsule ─────────────────────────────────────────
     {
         playerEntity_ = scene_->CreateEntity("Player");
-        auto mesh     = MeshManager::GetPrimitive(PrimitiveMeshType::Capsule);
 
-        if (!material_) {
-            SE_LOG_ERROR("Material not loaded, retrying");
-            material_ = Utilities::LoadMaterial();
-        }
+        // Use a cylinder as capsule approximation
+        auto playerMesh = MeshPrimitives::CreateCylinder(0.5f, 2.0f, 16);
+        auto playerRenderable = meshes.CreateRenderable(playerMesh, playerMaterial_);
+        playerEntity_.AddComponent<FilamentRenderableComponent>(playerRenderable);
 
-        playerEntity_.AddComponent<MeshRenderComponent>(mesh, material_);
-
-        // Add Capsule Collider
         playerEntity_.AddComponent<CapsuleCollider>(0.5f, 1.0f);
 
         auto& transform = playerEntity_.GetComponent<TransformComponent>();
@@ -128,50 +224,34 @@ void ThirdPersonLayer::CreateScene() {
         transform.SetScale({1.0f, 1.0f, 1.0f});
 
         RigidbodyData data = RigidbodyData{.mass = 10.0f, .gravityScale = 1.0f};
-        auto&         rb   = playerEntity_.AddComponent<RigidbodyComponent>(data, playerEntity_);
-
-        // Lock rotation to prevent tipping over
+        auto& rb = playerEntity_.AddComponent<RigidbodyComponent>(data);
         rb.SetAngularFactor({0.0f, 1.0f, 0.0f});
 
-        // Add camera spring arm
-        auto& springArm           = playerEntity_.AddComponent<SpringArmComponent>();
-        springArm.TargetArmLength = 8.0f;
-        springArm.SocketOffset    = {0.0f, 1.5f, 0.0f};
-        springArm.Pitch           = -30.0f;
+        float mat[16];
+        buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
+        meshes.SetTransform(playerRenderable, mat);
     }
 
-    // Create directional light
-    {
-        auto  light     = scene_->CreateEntity("Sun");
-        auto& transform = light.GetComponent<TransformComponent>();
-        transform.SetPosition({10.0f, 20.0f, 10.0f});
-        transform.SetRotation({45.0f, 45.0f, 0.0f});
-
-        auto& dirLight       = light.AddComponent<DirectionalLightComponent>();
-        dirLight.Color       = {1.0f, 0.9f, 0.8f};
-        dirLight.Intensity   = 1.2f;
-        dirLight.CastShadows = true;
-    }
-
+    // ─── Physics Cube ───────────────────────────────────────────
     {
         cube_entity_ = scene_->CreateEntity("Cube");
-        auto mesh    = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-
-        if (!material_) {
-            SE_LOG_ERROR("Material not loaded, retrying");
-            material_ = Utilities::LoadMaterial();
-        }
-
         cube_entity_.GetComponent<TransformComponent>().SetPosition({0.0f, 10.0f, 0.0f});
 
-        cube_entity_.AddComponent<MeshRenderComponent>(mesh, material_);
         cube_entity_.AddComponent<BoxCollider>(Vector3(1.0f, 1.0f, 1.0f));
-
         RigidbodyData data;
-        cube_entity_.AddComponent<RigidbodyComponent>(data, cube_entity_);
+        cube_entity_.AddComponent<RigidbodyComponent>(data);
+
+        auto cubeMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
+        auto cubeRenderable = meshes.CreateRenderable(cubeMesh, cubeMaterial_);
+        cube_entity_.AddComponent<FilamentRenderableComponent>(cubeRenderable);
+
+        auto& cubeTransform = cube_entity_.GetComponent<TransformComponent>();
+        float mat[16];
+        buildTransformMatrix(mat, cubeTransform.Position, cubeTransform.Rotation, cubeTransform.Scale);
+        meshes.SetTransform(cubeRenderable, mat);
     }
 
-    // Create small walls (muretas) for occlusion culling testing
+    // ─── Small Walls (Occlusion Testing) ────────────────────────
     {
         struct WallConfig {
             glm::vec3 position;
@@ -179,67 +259,63 @@ void ThirdPersonLayer::CreateScene() {
             float     yRotation;
         };
 
-        std::vector<WallConfig> smallWalls = {
-            {{10.0f, 1.5f, 0.0f}, {5.0f, 3.0f, 0.5f}, 0.0f},    // Right of spawn
-            {{-10.0f, 1.5f, 5.0f}, {5.0f, 3.0f, 0.5f}, 45.0f},  // Left angled
-            {{0.0f, 1.5f, -12.0f}, {8.0f, 3.0f, 0.5f}, 0.0f},   // Behind spawn
-            {{15.0f, 1.5f, 15.0f}, {6.0f, 3.0f, 0.5f}, 30.0f},  // Far corner
-            {{-8.0f, 1.5f, -8.0f}, {4.0f, 3.0f, 0.5f}, -45.0f}, // Diagonal
+        std::vector<WallConfig> smallWallDefs = {
+            {{10.0f, 1.5f, 0.0f}, {5.0f, 3.0f, 0.5f}, 0.0f},
+            {{-10.0f, 1.5f, 5.0f}, {5.0f, 3.0f, 0.5f}, 45.0f},
+            {{0.0f, 1.5f, -12.0f}, {8.0f, 3.0f, 0.5f}, 0.0f},
+            {{15.0f, 1.5f, 15.0f}, {6.0f, 3.0f, 0.5f}, 30.0f},
+            {{-8.0f, 1.5f, -8.0f}, {4.0f, 3.0f, 0.5f}, -45.0f},
         };
 
-        for (size_t i = 0; i < smallWalls.size(); i++) {
-            const auto& config = smallWalls[i];
+        auto wallMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
+
+        for (size_t i = 0; i < smallWallDefs.size(); i++) {
+            const auto& config = smallWallDefs[i];
 
             auto wall = scene_->CreateEntity("SmallWall_" + std::to_string(i));
-            auto mesh = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-            wall.AddComponent<MeshRenderComponent>(mesh, material_);
-
             auto& transform = wall.GetComponent<TransformComponent>();
             transform.SetPosition(config.position);
             transform.SetScale(config.scale);
             transform.SetRotation({0.0f, config.yRotation, 0.0f});
 
-            // BoxCollider uses half-extents relative to unit cube
             wall.AddComponent<BoxCollider>(glm::vec3(1.0f));
-
             RigidbodyData data;
-            data.mass = 0.0f; // Static
-            wall.AddComponent<RigidbodyComponent>(data, wall);
+            data.mass = 0.0f;
+            wall.AddComponent<RigidbodyComponent>(data);
+
+            auto renderable = meshes.CreateRenderable(wallMesh, wallMaterial_, false);
+            wall.AddComponent<FilamentRenderableComponent>(renderable);
+            float mat[16];
+            buildTransformMatrix(mat, transform.Position, transform.Rotation, transform.Scale);
+            meshes.SetTransform(renderable, mat);
+            smallWalls_.push_back(wall);
         }
 
-        SE_LOG_INFO("Created {} small walls for occlusion testing", smallWalls.size());
+        SE_LOG_INFO("Created {} small walls for occlusion testing", smallWallDefs.size());
     }
-}
-
-void ThirdPersonLayer::CleanupBullets() {
-    // Bullets are not cleaned up - they persist for physics testing
-    // Just remove invalid entity references from tracking
-    if (!scene_) return;
-
-    bullets_.erase(std::remove_if(bullets_.begin(), bullets_.end(),
-                                  [](const Entity& e) { return !e.IsValid(); }),
-                   bullets_.end());
 }
 
 void ThirdPersonLayer::OnUpdate(float ts) {
     UpdatePlayer(ts);
     UpdateGrabSystem(ts);
-    CleanupBullets(); // Only removes invalid references, not actual bullets
+
+    // Physics + ECS update
     scene_->OnUpdate(ts);
+
+    // Update camera after physics
     UpdateCamera();
 }
 
 void ThirdPersonLayer::UpdatePlayer(float ts) {
     auto& input     = InputManager::Get();
     auto& transform = playerEntity_.GetComponent<TransformComponent>();
-    auto& springArm = playerEntity_.GetComponent<SpringArmComponent>();
     auto& rb        = playerEntity_.GetComponent<RigidbodyComponent>();
 
     // Calculate camera-relative movement direction
     float moveForward = input.GetAxis("MoveForward");
     float moveRight   = input.GetAxis("MoveRight");
 
-    float yawRad = springArm.Yaw * 0.0174533f;
+    float yawRad = springArmYaw_ * 0.0174533f;
     float sinYaw = std::sin(yawRad);
     float cosYaw = std::cos(yawRad);
 
@@ -258,14 +334,10 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         float targetYaw  = luma::YawFromDirection(movement.x, movement.z);
         float currentYaw = transform.Rotation.y;
 
-        // Hysteresis for 180 degree turns
         float diff = targetYaw - currentYaw;
         diff       = luma::NormalizeAngleDeg(diff);
 
-        // If we are near the singularity (180 degrees), favor the previous direction
         if (std::abs(diff) > 170.0f && std::abs(lastRotationDiff_) > 0.0f) {
-            // If signs match, we are good. If signs differ, we might be flipping.
-            // Force diff to have the same sign as lastRotationDiff_
             if ((diff > 0 && lastRotationDiff_ < 0) || (diff < 0 && lastRotationDiff_ > 0)) {
                 if (diff > 0) diff -= 360.0f;
                 else diff += 360.0f;
@@ -277,18 +349,16 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
         float newYaw        = currentYaw + diff * glm::clamp(rotationSpeed * ts, 0.0f, 1.0f);
         newYaw              = luma::NormalizeAngleDeg(newYaw);
 
-        // Apply rotation to Rigidbody
         rb.SetRotation({0.0f, newYaw, 0.0f});
 
-        // Debug capture
         debugTargetYaw_  = targetYaw;
         debugCurrentYaw_ = currentYaw;
         debugNewYaw_     = newYaw;
     }
 
-    // Ground Check using Raycast
-    glm::vec3 rayStart = transform.Position + glm::vec3(0.0f, 1.0f, 0.0f);  // Center of capsule
-    glm::vec3 rayEnd   = transform.Position + glm::vec3(0.0f, -1.2f, 0.0f); // Below feet
+    // Ground check via raycast
+    glm::vec3 rayStart = transform.Position + glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 rayEnd   = transform.Position + glm::vec3(0.0f, -1.2f, 0.0f);
     glm::vec3 hitPoint, hitNormal;
 
     bool hit = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal,
@@ -297,49 +367,31 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
     // Jumping
     if (input.IsActionJustPressed("Jump") && isGrounded_) {
-        desiredVelocity.setY(5.0f); // Jump impulse/velocity
+        desiredVelocity.setY(5.0f);
     }
 
-    // Apply Velocity
-    // We only control X and Z velocity directly. Y is controlled by gravity/jump unless we are
-    // grounded. If we are grounded, we might want to stick to the ground or just let physics handle
-    // it. For a simple character controller, setting linear velocity directly is often easiest but
-    // can fight with collisions. Better approach: Set X/Z velocity, keep existing Y velocity
-    // (unless jumping).
-
     if (!isGrounded_) {
-        // Keep existing Y if in air (gravity)
         desiredVelocity.setY(currentVelocity.y());
-
-        // If we just jumped, we already set Y to 5.0f above.
-        if (input.IsActionJustPressed("Jump") && isGrounded_) { desiredVelocity.setY(5.0f); }
     } else {
-        // If grounded, we can still have some Y velocity from slopes, but mostly we want to stick.
-        // If we are jumping, we override Y.
         if (input.IsActionJustPressed("Jump")) { desiredVelocity.setY(5.0f); }
     }
 
-    // Apply movement to desired velocity - Sprint with Shift
+    // Movement speed — Sprint with Shift
     float speed = input.IsActionPressed("Sprint") ? sprintSpeed_ : moveSpeed_;
     desiredVelocity.setX(movement.x * speed);
     desiredVelocity.setZ(movement.z * speed);
 
-    // Set the velocity on the rigidbody
     rb.SetLinearVelocity(desiredVelocity);
 
     // Shooting
     if (input.IsMouseButtonDown(0)) {
-        // Left Mouse Button
         Shoot();
     }
 
     // Toggle mouse capture with Tab
     if (input.IsActionJustPressed("ToggleMouse")) {
-        auto& app      = Application::Get();
-        auto* window   = app.GetWindow().GetNativeWindow();
         mouseCaptured_ = !mouseCaptured_;
-        glfwSetInputMode(window, GLFW_CURSOR,
-                         mouseCaptured_ ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        input.SetCursorMode(mouseCaptured_ ? CursorMode::Locked : CursorMode::Normal);
         SE_LOG_INFO("Mouse capture: {}", mouseCaptured_ ? "enabled" : "disabled");
     }
 
@@ -349,60 +401,70 @@ void ThirdPersonLayer::UpdatePlayer(float ts) {
 
 void ThirdPersonLayer::Shoot() {
     float time = (float)glfwGetTime();
-    if (time - lastShootTime_ < 0.02f) return; // 0.2s cooldown
+    if (time - lastShootTime_ < 0.02f) return;
+
+    // Hard cap active bullets to avoid unbounded CPU/GPU growth.
+    if ((int)bullets_.size() >= maxBullets_) return;
+
     lastShootTime_ = time;
 
     // Get camera forward
-    float     yawRad   = glm::radians(camera_.GetYaw());
-    float     pitchRad = glm::radians(camera_.GetPitch());
+    float     yawRad   = glm::radians(cameraYaw_);
+    float     pitchRad = glm::radians(cameraPitch_);
     glm::vec3 forward;
     forward.x = cos(yawRad) * cos(pitchRad);
     forward.y = sin(pitchRad);
     forward.z = sin(yawRad) * cos(pitchRad);
     forward   = glm::normalize(forward);
 
-    // Spawn position
-    glm::vec3 spawnPos = camera_.GetPosition() + forward * 10.0f;
+    // Spawn position in front of camera
+    glm::vec3 spawnPos = cameraPosition_ + forward * 10.0f;
 
-    // Create Entity with red color
-    auto      box         = scene_->CreateEntity("BulletBox");
-    auto      mesh        = MeshManager::GetPrimitive(PrimitiveMeshType::Cube);
-    glm::vec4 bulletColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
-    box.AddComponent<MeshRenderComponent>(mesh, material_, bulletColor);
+    // Create bullet entity
+    auto box = scene_->CreateEntity("BulletBox");
     box.AddComponent<BoxCollider>(glm::vec3(1.0f));
-
     box.GetComponent<TransformComponent>().SetPosition(spawnPos);
     box.GetComponent<TransformComponent>().SetScale(glm::vec3(0.5f));
 
     RigidbodyData data;
     data.mass = 2.0f;
-    auto& rb  = box.AddComponent<RigidbodyComponent>(data, box);
+    auto& rb  = box.AddComponent<RigidbodyComponent>(data);
 
-    // Apply impulse
     btVector3 impulse(forward.x, forward.y, forward.z);
-    impulse *= 50.0f; // Force
+    impulse *= 50.0f;
     rb.GetRigidbody()->applyCentralImpulse(impulse);
 
-    // Track bullet for cleanup
+    // Create Filament renderable for the bullet
+    auto& meshes = ServiceLocator::Get().GetMeshSystem();
+    auto bulletMesh = MeshPrimitives::CreateBox(1.0f, 1.0f, 1.0f);
+    auto renderable = meshes.CreateRenderable(bulletMesh, bulletMaterial_, false);
+    box.AddComponent<FilamentRenderableComponent>(renderable);
+
+    float mat[16];
+    auto& bulletTransform = box.GetComponent<TransformComponent>();
+    buildTransformMatrix(mat, bulletTransform.Position, bulletTransform.Rotation, bulletTransform.Scale);
+    meshes.SetTransform(renderable, mat);
+
     bullets_.push_back(box);
 }
 
 void ThirdPersonLayer::UpdateCamera() {
     auto& input = InputManager::Get();
 
-    if (!playerEntity_.HasComponent<SpringArmComponent>()) return;
-    auto& springArm   = playerEntity_.GetComponent<SpringArmComponent>();
     auto& playerTrans = playerEntity_.GetComponent<TransformComponent>();
 
-    float mouseX = input.GetAxis("CameraRotateX");
-    float mouseY = input.GetAxis("CameraRotateY");
+    // Only update look yaw/pitch while mouse is locked to gameplay.
+    if (mouseCaptured_) {
+        float mouseX = input.GetAxis("CameraRotateX");
+        float mouseY = input.GetAxis("CameraRotateY");
 
-    springArm.Yaw -= mouseX * 0.1f;
-    springArm.Pitch -= mouseY * 0.1f;
-    springArm.Pitch = glm::clamp(springArm.Pitch, springArm.MinPitch, springArm.MaxPitch);
+        springArmYaw_ -= mouseX * 0.1f;
+        springArmPitch_ -= mouseY * 0.1f;
+        springArmPitch_ = glm::clamp(springArmPitch_, -80.0f, 80.0f);
+    }
 
-    float yawRad   = glm::radians(springArm.Yaw);
-    float pitchRad = glm::radians(springArm.Pitch);
+    float yawRad   = glm::radians(springArmYaw_);
+    float pitchRad = glm::radians(springArmPitch_);
 
     float sinYaw   = std::sin(yawRad);
     float cosYaw   = std::cos(yawRad);
@@ -414,44 +476,54 @@ void ThirdPersonLayer::UpdateCamera() {
     direction.y = sinPitch;
     direction.z = cosPitch * cosYaw;
 
-    glm::vec3 targetPos = playerTrans.Position + springArm.SocketOffset;
+    glm::vec3 targetPos = playerTrans.Position + socketOffset_;
 
-    float desiredArmLength = springArm.TargetArmLength;
+    float desiredArmLength = springArmLength_;
 
-    if (springArm.DoCollisionTest && scene_->GetPhysicsSystem()) {
+    // Camera collision test
+    if (scene_->GetPhysicsSystem()) {
         btRigidBody* playerBody = nullptr;
         if (playerEntity_.HasComponent<RigidbodyComponent>()) {
             playerBody = playerEntity_.GetComponent<RigidbodyComponent>().GetRigidbody();
         }
 
         glm::vec3 rayStart = targetPos;
-        glm::vec3 rayEnd   =
-            targetPos + direction * (springArm.TargetArmLength + springArm.ProbeSize);
+        glm::vec3 rayEnd   = targetPos + direction * (springArmLength_ + 0.5f);
         glm::vec3 hitPoint, hitNormal;
 
-        bool hit =
-            scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, playerBody);
-
+        bool hit = scene_->GetPhysicsSystem()->Raycast(rayStart, rayEnd, hitPoint, hitNormal, playerBody);
         if (hit) {
-            float hitDistance = glm::length(hitPoint - rayStart) - springArm.ProbeSize;
+            float hitDistance = glm::length(hitPoint - rayStart) - 0.5f;
             desiredArmLength  = glm::max(hitDistance, 0.5f);
         }
     }
 
-    float lerpSpeed            = (desiredArmLength < springArm.CurrentArmLength) ? 15.0f : 5.0f;
-    springArm.CurrentArmLength = glm::mix(springArm.CurrentArmLength, desiredArmLength,
-                                          glm::clamp(lerpSpeed * (1.0f / 60.0f), 0.0f, 1.0f));
+    float lerpSpeed    = (desiredArmLength < currentArmLength_) ? 15.0f : 5.0f;
+    currentArmLength_  = glm::mix(currentArmLength_, desiredArmLength,
+                                  glm::clamp(lerpSpeed * (1.0f / 60.0f), 0.0f, 1.0f));
 
-    glm::vec3 camPos = targetPos + direction * springArm.CurrentArmLength;
+    glm::vec3 camPos = targetPos + direction * currentArmLength_;
 
-    camera_.SetPosition(camPos);
-    camera_.SetYaw(-springArm.Yaw - 90.0f);
-    camera_.SetPitch(-springArm.Pitch);
+    // Store camera state for shooting/grab
+    cameraPosition_ = camPos;
+    cameraYaw_   = -springArmYaw_ - 90.0f;
+    cameraPitch_ = -springArmPitch_;
+
+    // Update Filament camera
+    auto& renderer = ServiceLocator::Get().GetFilamentRenderer();
+    auto& window   = Application::Get().GetWindow();
+    float aspect   = (float)window.GetWidth() / (float)window.GetHeight();
+
+    renderer.SetCameraProjection(60.0, aspect, 0.1, 500.0);
+    renderer.SetCameraLookAt(
+        {camPos.x, camPos.y, camPos.z},
+        {targetPos.x, targetPos.y, targetPos.z},
+        {0.0f, 1.0f, 0.0f}
+    );
 }
 
 void ThirdPersonLayer::TryGrabOrRelease() {
     if (grabbedBody_) {
-        // Release the object
         grabbedBody_->setGravity(btVector3(savedGravity_.x, savedGravity_.y, savedGravity_.z));
         grabbedBody_->setLinearVelocity(btVector3(0, 0, 0));
         grabbedBody_->activate();
@@ -460,52 +532,33 @@ void ThirdPersonLayer::TryGrabOrRelease() {
         return;
     }
 
-    // Try to grab an object with raycast
     auto& rb = playerEntity_.GetComponent<RigidbodyComponent>();
 
-    // Get camera forward direction
-    float     yawRad   = glm::radians(camera_.GetYaw());
-    float     pitchRad = glm::radians(camera_.GetPitch());
+    float     yawRad   = glm::radians(cameraYaw_);
+    float     pitchRad = glm::radians(cameraPitch_);
     glm::vec3 forward;
     forward.x = cos(yawRad) * cos(pitchRad);
     forward.y = sin(pitchRad);
     forward.z = sin(yawRad) * cos(pitchRad);
     forward   = glm::normalize(forward);
 
-    glm::vec3 rayStart = camera_.GetPosition();
+    glm::vec3 rayStart = cameraPosition_;
     glm::vec3 rayEnd   = rayStart + forward * grabMaxDistance_;
     glm::vec3 hitPoint;
 
     btRigidBody* hitBody =
         scene_->GetPhysicsSystem()->RaycastHitBody(rayStart, rayEnd, hitPoint, rb.GetRigidbody());
 
-    // Debug visualization - draw raycast line and hit point for 10 seconds
-    auto* debugDraw = scene_->GetPhysicsSystem()->GetDebugDrawer();
-    if (debugDraw) {
-        if (hitBody) {
-            // Green line to hit point
-            debugDraw->DrawDebugLine(rayStart, hitPoint, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
-            // Green sphere at hit point
-            debugDraw->DrawDebugSphere(hitPoint, 0.2f, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
-        } else {
-            // Red line to end of raycast (no hit)
-            debugDraw->DrawDebugLine(rayStart, rayEnd, glm::vec3(1.0f, 0.0f, 0.0f), 10.0f);
-        }
-    }
-
     if (hitBody && hitBody->getMass() > 0.0f) {
-        // Don't grab static objects or the player
         if (hitBody == rb.GetRigidbody()) return;
 
         grabbedBody_ = hitBody;
 
-        // Save and disable gravity
         btVector3 grav = grabbedBody_->getGravity();
         savedGravity_  = glm::vec3(grav.x(), grav.y(), grav.z());
         grabbedBody_->setGravity(btVector3(0, 0, 0));
         grabbedBody_->setActivationState(DISABLE_DEACTIVATION);
 
-        // Calculate initial grab distance
         grabDistance_ = glm::length(hitPoint - rayStart);
         grabDistance_ = glm::clamp(grabDistance_, 2.0f, grabMaxDistance_);
 
@@ -516,37 +569,31 @@ void ThirdPersonLayer::TryGrabOrRelease() {
 void ThirdPersonLayer::UpdateGrabSystem(float ts) {
     if (!grabbedBody_) return;
 
-    // Adjust grab distance with mouse scroll wheel
     auto& input  = InputManager::Get();
     float scroll = input.GetAxis("ScrollWheel");
     if (std::abs(scroll) > 0.01f) {
-        grabDistance_ -= scroll * 2.0f; // Scroll up = closer
+        grabDistance_ -= scroll * 2.0f;
         grabDistance_ = glm::clamp(grabDistance_, grabMinDistance_, grabMaxDistance_);
     }
 
-    // Get camera forward direction
-    float     yawRad   = glm::radians(camera_.GetYaw());
-    float     pitchRad = glm::radians(camera_.GetPitch());
+    float     yawRad   = glm::radians(cameraYaw_);
+    float     pitchRad = glm::radians(cameraPitch_);
     glm::vec3 forward;
     forward.x = cos(yawRad) * cos(pitchRad);
     forward.y = sin(pitchRad);
     forward.z = sin(yawRad) * cos(pitchRad);
     forward   = glm::normalize(forward);
 
-    // Target position in front of camera
-    glm::vec3 targetPos = camera_.GetPosition() + forward * grabDistance_;
+    glm::vec3 targetPos = cameraPosition_ + forward * grabDistance_;
 
-    // Get current object position
     btTransform transform;
     grabbedBody_->getMotionState()->getWorldTransform(transform);
     btVector3 currentPos = transform.getOrigin();
     glm::vec3 objPos(currentPos.x(), currentPos.y(), currentPos.z());
 
-    // Calculate velocity to move towards target (spring-like behavior)
     glm::vec3 delta    = targetPos - objPos;
     float     distance = glm::length(delta);
 
-    // If object is too far, drop it
     if (distance > grabMaxDistance_ * 1.5f) {
         grabbedBody_->setGravity(btVector3(savedGravity_.x, savedGravity_.y, savedGravity_.z));
         grabbedBody_->activate();
@@ -555,150 +602,181 @@ void ThirdPersonLayer::UpdateGrabSystem(float ts) {
         return;
     }
 
-    // Apply velocity towards target position
     float     grabStrength = 15.0f;
     glm::vec3 velocity     = delta * grabStrength;
 
-    // Dampen existing velocity for smooth movement
     btVector3 currentVel = grabbedBody_->getLinearVelocity();
     glm::vec3 dampedVel  = glm::vec3(currentVel.x(), currentVel.y(), currentVel.z()) * 0.5f;
     velocity             = velocity + dampedVel * 0.1f;
 
     grabbedBody_->setLinearVelocity(btVector3(velocity.x, velocity.y, velocity.z));
-
-    // Dampen angular velocity
     grabbedBody_->setAngularVelocity(grabbedBody_->getAngularVelocity() * 0.9f);
 }
 
 void ThirdPersonLayer::OnRender() {
-    auto& window      = Application::Get().GetWindow();
-    float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
-
-    // Render scene (entities with built-in frustum and occlusion culling)
-    scene_->OnRender(camera_, aspectRatio);
-
-    // Update and render debug drawing
-    if (scene_->GetPhysicsSystem()) {
-        scene_->GetPhysicsSystem()->UpdateDebugDraw(1.0f / 60.0f);
-        scene_->GetPhysicsSystem()->RenderDebug(camera_);
+    if (scene_) {
+        // Scene render stage now handles ECS -> Filament transform sync.
+        scene_->OnRender();
     }
 }
 
 void ThirdPersonLayer::OnImGuiRender() {
-    ImGui::Begin("Third Person Debug");
+    auto* settingsSystem = ServiceLocator::Get().GetRenderSettingsSystemPtr();
+    if (!settingsSystem || !settingsSystem->IsInitialized()) return;
+    auto& settings = settingsSystem->GetMutableSettings();
 
-    if (playerEntity_.HasComponent<TransformComponent>()) {
-        auto& trans = playerEntity_.GetComponent<TransformComponent>();
-        ImGui::Text("Player Pos: %.2f, %.2f, %.2f", trans.Position.x, trans.Position.y,
-                    trans.Position.z);
+    if (showImGuiDemo_) {
+        ImGui::ShowDemoWindow(&showImGuiDemo_);
     }
 
-    ImGui::Text("Grounded: %s", isGrounded_ ? "Yes" : "No");
-    ImGui::Text("Velocity Y: %.2f", playerVelocity_.y);
-    ImGui::Text("Active Bullets: %zu", bullets_.size());
+    bool changed = false;
 
-    if (playerEntity_.HasComponent<SpringArmComponent>()) {
-        auto& springArm = playerEntity_.GetComponent<SpringArmComponent>();
-        ImGui::DragFloat("Arm Length", &springArm.TargetArmLength, 0.1f, 1.0f, 20.0f);
-        ImGui::DragFloat("Arm Pitch", &springArm.Pitch, 1.0f);
-        ImGui::DragFloat("Arm Yaw", &springArm.Yaw, 1.0f);
-        ImGui::DragFloat3("Socket Offset", &springArm.SocketOffset.x, 0.1f);
-    }
+    if (ImGui::Begin("Filament Render Controls")) {
+        auto* view  = ServiceLocator::Get().GetFilamentRenderer().GetView();
+        auto* scene = view ? view->getScene() : nullptr;
+        const bool hasIbl = scene && scene->getIndirectLight();
 
-    ImGui::Separator();
-    ImGui::Text("Rotation Debug:");
-    ImGui::Text("Target Yaw: %.2f", debugTargetYaw_);
-    ImGui::Text("Current Yaw: %.2f", debugCurrentYaw_);
-    ImGui::Text("New Yaw: %.2f", debugNewYaw_);
-
-    ImGui::End();
-
-    // Culling Debug Panel
-    ImGui::Begin("Culling System");
-
-    auto& sceneRenderer = Application::Get().GetRenderer().GetSceneRenderer();
-    auto  stats         = sceneRenderer.GetStats();
-
-    if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling_)) {
-        sceneRenderer.SetFrustumCullingEnabled(enableFrustumCulling_);
-    }
-    if (ImGui::Checkbox("Enable Occlusion Culling", &enableOcclusionCulling_)) {
-        sceneRenderer.SetOcclusionCullingEnabled(enableOcclusionCulling_);
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Culling Statistics:");
-    ImGui::Text("Total Objects: %u", stats.TotalObjects);
-    ImGui::Text("Frustum Culled: %u", stats.FrustumCulled);
-    ImGui::Text("Occlusion Culled: %u", stats.OcclusionCulled);
-    ImGui::Text("Visible Objects: %u", stats.VisibleObjects);
-    ImGui::Text("Draw Calls: %u", stats.DrawCalls);
-    ImGui::Text("Triangles: %u", stats.TriangleCount);
-
-    if (stats.TotalObjects > 0) {
-        float cullRatio =
-            static_cast<float>(stats.FrustumCulled + stats.OcclusionCulled) / stats.TotalObjects;
-        ImGui::ProgressBar(cullRatio, ImVec2(-1, 0), "Total Cull Ratio");
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Bullet Cubes in Scene: %zu", bullets_.size());
-    ImGui::Text("(Bullets persist for physics testing)");
-
-    ImGui::End();
-
-    // Performance Stats Panel
-    ImGuiIO&         io           = ImGui::GetIO();
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration |
-                                    ImGuiWindowFlags_AlwaysAutoResize |
-                                    ImGuiWindowFlags_NoSavedSettings |
-                                    ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-    const float    PAD       = 10.0f;
-    ImGuiViewport* viewport  = ImGui::GetMainViewport();
-    ImVec2         work_pos  = viewport->GetWorkPos();
-    ImVec2         work_size = viewport->GetWorkSize();
-    ImVec2         window_pos, window_pos_pivot;
-    window_pos.x       = work_pos.x + work_size.x - PAD;
-    window_pos.y       = work_pos.y + PAD;
-    window_pos_pivot.x = 1.0f;
-    window_pos_pivot.y = 0.0f;
-    ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
-    ImGui::SetNextWindowBgAlpha(0.35f);
-    if (ImGui::Begin("Performance Stats", nullptr, window_flags)) {
-        ImGui::Text("FPS: %.1f", io.Framerate);
-        ImGui::Text("Frametime: %.3f ms", 1000.0f / io.Framerate);
-
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("AO prerequisites: post=%s, indirectLight=%s",
+                    settings.postProcessingEnabled ? "on" : "off",
+                    hasIbl ? "on" : "off");
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "-- Physics --");
+        ImGui::Checkbox("Show ImGui Demo", &showImGuiDemo_);
 
-        if (scene_ && scene_->GetPhysicsSystem()) {
-            auto*  physics        = scene_->GetPhysicsSystem();
-            float  physicsTime    = physics->GetLastPhysicsExecutionTime();
-            size_t totalBodies    = physics->GetActiveBodyCount();
-            size_t sleepingBodies = physics->GetSleepingBodyCount();
-            size_t activeBodies   = totalBodies - sleepingBodies;
-            bool   isIdle         = physics->IsIdle();
-
-            ImGui::Text("Simulation: %.3f ms", physicsTime);
-            ImGui::Text("Bodies: %zu total", totalBodies);
-            ImGui::Text("  Active: %zu", activeBodies);
-            ImGui::Text("  Sleeping: %zu", sleepingBodies);
-
-            if (isIdle) {
-                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Status: IDLE (low CPU)");
-            } else {
-                ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "Status: ACTIVE");
+        if (ImGui::CollapsingHeader("Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
+            changed |= ImGui::ColorEdit4("Clear Color", settings.clearColor);
+            changed |= ImGui::Checkbox("Clear Target", &settings.clearEnabled);
+            changed |= ImGui::Checkbox("Discard Target", &settings.clearDiscard);
+            int frameInterval = static_cast<int>(settings.frameRateOptions.interval);
+            if (ImGui::SliderInt("Frame Interval", &frameInterval, 1, 4)) {
+                settings.frameRateOptions.interval = static_cast<uint8_t>(frameInterval);
+                changed = true;
             }
-
-            ImGui::Text("Threads: %zu", physics->GetThreadPoolSize());
+            int frameHistory = static_cast<int>(settings.frameRateOptions.history);
+            if (ImGui::SliderInt("Frame History", &frameHistory, 1, 31)) {
+                settings.frameRateOptions.history = static_cast<uint8_t>(frameHistory);
+                changed = true;
+            }
+            changed |= ImGui::SliderFloat("Headroom", &settings.frameRateOptions.headRoomRatio, 0.0f, 0.5f);
+            changed |= ImGui::SliderFloat("Scale Rate", &settings.frameRateOptions.scaleRate, 0.01f, 1.0f);
         }
 
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "-- Rendering --");
-        ImGui::Text("Visible: %u/%u", stats.VisibleObjects, stats.TotalObjects);
-        ImGui::Text("Draw Calls: %u", stats.DrawCalls);
-        ImGui::Text("Triangles: %u", stats.TriangleCount);
-        ImGui::Text("Bullets: %zu", bullets_.size());
+        if (ImGui::CollapsingHeader("View Core", ImGuiTreeNodeFlags_DefaultOpen)) {
+            changed |= ImGui::Checkbox("Post Processing", &settings.postProcessingEnabled);
+            changed |= ImGui::Checkbox("Shadowing", &settings.shadowingEnabled);
+            changed |= ImGui::Checkbox("Screen Space Refraction", &settings.screenSpaceRefractionEnabled);
+            changed |= ImGui::Checkbox("Invert Front-Face Winding", &settings.frontFaceWindingInverted);
+            changed |= ImGui::Checkbox("Frustum Culling", &settings.frustumCullingEnabled);
+            changed |= ImGui::Combo("Post AA", &settings.antiAliasing, kAaItems, IM_ARRAYSIZE(kAaItems));
+            changed |= ImGui::Combo("Dithering", &settings.dithering, kDitherItems, IM_ARRAYSIZE(kDitherItems));
+            changed |= ImGui::Combo("Shadow Type", &settings.shadowType, kShadowTypeItems, IM_ARRAYSIZE(kShadowTypeItems));
+            changed |= ImGui::Combo("HDR Buffer Quality", &settings.hdrQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems));
+        }
+
+        if (ImGui::CollapsingHeader("Dynamic Resolution")) {
+            changed |= ImGui::Checkbox("Enabled##dsr", &settings.dynamicResOptions.enabled);
+            changed |= ImGui::Checkbox("Homogeneous Scaling", &settings.dynamicResOptions.homogeneousScaling);
+            changed |= ImGui::SliderFloat2("Min Scale", &settings.dynamicResOptions.minScale[0], 0.25f, 1.0f);
+            changed |= ImGui::SliderFloat2("Max Scale", &settings.dynamicResOptions.maxScale[0], 0.5f, 2.0f);
+            changed |= ImGui::SliderFloat("Sharpness##dsr", &settings.dynamicResOptions.sharpness, 0.0f, 1.0f);
+            int quality = static_cast<int>(settings.dynamicResOptions.quality);
+            if (ImGui::Combo("Upscale Quality", &quality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
+                settings.dynamicResOptions.quality = static_cast<filament::QualityLevel>(quality);
+                changed = true;
+            }
+        }
+
+        if (ImGui::CollapsingHeader("MSAA / TAA")) {
+            changed |= ImGui::Checkbox("MSAA Enabled", &settings.msaaOptions.enabled);
+            int msaaSamples = static_cast<int>(settings.msaaOptions.sampleCount);
+            if (ImGui::SliderInt("MSAA Samples", &msaaSamples, 1, 8)) {
+                settings.msaaOptions.sampleCount = static_cast<uint8_t>(msaaSamples);
+                changed = true;
+            }
+            changed |= ImGui::Checkbox("MSAA Custom Resolve", &settings.msaaOptions.customResolve);
+
+            changed |= ImGui::Checkbox("TAA Enabled", &settings.taaOptions.enabled);
+            changed |= ImGui::SliderFloat("TAA Feedback", &settings.taaOptions.feedback, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("TAA Sharpness", &settings.taaOptions.sharpness, 0.0f, 2.0f);
+            changed |= ImGui::SliderFloat("TAA Upscaling", &settings.taaOptions.upscaling, 1.0f, 2.0f);
+            changed |= ImGui::Checkbox("TAA Prevent Flickering", &settings.taaOptions.preventFlickering);
+        }
+
+        if (ImGui::CollapsingHeader("Ambient Occlusion / SSR")) {
+            changed |= ImGui::Checkbox("SSAO Enabled", &settings.aoOptions.enabled);
+            int aoType = static_cast<int>(settings.aoOptions.aoType);
+            if (ImGui::Combo("AO Type", &aoType, kAoTypeItems, IM_ARRAYSIZE(kAoTypeItems))) {
+                settings.aoOptions.aoType = static_cast<filament::AmbientOcclusionOptions::AmbientOcclusionType>(aoType);
+                changed = true;
+            }
+            changed |= ImGui::SliderFloat("AO Radius", &settings.aoOptions.radius, 0.05f, 5.0f);
+            changed |= ImGui::SliderFloat("AO Power", &settings.aoOptions.power, 0.1f, 5.0f);
+            changed |= ImGui::SliderFloat("AO Intensity", &settings.aoOptions.intensity, 0.0f, 5.0f);
+            int aoQuality = static_cast<int>(settings.aoOptions.quality);
+            if (ImGui::Combo("AO Quality", &aoQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
+                settings.aoOptions.quality = static_cast<filament::QualityLevel>(aoQuality);
+                changed = true;
+            }
+
+            changed |= ImGui::Checkbox("SSR Enabled", &settings.ssrOptions.enabled);
+            changed |= ImGui::SliderFloat("SSR Thickness", &settings.ssrOptions.thickness, 0.01f, 2.0f);
+            changed |= ImGui::SliderFloat("SSR Bias", &settings.ssrOptions.bias, 0.0f, 0.2f);
+            changed |= ImGui::SliderFloat("SSR Max Distance", &settings.ssrOptions.maxDistance, 0.1f, 25.0f);
+            changed |= ImGui::SliderFloat("SSR Stride", &settings.ssrOptions.stride, 0.5f, 8.0f);
+            changed |= ImGui::Checkbox("Guard Band", &settings.guardBandOptions.enabled);
+        }
+
+        if (ImGui::CollapsingHeader("Bloom / Fog / Vignette")) {
+            changed |= ImGui::Checkbox("Bloom Enabled", &settings.bloomOptions.enabled);
+            changed |= ImGui::SliderFloat("Bloom Strength", &settings.bloomOptions.strength, 0.0f, 1.0f);
+            int bloomLevels = static_cast<int>(settings.bloomOptions.levels);
+            if (ImGui::SliderInt("Bloom Levels", &bloomLevels, 1, 11)) {
+                settings.bloomOptions.levels = static_cast<uint8_t>(bloomLevels);
+                changed = true;
+            }
+            changed |= ImGui::SliderFloat("Bloom Highlight", &settings.bloomOptions.highlight, 10.0f, 3000.0f);
+            int bloomQuality = static_cast<int>(settings.bloomOptions.quality);
+            if (ImGui::Combo("Bloom Quality", &bloomQuality, kQualityItems, IM_ARRAYSIZE(kQualityItems))) {
+                settings.bloomOptions.quality = static_cast<filament::QualityLevel>(bloomQuality);
+                changed = true;
+            }
+
+            changed |= ImGui::Checkbox("Fog Enabled", &settings.fogOptions.enabled);
+            changed |= ImGui::SliderFloat("Fog Distance", &settings.fogOptions.distance, 0.0f, 200.0f);
+            changed |= ImGui::SliderFloat("Fog Density", &settings.fogOptions.density, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Fog Height", &settings.fogOptions.height, -50.0f, 50.0f);
+            changed |= ImGui::SliderFloat("Fog Height Falloff", &settings.fogOptions.heightFalloff, 0.0f, 4.0f);
+            changed |= ImGui::ColorEdit3("Fog Color", &settings.fogOptions.color[0]);
+
+            changed |= ImGui::Checkbox("Vignette Enabled", &settings.vignetteOptions.enabled);
+            changed |= ImGui::SliderFloat("Vignette Midpoint", &settings.vignetteOptions.midPoint, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Vignette Roundness", &settings.vignetteOptions.roundness, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Vignette Feather", &settings.vignetteOptions.feather, 0.0f, 1.0f);
+        }
+
+        if (ImGui::CollapsingHeader("Shadow Filters")) {
+            int anisotropy = static_cast<int>(settings.vsmShadowOptions.anisotropy);
+            if (ImGui::SliderInt("VSM Anisotropy", &anisotropy, 0, 4)) {
+                settings.vsmShadowOptions.anisotropy = static_cast<uint8_t>(anisotropy);
+                changed = true;
+            }
+            changed |= ImGui::Checkbox("VSM Mipmapping", &settings.vsmShadowOptions.mipmapping);
+            int vsmMsaa = static_cast<int>(settings.vsmShadowOptions.msaaSamples);
+            if (ImGui::SliderInt("VSM MSAA Samples", &vsmMsaa, 1, 8)) {
+                settings.vsmShadowOptions.msaaSamples = static_cast<uint8_t>(vsmMsaa);
+                changed = true;
+            }
+            changed |= ImGui::Checkbox("VSM High Precision", &settings.vsmShadowOptions.highPrecision);
+            changed |= ImGui::SliderFloat("VSM Min Variance", &settings.vsmShadowOptions.minVarianceScale, 0.01f, 2.0f);
+            changed |= ImGui::SliderFloat("VSM Light Bleed Reduction", &settings.vsmShadowOptions.lightBleedReduction, 0.0f, 1.0f);
+            changed |= ImGui::SliderFloat("Soft Penumbra Scale", &settings.softShadowOptions.penumbraScale, 0.1f, 3.0f);
+            changed |= ImGui::SliderFloat("Soft Penumbra Ratio", &settings.softShadowOptions.penumbraRatioScale, 1.0f, 4.0f);
+        }
     }
     ImGui::End();
+
+    if (changed) {
+        settingsSystem->MarkDirty();
+        settingsSystem->Apply();
+    }
 }

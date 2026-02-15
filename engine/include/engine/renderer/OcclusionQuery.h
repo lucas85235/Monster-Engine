@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstdint>
-#include <glm.hpp>
 #include <memory>
 #include <vector>
+#include <glm.hpp>
 
 namespace se {
 
@@ -16,7 +16,7 @@ class IOcclusionQuery {
     virtual ~IOcclusionQuery() = default;
 
     virtual void Begin() = 0;
-    virtual void End()   = 0;
+    virtual void End() = 0;
 
     // Check if result is available (non-blocking)
     virtual bool IsResultAvailable() const = 0;
@@ -50,12 +50,12 @@ class OcclusionQueryPool {
     // Release all queries
     virtual void ReleaseAll() = 0;
 
-    virtual uint32_t GetPoolSize() const    = 0;
+    virtual uint32_t GetPoolSize() const = 0;
     virtual uint32_t GetActiveCount() const = 0;
 };
 
 // Factory functions
-std::unique_ptr<IOcclusionQuery>    CreateOcclusionQuery();
+std::unique_ptr<IOcclusionQuery> CreateOcclusionQuery();
 std::unique_ptr<OcclusionQueryPool> CreateOcclusionQueryPool(uint32_t initialSize = 64);
 
 }  // namespace se

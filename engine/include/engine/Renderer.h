@@ -28,16 +28,10 @@ class Renderer {
     void EndScene();
 
     // Access to SceneRenderer instance
-    SceneRenderer& GetSceneRenderer() {
-        return sceneRenderer_;
-    }
+    SceneRenderer& GetSceneRenderer() { return sceneRenderer_; }
 
-    RenderStats GetStats() const {
-        return sceneRenderer_.GetStats();
-    }
-    void ResetStats() {
-        sceneRenderer_.ResetStats();
-    }
+    RenderStats GetStats() const { return sceneRenderer_.GetStats(); }
+    void ResetStats() { sceneRenderer_.ResetStats(); }
 
     // Disable copy/move
     Renderer(const Renderer&)            = delete;
@@ -45,7 +39,7 @@ class Renderer {
 
    private:
     SceneRenderer sceneRenderer_;
-    bool          initialized_ = false;
+    bool initialized_ = false;
 };
 
 }  // namespace se

@@ -47,25 +47,29 @@ void AppLayer::OnAttach() {
 
     // Setup Input Bindings
     auto& input = InputManager::Get();
-    input.BindAxis("MoveForward", Key::W, 1.0f);
-    input.BindAxis("MoveForward", Key::S, -1.0f);
-    input.BindAxis("MoveRight", Key::D, 1.0f);
-    input.BindAxis("MoveRight", Key::A, -1.0f);
-    input.BindAxis("MoveUp", Key::Space, 1.0f);
-    input.BindAxis("MoveUp", Key::LeftControl, -1.0f);
-    input.BindAxis("LookX", Key::MouseX, 1.0f);
-    input.BindAxis("LookY", Key::MouseY, -1.0f);  // Inverted Y
-    input.BindAction("ToggleCamera", Key::Tab);
-    input.BindAction("ToggleCursor", Key::LeftAlt);
+    input.CreateActionMap(inputMapName_);
+    input.PushContext(inputMapName_);
+    input.BindAxis(inputMapName_, "MoveForward", Key::W, 1.0f);
+    input.BindAxis(inputMapName_, "MoveForward", Key::S, -1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::D, 1.0f);
+    input.BindAxis(inputMapName_, "MoveRight", Key::A, -1.0f);
+    input.BindAxis(inputMapName_, "MoveUp", Key::Space, 1.0f);
+    input.BindAxis(inputMapName_, "MoveUp", Key::LeftControl, -1.0f);
+    input.BindAxis(inputMapName_, "LookX", Key::MouseX, 1.0f);
+    input.BindAxis(inputMapName_, "LookY", Key::MouseY, -1.0f);  // Inverted Y
+    input.BindAction(inputMapName_, "ToggleCamera", Key::Tab);
+    input.BindAction(inputMapName_, "ToggleCursor", Key::LeftAlt);
 
-    // InputHandler::setCursorModeFromString(window, "normal");
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  // Default to captured for camera
+    input.SetCursorMode(CursorMode::Locked);  // Default to captured for camera
 
     RenderCommand::SetClearColor({0.3f, 0.3f, 0.3f, 1.0f});
 }
 
 void AppLayer::OnDetach() {
     SE_LOG_INFO("AppLayer detached");
+    auto& input = InputManager::Get();
+    input.PopContext(inputMapName_);
+    input.RemoveActionMap(inputMapName_);
     scene_.reset();
 }
 

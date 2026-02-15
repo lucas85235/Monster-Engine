@@ -1,0 +1,108 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+#include "Engine.h"
+#include "engine/Layer.h"
+#include "engine/input/InputManager.h"
+#include "engine/ui/native/widgets/NativeUiPrimitives.h"
+
+namespace se {
+
+class DeveloperConsoleLayer : public Layer {
+   public:
+    DeveloperConsoleLayer();
+    ~DeveloperConsoleLayer() override = default;
+
+    void OnAttach() override;
+    void OnDetach() override;
+    void OnUpdate(float ts) override;
+    void OnRender() override;
+
+   private:
+    using UiRect = ui::widgets::Rect;
+
+    void InitializeLayoutIfNeeded(float viewportWidth, float viewportHeight);
+    void HandleMouseInteraction(float viewportWidth, float viewportHeight, bool toggledThisFrame);
+    void HandleKeyboardAndTextInput(bool toggledThisFrame);
+    void UpdateScrollTracking();
+    void ClampWindowToViewport(float viewportWidth, float viewportHeight);
+
+    void ExecuteCurrentInput();
+    void HandleAutoComplete();
+    void HandleHistoryUp();
+    void HandleHistoryDown();
+    void SyncCursorCaptureState();
+    void ClearOutputSelection();
+    bool HasOutputSelection() const;
+    bool GetOutputCursorFromMouse(float mx, float my, int* outLine, size_t* outColumn,
+                                  bool clampToBounds) const;
+    std::string BuildSelectedOutputText() const;
+    void CopyToClipboard(const std::string& text);
+    bool PasteFromClipboard();
+    void InvalidateVisual();
+
+    UiRect GetWindowRect() const;
+    UiRect GetHeaderRect() const;
+    UiRect GetClearButtonRect() const;
+    UiRect GetCloseButtonRect() const;
+    UiRect GetOutputRect() const;
+    UiRect GetInputRect() const;
+    UiRect GetSendButtonRect() const;
+    UiRect GetResizeHandleRect() const;
+
+    std::string inputBuffer_;
+    std::string statusHint_;
+    int         historyIndex_      = -1;
+    float       caretBlinkSeconds_ = 0.0f;
+    bool        caretVisible_      = true;
+    size_t      caretIndex_        = 0;
+    bool        inputFocused_      = true;
+    bool        layoutInitialized_ = false;
+
+    // Window geometry
+    float windowX_ = 40.0f;
+    float windowY_ = 40.0f;
+    float windowWidth_ = 980.0f;
+    float windowHeight_ = 520.0f;
+    float minWindowWidth_ = 520.0f;
+    float minWindowHeight_ = 260.0f;
+
+    // Drag / resize state
+    bool  draggingWindow_ = false;
+    bool  resizingWindow_ = false;
+    float dragOffsetX_ = 0.0f;
+    float dragOffsetY_ = 0.0f;
+    float resizeStartMouseX_ = 0.0f;
+    float resizeStartMouseY_ = 0.0f;
+    float resizeStartWidth_  = 0.0f;
+    float resizeStartHeight_ = 0.0f;
+
+    // Log scroll state (0 = bottom)
+    int      scrollOffsetLines_    = 0;
+    uint64_t lastOutputVersion_    = 0;
+    size_t   cachedOutputLineCount_ = 0;
+    bool     stickyToBottom_       = true;
+    bool     outputSelecting_      = false;
+    bool     outputSelectionActive_ = false;
+    int      selectionAnchorLine_  = -1;
+    size_t   selectionAnchorColumn_ = 0;
+    int      selectionCaretLine_   = -1;
+    size_t   selectionCaretColumn_ = 0;
+
+    bool        cursorOverridden_  = false;
+    CursorMode  previousCursorMode_ = CursorMode::Normal;
+
+    uint64_t visualRevision_   = 1;
+    uint64_t renderedRevision_ = 0;
+
+    bool lastClearHover_  = false;
+    bool lastCloseHover_  = false;
+    bool lastSendHover_   = false;
+    bool lastInputHover_  = false;
+    bool lastResizeHover_ = false;
+};
+
+}  // namespace se

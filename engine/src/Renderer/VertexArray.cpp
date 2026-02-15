@@ -66,27 +66,27 @@ void VertexArray::AddVertexBuffer(const std::shared_ptr<VertexBuffer>& vertexBuf
 }
 
 void VertexArray::AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& instanceBuffer,
-                                    const BufferLayout&                     layout) {
+                                     const BufferLayout& layout) {
     glBindVertexArray(rendererId_);
     instanceBuffer->Bind();
 
     for (const auto& element : layout) {
+        // Mat4 requires 4 separate vec4 attribute slots
         if (element.Type == ShaderDataType::Mat4) {
             for (int i = 0; i < 4; i++) {
                 glEnableVertexAttribArray(vertexBufferIndex_);
-                glVertexAttribPointer(
-                    vertexBufferIndex_, 4, GL_FLOAT, GL_FALSE, layout.GetStride(),
-                    (const void*)(intptr_t)(element.Offset + sizeof(float) * 4 * i));
+                glVertexAttribPointer(vertexBufferIndex_, 4, GL_FLOAT, GL_FALSE, layout.GetStride(),
+                                      (const void*)(intptr_t)(element.Offset + sizeof(float) * 4 * i));
                 glVertexAttribDivisor(vertexBufferIndex_, element.InstanceDivisor);
                 vertexBufferIndex_++;
             }
         }
+        // Mat3 requires 3 separate vec3 attribute slots
         else if (element.Type == ShaderDataType::Mat3) {
             for (int i = 0; i < 3; i++) {
                 glEnableVertexAttribArray(vertexBufferIndex_);
-                glVertexAttribPointer(
-                    vertexBufferIndex_, 3, GL_FLOAT, GL_FALSE, layout.GetStride(),
-                    (const void*)(intptr_t)(element.Offset + sizeof(float) * 3 * i));
+                glVertexAttribPointer(vertexBufferIndex_, 3, GL_FLOAT, GL_FALSE, layout.GetStride(),
+                                      (const void*)(intptr_t)(element.Offset + sizeof(float) * 3 * i));
                 glVertexAttribDivisor(vertexBufferIndex_, element.InstanceDivisor);
                 vertexBufferIndex_++;
             }
@@ -102,6 +102,7 @@ void VertexArray::AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& inst
     }
 
     instanceBuffer_ = instanceBuffer;
+    SE_LOG_INFO("Added instance buffer to VAO (attrib index now at {})", vertexBufferIndex_);
 }
 
 void VertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer) {

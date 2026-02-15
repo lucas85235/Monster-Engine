@@ -57,4 +57,6 @@ class AppLayer : public Layer {
     float yaw_ = 0.0f;
 
     bool camera_active_ = true;
+
+    const std::string inputMapName_ = "sandbox.app";
 };

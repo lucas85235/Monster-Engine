@@ -7,8 +7,8 @@ namespace se {
 
 InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_t maxInstances)
     : maxInstances_(maxInstances) {
-    instanceBuffer_ =
-        CreateInstanceBuffer(InstanceData::GetStride(), maxInstances, InstanceBufferUsage::Dynamic);
+
+    instanceBuffer_ = CreateInstanceBuffer(InstanceData::GetStride(), maxInstances, InstanceBufferUsage::Dynamic);
     if (!instanceBuffer_) {
         SE_LOG_ERROR("Failed to create instance buffer for InstancedMesh");
         return;
@@ -17,17 +17,19 @@ InstancedMesh::InstancedMesh(const std::shared_ptr<VertexArray>& baseVA, uint32_
     instancedVA_ = std::make_shared<VertexArray>();
 
     // Copy vertex buffers from base VA
-    for (const auto& vb : baseVA->GetVertexBuffers()) { 
-        instancedVA_->AddVertexBuffer(vb); 
+    for (const auto& vb : baseVA->GetVertexBuffers()) {
+        instancedVA_->AddVertexBuffer(vb);
     }
 
     // Set index buffer from base VA
-    if (baseVA->GetIndexBuffer()) { 
-        instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer()); 
+    if (baseVA->GetIndexBuffer()) {
+        instancedVA_->SetIndexBuffer(baseVA->GetIndexBuffer());
     }
 
     // Add instance buffer with layout
     instancedVA_->AddInstanceBuffer(instanceBuffer_, InstanceData::GetLayout());
+
+    SE_LOG_INFO("Created InstancedMesh with maxInstances={}", maxInstances);
 }
 
 void InstancedMesh::SetInstances(const std::vector<InstanceData>& instances) {
@@ -52,8 +54,7 @@ void InstancedMesh::UpdateInstance(uint32_t index, const InstanceData& data) {
         return;
     }
 
-    instanceBuffer_->SetSubData(&data, index * InstanceData::GetStride(),
-                                InstanceData::GetStride());
+    instanceBuffer_->SetSubData(&data, index * InstanceData::GetStride(), InstanceData::GetStride());
 }
 
 void InstancedMesh::Draw(const std::shared_ptr<Material>& material) {

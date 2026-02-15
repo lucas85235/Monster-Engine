@@ -7,7 +7,7 @@
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/events/EventBus.h"
-#include "engine/physics/BoxCollider.h"
+#include "engine/physics/Collider.h"
 #include "engine/physics/RigidbodyComponent.h"
 #include "engine/resources/MeshManager.h"
 
@@ -38,7 +38,7 @@ void PhysicsSampleLayer::OnAttach() {
         floor.AddComponent<BoxCollider>(collider);
 
         RigidbodyData data = RigidbodyData{.mass = 0.0f};
-        floor.AddComponent<RigidbodyComponent>(data, floor);
+        floor.AddComponent<RigidbodyComponent>(data);
     }
 
     // Dynamic Box
@@ -55,7 +55,7 @@ void PhysicsSampleLayer::OnAttach() {
         box.AddComponent<BoxCollider>(collider);
 
         RigidbodyData data = RigidbodyData{.mass = 1.0f};
-        box.AddComponent<RigidbodyComponent>(data, box);
+        box.AddComponent<RigidbodyComponent>(data);
     }
 
     // Dynamic Sphere
@@ -72,7 +72,7 @@ void PhysicsSampleLayer::OnAttach() {
         sphere.AddComponent<SphereCollider>(collider);
 
         RigidbodyData data = RigidbodyData{.mass = 1.0f};
-        sphere.AddComponent<RigidbodyComponent>(data, sphere);
+        sphere.AddComponent<RigidbodyComponent>(data);
     }
 
     // Dynamic Capsule
@@ -90,7 +90,7 @@ void PhysicsSampleLayer::OnAttach() {
         capsule.AddComponent<CapsuleCollider>(collider);
 
         RigidbodyData data = RigidbodyData{.mass = 1.0f};
-        capsule.AddComponent<RigidbodyComponent>(data, capsule);
+        capsule.AddComponent<RigidbodyComponent>(data);
     }
 
     // Directional Light

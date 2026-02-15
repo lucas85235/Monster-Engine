@@ -1,7 +1,5 @@
 #include <engine/Shader.h>
 
-#include <engine/ShaderPreprocessor.h>
-
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -100,55 +98,28 @@ void Shader::unbind() const {
 }
 
 void Shader::setFloat(const char* name, float value) const {
-    int loc = getUniformLocation(name);
+    int loc = uniformLocation(name);
     if (loc >= 0) glUniform1f(loc, value);
 }
 
 void Shader::setInt(const char* name, int value) const {
-    int loc = getUniformLocation(name);
+    int loc = uniformLocation(name);
     if (loc >= 0) glUniform1i(loc, value);
 }
 
-void Shader::setVec2(const char* name, const glm::vec2& value) const {
-    int loc = getUniformLocation(name);
-    if (loc >= 0) glUniform2fv(loc, 1, glm::value_ptr(value));
-}
-
 void Shader::setVec3(const char* name, const Vector3& value) const {
-    int loc = getUniformLocation(name);
+    int loc = uniformLocation(name);
     if (loc >= 0) glUniform3fv(loc, 1, glm::value_ptr(value));
 }
 
-void Shader::setVec3Array(const char* name, const Vector3* values, int count) const {
-    int loc = getUniformLocation(name);
-    if (loc >= 0) glUniform3fv(loc, count, glm::value_ptr(values[0]));
-}
-
 void Shader::setVec4(const char* name, const Vector4& value) const {
-    int loc = getUniformLocation(name);
+    int loc = uniformLocation(name);
     if (loc >= 0) glUniform4fv(loc, 1, glm::value_ptr(value));
 }
 
 void Shader::setMat4(const char* name, const Matrix4& value) const {
-    int loc = getUniformLocation(name);
+    int loc = uniformLocation(name);
     if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(value));
-}
-
-void Shader::setMat4ByLocation(int location, const Matrix4& value) const {
-    if (location >= 0) glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
-}
-
-int Shader::getUniformLocation(const char* name) const {
-    if (!program_) return -1;
-    
-    auto it = uniformLocationCache_.find(name);
-    if (it != uniformLocationCache_.end()) {
-        return it->second;
-    }
-    
-    int loc = glGetUniformLocation(program_, name);
-    uniformLocationCache_[name] = loc;
-    return loc;
 }
 
 unsigned int Shader::compileStage(unsigned int type, const char* src) {
@@ -164,8 +135,7 @@ unsigned int Shader::compileStage(unsigned int type, const char* src) {
         checkCompile(id, /*isProgram=*/false);
     } catch (const std::exception& e) {
         // include source with line numbers to help debugging
-        std::string msg = std::string(e.what()) + "\n---- Shader Source (" + stageName(type) +
-                          ") ----\n" + numberedSource(src);
+        std::string msg = std::string(e.what()) + "\n---- Shader Source (" + stageName(type) + ") ----\n" + numberedSource(src);
         // cleanup shader before rethrowing
         glDeleteShader(id);
         throw std::runtime_error(msg);
@@ -174,18 +144,21 @@ unsigned int Shader::compileStage(unsigned int type, const char* src) {
     return id;
 }
 
-std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath,
-                                                const std::filesystem::path& fragPath) {
-    // Use ShaderPreprocessor to handle #include directives
-    std::string vertexSource = ShaderPreprocessor::ProcessFile(vertPath);
-    std::string fragmentSource = ShaderPreprocessor::ProcessFile(fragPath);
+std::shared_ptr<Shader> Shader::CreateFromFiles(const std::filesystem::path& vertPath, const std::filesystem::path& fragPath) {
+    // Read files
+    std::ifstream vsFile(vertPath);
+    std::ifstream fsFile(fragPath);
 
-    if (vertexSource.empty()) {
-        throw std::runtime_error("Failed to load/process vertex shader: " + vertPath.string());
+    if (!vsFile.is_open() || !fsFile.is_open()) {
+        throw std::runtime_error("Failed to open shader files: " + vertPath.string() + ", " + fragPath.string());
     }
-    if (fragmentSource.empty()) {
-        throw std::runtime_error("Failed to load/process fragment shader: " + fragPath.string());
-    }
+
+    std::stringstream vsStream, fsStream;
+    vsStream << vsFile.rdbuf();
+    fsStream << fsFile.rdbuf();
+
+    std::string vertexSource   = vsStream.str();
+    std::string fragmentSource = fsStream.str();
 
     // Create and return shared_ptr
     return std::make_shared<Shader>(vertexSource, fragmentSource);

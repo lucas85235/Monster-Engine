@@ -18,8 +18,7 @@ class VertexArray {
     void Unbind() const;
 
     void AddVertexBuffer(const std::shared_ptr<VertexBuffer>& vertexBuffer);
-    void AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& instanceBuffer,
-                           const BufferLayout&                     layout);
+    void AddInstanceBuffer(const std::shared_ptr<IInstanceBuffer>& instanceBuffer, const BufferLayout& layout);
     void SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer);
 
     const std::vector<std::shared_ptr<VertexBuffer>>& GetVertexBuffers() const {
@@ -31,7 +30,6 @@ class VertexArray {
     const std::shared_ptr<IndexBuffer>& GetIndexBuffer() const {
         return indexBuffer_;
     }
-    uint32_t GetRendererId() const { return rendererId_; }
 
    private:
     uint32_t                                   rendererId_;

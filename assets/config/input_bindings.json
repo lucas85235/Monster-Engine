@@ -1,0 +1,178 @@
+{
+    "version": 2,
+    "contexts": [
+        "global",
+        "engine",
+        "engine.console",
+        "sandbox.third_person"
+    ],
+    "maps": [
+        {
+            "name": "engine",
+            "enabled": true,
+            "consumeLowerPriority": false,
+            "actions": [
+                {
+                    "name": "engine_toggle_console",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "GraveAccent",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "engine.console",
+            "enabled": false,
+            "consumeLowerPriority": true,
+            "actions": [
+                {
+                    "name": "engine_toggle_console",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "GraveAccent",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "global",
+            "enabled": true,
+            "consumeLowerPriority": false,
+            "actions": [
+                {
+                    "name": "noclip",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "K",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "sandbox.third_person",
+            "enabled": true,
+            "consumeLowerPriority": false,
+            "actions": [
+                {
+                    "name": "CameraRotateX",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "mouse_axis_x",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "CameraRotateY",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "mouse_axis_y",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "Grab",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "E",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "Jump",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "Space",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "MoveForward",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "W",
+                            "scale": 1.0
+                        },
+                        {
+                            "kind": "key",
+                            "key": "S",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "MoveRight",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "D",
+                            "scale": 1.0
+                        },
+                        {
+                            "kind": "key",
+                            "key": "A",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "ScrollWheel",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "mouse_scroll_y",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "Sprint",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "LeftShift",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "ToggleMouse",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "Tab",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

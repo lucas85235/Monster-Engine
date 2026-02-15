@@ -1,6 +1,5 @@
 #pragma once
 
-#include <glm.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,19 +24,31 @@ class Model {
 
     void AddSubMesh(SubMesh submesh);
 
-    const std::string& GetName() const { return name_; }
-    const std::vector<SubMesh>& GetSubMeshes() const { return subMeshes_; }
-    size_t GetSubMeshCount() const { return subMeshes_.size(); }
-    
-    const BoundingBox& GetBoundingBox() const { return bounds_; }
-    void SetBoundingBox(const BoundingBox& bounds) { bounds_ = bounds; }
+    const std::string& GetName() const {
+        return name_;
+    }
+    const std::vector<SubMesh>& GetSubMeshes() const {
+        return subMeshes_;
+    }
+    size_t GetSubMeshCount() const {
+        return subMeshes_.size();
+    }
 
-    bool IsValid() const { return !subMeshes_.empty(); }
+    const BoundingBox& GetBoundingBox() const {
+        return bounds_;
+    }
+    void SetBoundingBox(const BoundingBox& bounds) {
+        bounds_ = bounds;
+    }
+
+    bool IsValid() const {
+        return !subMeshes_.empty();
+    }
 
    private:
-    std::string name_;
+    std::string          name_;
     std::vector<SubMesh> subMeshes_;
-    BoundingBox bounds_;
+    BoundingBox          bounds_;
 };
 
 }  // namespace se

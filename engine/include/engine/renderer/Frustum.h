@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <glm.hpp>
+#include <array>
 
 namespace se {
 
@@ -60,12 +60,8 @@ struct AABB {
     AABB() = default;
     AABB(const Vector3& minPt, const Vector3& maxPt) : min(minPt), max(maxPt) {}
 
-    Vector3 GetCenter() const {
-        return (min + max) * 0.5f;
-    }
-    Vector3 GetHalfExtents() const {
-        return (max - min) * 0.5f;
-    }
+    Vector3 GetCenter() const { return (min + max) * 0.5f; }
+    Vector3 GetHalfExtents() const { return (max - min) * 0.5f; }
 
     bool IsInsideFrustum(const Frustum& frustum) const {
         return frustum.IsBoxInside(min, max);

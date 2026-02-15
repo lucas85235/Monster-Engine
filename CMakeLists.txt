@@ -42,13 +42,29 @@ configure_file(
 message(STATUS "SimpleEngine v${VERSION_STRING} (${GIT_HASH}) - ${BUILD_TYPE}")
 add_subdirectory(libs/mmath)
 add_subdirectory(engine)
-#add_subdirectory(apps/sandbox)
-add_subdirectory(apps/third_person_game)
-add_subdirectory(apps/ssgi_test)
-add_subdirectory(apps/animation_test)
-add_subdirectory(tools/map_editor)
-add_subdirectory(tools/ui_editor)
-add_subdirectory(tools/animation_editor)
+option(SE_BUILD_APP_SANDBOX "Build sandbox app" ON)
+option(SE_BUILD_APP_ANIMATION_TEST "Build animation_test app" OFF)
 
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        PROPERTY VS_STARTUP_PROJECT sandbox)
+if(SE_BUILD_APP_SANDBOX)
+    add_subdirectory(apps/sandbox)
+endif()
+# Temporarily disabled — need Filament rendering pipeline reimplemented
+#add_subdirectory(apps/third_person_game)
+#add_subdirectory(apps/ssgi_test)
+if(SE_BUILD_APP_ANIMATION_TEST)
+    add_subdirectory(apps/animation_test)
+endif()
+#add_subdirectory(tools/map_editor)
+#add_subdirectory(tools/ui_editor)
+#add_subdirectory(tools/animation_editor)
+
+if(SE_BUILD_APP_SANDBOX)
+    set(SE_VS_STARTUP_PROJECT sandbox)
+elseif(SE_BUILD_APP_ANIMATION_TEST)
+    set(SE_VS_STARTUP_PROJECT animation_test)
+endif()
+
+if(DEFINED SE_VS_STARTUP_PROJECT)
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            PROPERTY VS_STARTUP_PROJECT ${SE_VS_STARTUP_PROJECT})
+endif()

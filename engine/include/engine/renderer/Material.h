@@ -27,9 +27,9 @@ class Material {
     }
 
    private:
-    std::shared_ptr<Shader>                  shader_;
-    std::unordered_map<std::string, float>   floatUniforms_;
-    std::unordered_map<std::string, int>     intUniforms_;
+    std::shared_ptr<Shader>                    shader_;
+    std::unordered_map<std::string, float>     floatUniforms_;
+    std::unordered_map<std::string, int>       intUniforms_;
     std::unordered_map<std::string, Vector3> vec3Uniforms_;
     std::unordered_map<std::string, Vector4> vec4Uniforms_;
     std::unordered_map<std::string, Matrix4> mat4Uniforms_;
