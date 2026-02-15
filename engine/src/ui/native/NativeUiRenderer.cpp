@@ -337,9 +337,13 @@ void NativeUiRenderer::CreateResources() {
     if (font_ && font_->LegacySize > 0.0f) {
         font_base_size_ = font_->LegacySize;
     }
+
+    // Build the atlas first so the base layout is established.
+    font_atlas_->Build();
+
+    // Warm-up the ASCII range AFTER Build() so on-demand glyph baking
+    // adds glyphs into the already-built atlas layout.
     if (font_) {
-        // Warm-up the ASCII range used by the native console so glyphs are baked
-        // before we upload the atlas to Filament.
         if (ImFontBaked* baked = font_->GetFontBaked(font_base_size_)) {
             for (ImWchar cp = 32; cp <= 126; ++cp) {
                 (void)baked->FindGlyph(cp);
@@ -347,8 +351,8 @@ void NativeUiRenderer::CreateResources() {
             (void)baked->FindGlyph('?');
         }
     }
-    font_atlas_->Build();
 
+    // Retrieve final pixel data after warmup may have expanded the atlas.
     unsigned char* atlasPixels = nullptr;
     int atlasWidth             = 0;
     int atlasHeight            = 0;
