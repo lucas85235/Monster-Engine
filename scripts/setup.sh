@@ -110,6 +110,16 @@ esac
 
 # ─── Download Filament SDK ────────────────────────────────────
 
+is_filament_ready() {
+    [ -f "$FILAMENT_DIR/include/filament/Engine.h" ] || return 1
+
+    if [ -f "$FILAMENT_DIR/lib/x86_64/libfilament.a" ] || [ -f "$FILAMENT_DIR/lib/arm64/libfilament.a" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
 download_filament() {
     # Determina o asset correto baseado na plataforma
     case "$OS" in
@@ -152,7 +162,7 @@ download_filament() {
 }
 
 # Verifica se o Filament já está instalado
-if [ -d "$FILAMENT_DIR/lib" ] && [ -d "$FILAMENT_DIR/include" ]; then
+if is_filament_ready; then
     echo ""
     echo ">>> Filament SDK already present at $FILAMENT_DIR"
     read -p "    Re-download? [y/N] " -n 1 -r
