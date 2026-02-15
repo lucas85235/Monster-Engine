@@ -2,8 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <iostream>
+#include <string_view>
+#include <vector>
 
+#include <GLFW/glfw3.h>
+
+#include "engine/Application.h"
 #include "engine/console/ConsoleSystem.h"
 #include "engine/input/InputManager.h"
 #include "engine/ui/native/NativeUiRenderer.h"
@@ -15,6 +21,8 @@ namespace {
 float ClampFloat(float value, float minValue, float maxValue) {
     return std::max(minValue, std::min(value, maxValue));
 }
+
+constexpr float kOutputTextScale = 0.95f;
 
 std::string TruncateWithEllipsis(ui::NativeUiRenderer& renderer, const std::string& source,
                                  float maxWidth, float scale) {
@@ -47,6 +55,77 @@ std::string TruncateWithEllipsis(ui::NativeUiRenderer& renderer, const std::stri
     return source.substr(0, lo) + kEllipsis;
 }
 
+struct OutputSnapshot {
+    int                      totalLines    = 0;
+    int                      visibleLines  = 0;
+    int                      maxOffset     = 0;
+    int                      clampedOffset = 0;
+    int                      startLine     = 0;
+    float                    maxTextWidth  = 0.0f;
+    float                    lineHeight    = 0.0f;
+    float                    textX         = 0.0f;
+    float                    firstLineY    = 0.0f;
+    std::vector<std::string> renderedLines;
+};
+
+OutputSnapshot BuildOutputSnapshot(ConsoleSystem& console, ui::NativeUiRenderer& renderer, float outputX,
+                                   float outputY, float outputW, float outputH, int scrollOffsetLines) {
+    OutputSnapshot snapshot{};
+    snapshot.lineHeight = std::max(14.0f, renderer.GetLineHeight(kOutputTextScale) + 3.0f);
+    snapshot.visibleLines = std::max(1, static_cast<int>((outputH - 12.0f) / snapshot.lineHeight));
+
+    snapshot.totalLines    = static_cast<int>(console.GetOutputLineCount());
+    snapshot.maxOffset     = std::max(0, snapshot.totalLines - snapshot.visibleLines);
+    snapshot.clampedOffset = std::clamp(scrollOffsetLines, 0, snapshot.maxOffset);
+
+    snapshot.startLine = std::max(0, snapshot.totalLines - snapshot.visibleLines - snapshot.clampedOffset);
+    const int lineCount =
+        std::max(0, std::min(snapshot.visibleLines, snapshot.totalLines - snapshot.startLine));
+    const auto lines = console.GetOutputLinesRangeSnapshot(static_cast<size_t>(snapshot.startLine),
+                                                           static_cast<size_t>(lineCount));
+
+    snapshot.maxTextWidth = std::max(0.0f, outputW - 14.0f);
+    snapshot.textX        = std::round(outputX + 8.0f);
+    snapshot.firstLineY   = std::round(outputY + 6.0f);
+    snapshot.renderedLines.reserve(lines.size());
+    for (const std::string& sourceLine : lines) {
+        snapshot.renderedLines.push_back(
+            TruncateWithEllipsis(renderer, sourceLine, snapshot.maxTextWidth, kOutputTextScale));
+    }
+    return snapshot;
+}
+
+float MeasureTextPrefixWidth(ui::NativeUiRenderer& renderer, const std::string& text, size_t column,
+                             float scale) {
+    const size_t clampedColumn = std::min(column, text.size());
+    if (clampedColumn == 0) {
+        return 0.0f;
+    }
+    return renderer.MeasureTextWidth(std::string_view(text.data(), clampedColumn), scale);
+}
+
+bool IsControlPressed(const InputManager& input) {
+    return input.IsKeyDown(Key::LeftControl) || input.IsKeyDown(Key::RightControl);
+}
+
+void NormalizeSelection(int lineA, size_t colA, int lineB, size_t colB, int* outStartLine,
+                        size_t* outStartCol, int* outEndLine, size_t* outEndCol) {
+    if (!outStartLine || !outStartCol || !outEndLine || !outEndCol) return;
+
+    const bool aComesFirst = (lineA < lineB) || (lineA == lineB && colA <= colB);
+    if (aComesFirst) {
+        *outStartLine = lineA;
+        *outStartCol  = colA;
+        *outEndLine   = lineB;
+        *outEndCol    = colB;
+    } else {
+        *outStartLine = lineB;
+        *outStartCol  = colB;
+        *outEndLine   = lineA;
+        *outEndCol    = colA;
+    }
+}
+
 }  // namespace
 
 DeveloperConsoleLayer::DeveloperConsoleLayer() : Layer("DeveloperConsoleLayer") {}
@@ -57,6 +136,7 @@ void DeveloperConsoleLayer::OnAttach() {
     historyIndex_        = -1;
     caretBlinkSeconds_   = 0.0f;
     caretVisible_        = true;
+    caretIndex_          = 0;
     inputFocused_        = true;
     draggingWindow_      = false;
     resizingWindow_      = false;
@@ -64,6 +144,12 @@ void DeveloperConsoleLayer::OnAttach() {
     lastOutputVersion_   = ConsoleSystem::Get().GetOutputVersion();
     cachedOutputLineCount_ = ConsoleSystem::Get().GetOutputLineCount();
     stickyToBottom_      = true;
+    outputSelecting_      = false;
+    outputSelectionActive_ = false;
+    selectionAnchorLine_  = -1;
+    selectionAnchorColumn_ = 0;
+    selectionCaretLine_   = -1;
+    selectionCaretColumn_ = 0;
     visualRevision_      = 1;
     renderedRevision_    = 0;
     lastClearHover_      = false;
@@ -89,12 +175,14 @@ void DeveloperConsoleLayer::OnUpdate(float ts) {
                                   input.IsKeyJustPressed(Key::F1);
     if (toggledThisFrame) {
         console.ToggleVisible();
+        ClearOutputSelection();
         InvalidateVisual();
         if (console.IsVisible()) {
             inputFocused_      = true;
             stickyToBottom_    = true;
             scrollOffsetLines_ = 0;
             historyIndex_      = -1;
+            caretIndex_        = inputBuffer_.size();
             statusHint_.clear();
             InvalidateVisual();
         }
@@ -105,6 +193,7 @@ void DeveloperConsoleLayer::OnUpdate(float ts) {
     if (!console.IsVisible()) {
         draggingWindow_ = false;
         resizingWindow_ = false;
+        outputSelecting_ = false;
         return;
     }
 
@@ -242,29 +331,71 @@ void DeveloperConsoleLayer::OnRender() {
     nativeUi.DrawFilledRect(output.x, output.y, output.w, output.h, outputBg);
     nativeUi.DrawRect(output.x, output.y, output.w, output.h, 1.0f, outputBorder);
 
-    const float lineHeight = std::max(14.0f, nativeUi.GetLineHeight(0.95f) + 3.0f);
-    const int visibleLines =
-        std::max(1, static_cast<int>((output.h - 12.0f) / lineHeight));
-
-    const int totalLines = static_cast<int>(console.GetOutputLineCount());
-    const int maxOffset = std::max(0, totalLines - visibleLines);
-    scrollOffsetLines_  = std::clamp(scrollOffsetLines_, 0, maxOffset);
+    const OutputSnapshot outputSnapshot =
+        BuildOutputSnapshot(console, nativeUi, output.x, output.y, output.w, output.h, scrollOffsetLines_);
+    scrollOffsetLines_ = outputSnapshot.clampedOffset;
     if (scrollOffsetLines_ == 0) {
         stickyToBottom_ = true;
     }
 
-    const int startLine = std::max(0, totalLines - visibleLines - scrollOffsetLines_);
-    const int lineCount = std::max(0, std::min(visibleLines, totalLines - startLine));
-    const auto lines = console.GetOutputLinesRangeSnapshot(static_cast<size_t>(startLine),
-                                                           static_cast<size_t>(lineCount));
-    float lineY = std::round(output.y + 6.0f);
-    const float maxTextWidth = output.w - 14.0f;
-    const float outputTextX = std::round(output.x + 8.0f);
+    if (HasOutputSelection() && !outputSnapshot.renderedLines.empty()) {
+        int startLine = 0;
+        int endLine   = 0;
+        size_t startCol = 0;
+        size_t endCol   = 0;
+        NormalizeSelection(selectionAnchorLine_, selectionAnchorColumn_, selectionCaretLine_,
+                           selectionCaretColumn_, &startLine, &startCol, &endLine, &endCol);
 
-    for (const std::string& sourceLine : lines) {
-        const std::string text = TruncateWithEllipsis(nativeUi, sourceLine, maxTextWidth, 0.95f);
-        nativeUi.DrawText(text, outputTextX, std::round(lineY), textColor, 0.95f);
-        lineY += lineHeight;
+        const int visibleStartLine = outputSnapshot.startLine;
+        const int visibleEndLine =
+            visibleStartLine + static_cast<int>(outputSnapshot.renderedLines.size()) - 1;
+        const int drawStartLine = std::max(startLine, visibleStartLine);
+        const int drawEndLine   = std::min(endLine, visibleEndLine);
+        if (drawStartLine <= drawEndLine) {
+            const ui::NativeUiColor selectionColor{0.19f, 0.34f, 0.53f, 0.60f};
+            for (int line = drawStartLine; line <= drawEndLine; ++line) {
+                const int localIndex = line - visibleStartLine;
+                if (localIndex < 0 ||
+                    localIndex >= static_cast<int>(outputSnapshot.renderedLines.size())) {
+                    continue;
+                }
+
+                const std::string& renderedLine = outputSnapshot.renderedLines[static_cast<size_t>(localIndex)];
+                size_t lineStartCol = 0;
+                size_t lineEndCol   = renderedLine.size();
+                if (line == startLine) {
+                    lineStartCol = startCol;
+                }
+                if (line == endLine) {
+                    lineEndCol = endCol;
+                }
+                lineStartCol = std::min(lineStartCol, renderedLine.size());
+                lineEndCol   = std::min(lineEndCol, renderedLine.size());
+                if (lineStartCol >= lineEndCol) {
+                    continue;
+                }
+
+                const float x0 = outputSnapshot.textX +
+                                 MeasureTextPrefixWidth(nativeUi, renderedLine, lineStartCol,
+                                                        kOutputTextScale);
+                const float x1 = outputSnapshot.textX +
+                                 MeasureTextPrefixWidth(nativeUi, renderedLine, lineEndCol,
+                                                        kOutputTextScale);
+                const float y = std::round(outputSnapshot.firstLineY +
+                                           outputSnapshot.lineHeight * static_cast<float>(localIndex));
+                const float w = std::max(0.0f, std::round(x1 - x0));
+                if (w > 0.0f) {
+                    nativeUi.DrawFilledRect(std::round(x0), y, w,
+                                            std::round(outputSnapshot.lineHeight), selectionColor);
+                }
+            }
+        }
+    }
+
+    float lineY = outputSnapshot.firstLineY;
+    for (const std::string& line : outputSnapshot.renderedLines) {
+        nativeUi.DrawText(line, outputSnapshot.textX, std::round(lineY), textColor, kOutputTextScale);
+        lineY += outputSnapshot.lineHeight;
     }
 
     nativeUi.DrawFilledRect(inputBox.x, inputBox.y, inputBox.w, inputBox.h, inputBg);
@@ -278,10 +409,13 @@ void DeveloperConsoleLayer::OnRender() {
                              ui::NativeUiRenderer::TextVerticalAlign::Center);
 
     const std::string inputText = "> " + inputBuffer_;
+    const size_t clampedCaretIndex = std::min(caretIndex_, inputBuffer_.size());
+    const std::string caretText = "> " + inputBuffer_.substr(0, clampedCaretIndex);
     ui::NativeUiRenderer::TextPadding inputPadding{};
     inputPadding.left  = 8.0f;
     inputPadding.right = 8.0f;
     const auto inputMetrics = nativeUi.MeasureTextLayout(inputText, kHeaderTitleScale);
+    const auto caretMetrics = nativeUi.MeasureTextLayout(caretText, kHeaderTitleScale);
     const float inputContentX = inputBox.x + inputPadding.left;
     const float inputContentY = inputBox.y + inputPadding.top;
     const float inputContentH =
@@ -295,7 +429,7 @@ void DeveloperConsoleLayer::OnRender() {
 
     if (inputFocused_ && caretVisible_) {
         const float caretX =
-            std::round(inputOriginX + inputMetrics.advanceWidth + 1.0f);
+            std::round(inputOriginX + caretMetrics.advanceWidth + 1.0f);
         const float caretY = std::round(inputOriginY + inputMetrics.minY);
         const float caretH = std::max(8.0f, inputMetrics.InkHeight());
         nativeUi.DrawFilledRect(caretX, caretY, 1.0f, caretH, titleColor);
@@ -368,6 +502,7 @@ void DeveloperConsoleLayer::HandleMouseInteraction(float viewportWidth, float vi
     if (leftPressed) {
         if (clear.Contains(mx, my)) {
             console.ClearOutput();
+            ClearOutputSelection();
             inputFocused_ = true;
             stickyToBottom_ = true;
             scrollOffsetLines_ = 0;
@@ -378,12 +513,14 @@ void DeveloperConsoleLayer::HandleMouseInteraction(float viewportWidth, float vi
         if (close.Contains(mx, my)) {
             console.SetVisible(false);
             SyncCursorCaptureState();
+            ClearOutputSelection();
             InvalidateVisual();
             return;
         }
 
         if (send.Contains(mx, my)) {
             ExecuteCurrentInput();
+            ClearOutputSelection();
             inputFocused_ = true;
             InvalidateVisual();
             return;
@@ -392,10 +529,12 @@ void DeveloperConsoleLayer::HandleMouseInteraction(float viewportWidth, float vi
         if (resize.Contains(mx, my)) {
             resizingWindow_    = true;
             draggingWindow_    = false;
+            outputSelecting_   = false;
             resizeStartMouseX_ = mx;
             resizeStartMouseY_ = my;
             resizeStartWidth_  = windowWidth_;
             resizeStartHeight_ = windowHeight_;
+            ClearOutputSelection();
             InvalidateVisual();
             return;
         }
@@ -403,28 +542,77 @@ void DeveloperConsoleLayer::HandleMouseInteraction(float viewportWidth, float vi
         if (header.Contains(mx, my)) {
             draggingWindow_ = true;
             resizingWindow_ = false;
+            outputSelecting_ = false;
             dragOffsetX_    = mx - windowX_;
             dragOffsetY_    = my - windowY_;
             inputFocused_   = false;
+            ClearOutputSelection();
+            InvalidateVisual();
+            return;
+        }
+
+        if (output.Contains(mx, my)) {
+            int line = -1;
+            size_t column = 0;
+            if (GetOutputCursorFromMouse(mx, my, &line, &column, true)) {
+                outputSelecting_       = true;
+                outputSelectionActive_ = true;
+                selectionAnchorLine_   = line;
+                selectionAnchorColumn_ = column;
+                selectionCaretLine_    = line;
+                selectionCaretColumn_  = column;
+            } else {
+                ClearOutputSelection();
+            }
+            if (inputFocused_) {
+                inputFocused_ = false;
+            }
             InvalidateVisual();
             return;
         }
 
         if (inputBox.Contains(mx, my)) {
-            if (!inputFocused_) {
+            const bool hadSelection = outputSelectionActive_ || outputSelecting_;
+            ClearOutputSelection();
+            if (!inputFocused_ || hadSelection) {
                 InvalidateVisual();
             }
             inputFocused_ = true;
         } else if (window.Contains(mx, my)) {
-            if (inputFocused_) {
+            const bool hadSelection = outputSelectionActive_ || outputSelecting_;
+            ClearOutputSelection();
+            if (inputFocused_ || hadSelection) {
                 InvalidateVisual();
             }
             inputFocused_ = false;
         } else {
-            if (inputFocused_) {
+            const bool hadSelection = outputSelectionActive_ || outputSelecting_;
+            ClearOutputSelection();
+            if (inputFocused_ || hadSelection) {
                 InvalidateVisual();
             }
             inputFocused_ = false;
+        }
+    }
+
+    if (outputSelecting_) {
+        if (leftDown) {
+            int line = -1;
+            size_t column = 0;
+            if (GetOutputCursorFromMouse(mx, my, &line, &column, true)) {
+                if (line != selectionCaretLine_ || column != selectionCaretColumn_) {
+                    selectionCaretLine_   = line;
+                    selectionCaretColumn_ = column;
+                    outputSelectionActive_ = true;
+                    InvalidateVisual();
+                }
+            }
+        } else {
+            outputSelecting_ = false;
+            if (!HasOutputSelection()) {
+                outputSelectionActive_ = false;
+            }
+            InvalidateVisual();
         }
     }
 
@@ -461,8 +649,14 @@ void DeveloperConsoleLayer::HandleMouseInteraction(float viewportWidth, float vi
     }
 
     if (leftReleased) {
-        if (draggingWindow_ || resizingWindow_) {
+        if (draggingWindow_ || resizingWindow_ || outputSelecting_) {
             InvalidateVisual();
+        }
+        if (outputSelecting_) {
+            outputSelecting_ = false;
+            if (!HasOutputSelection()) {
+                outputSelectionActive_ = false;
+            }
         }
         draggingWindow_ = false;
         resizingWindow_ = false;
@@ -497,7 +691,38 @@ void DeveloperConsoleLayer::HandleKeyboardAndTextInput(bool toggledThisFrame) {
         return;
     }
 
-    if (!inputFocused_) return;
+    if (IsControlPressed(input) && input.IsKeyJustPressed(Key::C)) {
+        std::string copiedText;
+        if (HasOutputSelection()) {
+            copiedText = BuildSelectedOutputText();
+        } else if (inputFocused_ && !inputBuffer_.empty()) {
+            copiedText = inputBuffer_;
+        }
+
+        if (!copiedText.empty()) {
+            CopyToClipboard(copiedText);
+            statusHint_ = "copied";
+            InvalidateVisual();
+        }
+        return;
+    }
+
+    if (IsControlPressed(input) && inputFocused_ && input.IsKeyJustPressed(Key::V)) {
+        if (PasteFromClipboard()) {
+            statusHint_.clear();
+            caretBlinkSeconds_ = 0.0f;
+            caretVisible_      = true;
+            InvalidateVisual();
+        }
+        return;
+    }
+
+    if (!inputFocused_) {
+        input.ConsumeTextInput();
+        return;
+    }
+
+    caretIndex_ = std::min(caretIndex_, inputBuffer_.size());
 
     for (uint32_t codepoint : input.ConsumeTextInput()) {
         if (codepoint == static_cast<uint32_t>('`') && toggledThisFrame) {
@@ -509,14 +734,54 @@ void DeveloperConsoleLayer::HandleKeyboardAndTextInput(bool toggledThisFrame) {
         if (inputBuffer_.size() >= 512) {
             continue;
         }
-        inputBuffer_.push_back(static_cast<char>(codepoint));
+        inputBuffer_.insert(caretIndex_, 1, static_cast<char>(codepoint));
+        ++caretIndex_;
+        historyIndex_ = -1;
         caretBlinkSeconds_ = 0.0f;
         caretVisible_      = true;
         InvalidateVisual();
     }
 
-    if (input.IsKeyJustPressed(Key::Backspace) && !inputBuffer_.empty()) {
-        inputBuffer_.pop_back();
+    if (input.IsKeyJustPressed(Key::Backspace) && caretIndex_ > 0 && !inputBuffer_.empty()) {
+        inputBuffer_.erase(caretIndex_ - 1, 1);
+        --caretIndex_;
+        historyIndex_ = -1;
+        caretBlinkSeconds_ = 0.0f;
+        caretVisible_      = true;
+        InvalidateVisual();
+    }
+
+    if (input.IsKeyJustPressed(Key::Delete) && caretIndex_ < inputBuffer_.size()) {
+        inputBuffer_.erase(caretIndex_, 1);
+        historyIndex_ = -1;
+        caretBlinkSeconds_ = 0.0f;
+        caretVisible_      = true;
+        InvalidateVisual();
+    }
+
+    if (input.IsKeyJustPressed(Key::Left) && caretIndex_ > 0) {
+        --caretIndex_;
+        caretBlinkSeconds_ = 0.0f;
+        caretVisible_      = true;
+        InvalidateVisual();
+    }
+
+    if (input.IsKeyJustPressed(Key::Right) && caretIndex_ < inputBuffer_.size()) {
+        ++caretIndex_;
+        caretBlinkSeconds_ = 0.0f;
+        caretVisible_      = true;
+        InvalidateVisual();
+    }
+
+    if (input.IsKeyJustPressed(Key::Home) && caretIndex_ != 0) {
+        caretIndex_        = 0;
+        caretBlinkSeconds_ = 0.0f;
+        caretVisible_      = true;
+        InvalidateVisual();
+    }
+
+    if (input.IsKeyJustPressed(Key::End) && caretIndex_ != inputBuffer_.size()) {
+        caretIndex_        = inputBuffer_.size();
         caretBlinkSeconds_ = 0.0f;
         caretVisible_      = true;
         InvalidateVisual();
@@ -583,6 +848,7 @@ void DeveloperConsoleLayer::ClampWindowToViewport(float viewportWidth, float vie
 
 void DeveloperConsoleLayer::ExecuteCurrentInput() {
     if (inputBuffer_.empty()) {
+        caretIndex_        = 0;
         caretBlinkSeconds_ = 0.0f;
         caretVisible_      = true;
         return;
@@ -595,6 +861,7 @@ void DeveloperConsoleLayer::ExecuteCurrentInput() {
     inputBuffer_.clear();
     statusHint_.clear();
     historyIndex_      = -1;
+    caretIndex_        = 0;
     stickyToBottom_    = true;
     scrollOffsetLines_ = 0;
     caretBlinkSeconds_ = 0.0f;
@@ -625,6 +892,7 @@ void DeveloperConsoleLayer::HandleAutoComplete() {
         } else {
             inputBuffer_.replace(0, tokenEnd, matches[0]);
         }
+        caretIndex_ = inputBuffer_.size();
         statusHint_.clear();
         InvalidateVisual();
         return;
@@ -652,6 +920,7 @@ void DeveloperConsoleLayer::HandleHistoryUp() {
 
     if (historyIndex_ >= 0 && historyIndex_ < static_cast<int>(history.size())) {
         inputBuffer_ = history[static_cast<size_t>(historyIndex_)];
+        caretIndex_ = inputBuffer_.size();
         caretBlinkSeconds_ = 0.0f;
         caretVisible_      = true;
         InvalidateVisual();
@@ -668,6 +937,7 @@ void DeveloperConsoleLayer::HandleHistoryDown() {
     if (historyIndex_ >= static_cast<int>(history.size())) {
         historyIndex_ = -1;
         inputBuffer_.clear();
+        caretIndex_ = 0;
         caretBlinkSeconds_ = 0.0f;
         caretVisible_      = true;
         InvalidateVisual();
@@ -675,6 +945,7 @@ void DeveloperConsoleLayer::HandleHistoryDown() {
     }
 
     inputBuffer_ = history[static_cast<size_t>(historyIndex_)];
+    caretIndex_ = inputBuffer_.size();
     caretBlinkSeconds_ = 0.0f;
     caretVisible_      = true;
     InvalidateVisual();
@@ -694,6 +965,198 @@ void DeveloperConsoleLayer::SyncCursorCaptureState() {
         input.SetCursorMode(previousCursorMode_);
         cursorOverridden_ = false;
     }
+}
+
+void DeveloperConsoleLayer::ClearOutputSelection() {
+    outputSelecting_       = false;
+    outputSelectionActive_ = false;
+    selectionAnchorLine_   = -1;
+    selectionAnchorColumn_ = 0;
+    selectionCaretLine_    = -1;
+    selectionCaretColumn_  = 0;
+}
+
+bool DeveloperConsoleLayer::HasOutputSelection() const {
+    if (!outputSelectionActive_) {
+        return false;
+    }
+    if (selectionAnchorLine_ < 0 || selectionCaretLine_ < 0) {
+        return false;
+    }
+    return selectionAnchorLine_ != selectionCaretLine_ ||
+           selectionAnchorColumn_ != selectionCaretColumn_;
+}
+
+bool DeveloperConsoleLayer::GetOutputCursorFromMouse(float mx, float my, int* outLine,
+                                                      size_t* outColumn,
+                                                      bool clampToBounds) const {
+    if (!outLine || !outColumn) {
+        return false;
+    }
+
+    auto& console  = ConsoleSystem::Get();
+    auto& nativeUi = ui::NativeUiRenderer::Get();
+    if (!nativeUi.IsInitialized()) {
+        return false;
+    }
+
+    const UiRect output = GetOutputRect();
+    float clampedX = mx;
+    float clampedY = my;
+    if (clampToBounds) {
+        clampedX = ClampFloat(clampedX, output.x, output.x + output.w);
+        clampedY = ClampFloat(clampedY, output.y, output.y + output.h);
+    } else if (!output.Contains(mx, my)) {
+        return false;
+    }
+
+    const OutputSnapshot snapshot =
+        BuildOutputSnapshot(console, nativeUi, output.x, output.y, output.w, output.h, scrollOffsetLines_);
+    if (snapshot.renderedLines.empty()) {
+        return false;
+    }
+
+    const float textTop = snapshot.firstLineY;
+    const float textBottom =
+        snapshot.firstLineY + snapshot.lineHeight * static_cast<float>(snapshot.renderedLines.size());
+    if (!clampToBounds && (clampedY < textTop || clampedY >= textBottom)) {
+        return false;
+    }
+    clampedY = ClampFloat(clampedY, textTop, std::max(textTop, textBottom - 0.0001f));
+
+    int localLine = static_cast<int>((clampedY - textTop) / snapshot.lineHeight);
+    localLine =
+        std::clamp(localLine, 0, static_cast<int>(snapshot.renderedLines.size()) - 1);
+
+    const std::string& lineText = snapshot.renderedLines[static_cast<size_t>(localLine)];
+    const float xRelative = clampedX - snapshot.textX;
+    size_t column = lineText.size();
+    if (xRelative <= 0.0f) {
+        column = 0;
+    } else {
+        for (size_t i = 0; i <= lineText.size(); ++i) {
+            const float width = MeasureTextPrefixWidth(nativeUi, lineText, i, kOutputTextScale);
+            if (xRelative <= width) {
+                column = i;
+                break;
+            }
+        }
+    }
+
+    *outLine   = snapshot.startLine + localLine;
+    *outColumn = column;
+    return true;
+}
+
+std::string DeveloperConsoleLayer::BuildSelectedOutputText() const {
+    if (!HasOutputSelection()) {
+        return {};
+    }
+
+    auto& console  = ConsoleSystem::Get();
+    auto& nativeUi = ui::NativeUiRenderer::Get();
+    if (!nativeUi.IsInitialized()) {
+        return {};
+    }
+
+    int startLine = 0;
+    int endLine   = 0;
+    size_t startCol = 0;
+    size_t endCol   = 0;
+    NormalizeSelection(selectionAnchorLine_, selectionAnchorColumn_, selectionCaretLine_,
+                       selectionCaretColumn_, &startLine, &startCol, &endLine, &endCol);
+
+    const int totalLines = static_cast<int>(console.GetOutputLineCount());
+    if (totalLines <= 0) {
+        return {};
+    }
+
+    startLine = std::clamp(startLine, 0, totalLines - 1);
+    endLine   = std::clamp(endLine, 0, totalLines - 1);
+    if (startLine > endLine) {
+        std::swap(startLine, endLine);
+        std::swap(startCol, endCol);
+    }
+
+    const size_t lineCount = static_cast<size_t>(endLine - startLine + 1);
+    const auto sourceLines =
+        console.GetOutputLinesRangeSnapshot(static_cast<size_t>(startLine), lineCount);
+    if (sourceLines.empty()) {
+        return {};
+    }
+
+    const UiRect outputRect = GetOutputRect();
+    const float maxTextWidth = std::max(0.0f, outputRect.w - 14.0f);
+
+    std::string selected;
+    for (size_t i = 0; i < sourceLines.size(); ++i) {
+        const int absoluteLine = startLine + static_cast<int>(i);
+        const std::string renderedLine =
+            TruncateWithEllipsis(nativeUi, sourceLines[i], maxTextWidth, kOutputTextScale);
+
+        size_t lineStart = 0;
+        size_t lineEnd   = renderedLine.size();
+        if (absoluteLine == startLine) {
+            lineStart = std::min(startCol, renderedLine.size());
+        }
+        if (absoluteLine == endLine) {
+            lineEnd = std::min(endCol, renderedLine.size());
+        }
+
+        if (lineStart < lineEnd) {
+            selected.append(renderedLine.substr(lineStart, lineEnd - lineStart));
+        }
+        if (absoluteLine < endLine) {
+            selected.push_back('\n');
+        }
+    }
+
+    return selected;
+}
+
+void DeveloperConsoleLayer::CopyToClipboard(const std::string& text) {
+    if (text.empty()) {
+        return;
+    }
+
+    WindowHandle window = Application::Get().GetWindow().GetNativeWindow();
+    if (!window) {
+        return;
+    }
+    glfwSetClipboardString(window, text.c_str());
+}
+
+bool DeveloperConsoleLayer::PasteFromClipboard() {
+    WindowHandle window = Application::Get().GetWindow().GetNativeWindow();
+    if (!window) {
+        return false;
+    }
+
+    const char* clipboard = glfwGetClipboardString(window);
+    if (!clipboard || *clipboard == '\0') {
+        return false;
+    }
+
+    bool pastedAny = false;
+    caretIndex_ = std::min(caretIndex_, inputBuffer_.size());
+    for (const char* it = clipboard; *it != '\0'; ++it) {
+        const unsigned char ch = static_cast<unsigned char>(*it);
+        if (ch == '\r' || ch == '\n') {
+            continue;
+        }
+        if (ch < 32u || ch > 126u) {
+            continue;
+        }
+        if (inputBuffer_.size() >= 512) {
+            break;
+        }
+        inputBuffer_.insert(caretIndex_, 1, static_cast<char>(ch));
+        ++caretIndex_;
+        historyIndex_ = -1;
+        pastedAny = true;
+    }
+
+    return pastedAny;
 }
 
 void DeveloperConsoleLayer::InvalidateVisual() {

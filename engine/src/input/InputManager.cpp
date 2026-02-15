@@ -477,6 +477,7 @@ void InputManager::UnbindGamepadAxis(const std::string& name) {
 }
 
 bool InputManager::IsActionPressed(const std::string& name) const {
+    if (inputSuppressed_) return false;
     const auto* action = FindAction(name);
     if (!action) return false;
 
@@ -491,6 +492,7 @@ bool InputManager::IsActionPressed(const std::string& name) const {
 }
 
 bool InputManager::IsActionJustPressed(const std::string& name) const {
+    if (inputSuppressed_) return false;
     const auto* action = FindAction(name);
     if (!action || action->type != InputActionType::Button) return false;
 
@@ -501,6 +503,7 @@ bool InputManager::IsActionJustPressed(const std::string& name) const {
 }
 
 bool InputManager::IsActionJustReleased(const std::string& name) const {
+    if (inputSuppressed_) return false;
     const auto* action = FindAction(name);
     if (!action || action->type != InputActionType::Button) return false;
 
@@ -511,6 +514,7 @@ bool InputManager::IsActionJustReleased(const std::string& name) const {
 }
 
 float InputManager::GetAxis(const std::string& name) const {
+    if (inputSuppressed_) return 0.0f;
     const auto* action = FindAction(name);
     if (!action) return 0.0f;
 
@@ -527,31 +531,37 @@ float InputManager::GetAxis(const std::string& name) const {
 }
 
 bool InputManager::IsKeyDown(KeyCode key) const {
+    if (inputSuppressed_) return false;
     auto it = keyStates_.find(key);
     return it != keyStates_.end() && it->second.isDown;
 }
 
 bool InputManager::IsKeyJustPressed(KeyCode key) const {
+    if (inputSuppressed_) return false;
     auto it = keyStates_.find(key);
     return it != keyStates_.end() && it->second.justPressed;
 }
 
 bool InputManager::IsKeyJustReleased(KeyCode key) const {
+    if (inputSuppressed_) return false;
     auto it = keyStates_.find(key);
     return it != keyStates_.end() && it->second.justReleased;
 }
 
 bool InputManager::IsMouseButtonDown(MouseButton button) const {
+    if (inputSuppressed_) return false;
     auto it = mouseButtonStates_.find(button);
     return it != mouseButtonStates_.end() && it->second.isDown;
 }
 
 bool InputManager::IsMouseButtonJustPressed(MouseButton button) const {
+    if (inputSuppressed_) return false;
     auto it = mouseButtonStates_.find(button);
     return it != mouseButtonStates_.end() && it->second.justPressed;
 }
 
 bool InputManager::IsMouseButtonJustReleased(MouseButton button) const {
+    if (inputSuppressed_) return false;
     auto it = mouseButtonStates_.find(button);
     return it != mouseButtonStates_.end() && it->second.justReleased;
 }
@@ -561,26 +571,32 @@ Vector2 InputManager::GetMousePosition() const {
 }
 
 Vector2 InputManager::GetMouseDelta() const {
+    if (inputSuppressed_) return {0.0f, 0.0f};
     return mouseDelta_;
 }
 
 bool InputManager::IsGamepadButtonDown(GamepadButton button) const {
+    if (inputSuppressed_) return false;
     return GamepadManager::Get().IsButtonDown(button);
 }
 
 bool InputManager::IsGamepadButtonPressed(GamepadButton button) const {
+    if (inputSuppressed_) return false;
     return GamepadManager::Get().IsButtonPressed(button);
 }
 
 bool InputManager::IsGamepadButtonReleased(GamepadButton button) const {
+    if (inputSuppressed_) return false;
     return GamepadManager::Get().IsButtonReleased(button);
 }
 
 float InputManager::GetGamepadAxis(GamepadAxis axis) const {
+    if (inputSuppressed_) return 0.0f;
     return GamepadManager::Get().GetAxis(axis);
 }
 
 bool InputManager::IsGamepadConnected(GamepadId id) const {
+    if (inputSuppressed_) return false;
     return GamepadManager::Get().IsConnected(id);
 }
 
@@ -951,6 +967,7 @@ void InputManager::OnWindowFocusChanged(bool focused) {
 }
 
 std::vector<uint32_t> InputManager::ConsumeTextInput() {
+    if (inputSuppressed_) return {};
     std::vector<uint32_t> out;
     out.swap(textInputQueue_);
     return out;

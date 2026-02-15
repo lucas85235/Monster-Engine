@@ -69,6 +69,12 @@ class InputManager {
     CursorMode GetCursorMode() const {
         return cursorMode_;
     }
+    void SetInputSuppressed(bool suppressed) {
+        inputSuppressed_ = suppressed;
+    }
+    bool IsInputSuppressed() const {
+        return inputSuppressed_;
+    }
 
     // Action map / context API (Unity-style action maps with runtime stack)
     bool CreateActionMap(const std::string& mapName, bool enabled = true,
@@ -144,7 +150,7 @@ class InputManager {
     Vector2 GetMousePosition() const;
     Vector2 GetMouseDelta() const;
     float   GetScrollDelta() const {
-        return scrollDelta_;
+        return inputSuppressed_ ? 0.0f : scrollDelta_;
     }
 
     // Raw Gamepad Input
@@ -222,6 +228,7 @@ class InputManager {
     CursorMode cursorMode_   = CursorMode::Normal;
 
     std::vector<uint32_t> textInputQueue_;
+    bool                  inputSuppressed_ = false;
 
     std::string defaultMapName_ = "global";
     EventBus*   eventBus_       = nullptr;

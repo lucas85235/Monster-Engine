@@ -226,7 +226,13 @@ int Application::Run() {
         // Update gameplay/UI layers even if Filament skips a frame.
         // This avoids losing edge-triggered input (mouse/key clicks) under low FPS.
         auto layerUpdateStart = Clock::now();
-        for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnUpdate(timestep); }
+        for (const std::unique_ptr<Layer>& layer : layer_stack_) {
+            const bool suppressInput =
+                ConsoleSystem::Get().IsVisible() && layer->GetName() != "DeveloperConsoleLayer";
+            InputManager::Get().SetInputSuppressed(suppressInput);
+            layer->OnUpdate(timestep);
+        }
+        InputManager::Get().SetInputSuppressed(false);
         sections.layerUpdateTimeMs = toMs(layerUpdateStart, Clock::now());
 
         // Advance glTF skeletal animation clocks independently from rendering.
@@ -272,7 +278,13 @@ int Application::Run() {
 
                 // Render layers
                 auto layerRenderStart = Clock::now();
-                for (const std::unique_ptr<Layer>& layer : layer_stack_) { layer->OnRender(); }
+                for (const std::unique_ptr<Layer>& layer : layer_stack_) {
+                    const bool suppressInput =
+                        ConsoleSystem::Get().IsVisible() && layer->GetName() != "DeveloperConsoleLayer";
+                    InputManager::Get().SetInputSuppressed(suppressInput);
+                    layer->OnRender();
+                }
+                InputManager::Get().SetInputSuppressed(false);
                 sections.layerRenderTimeMs = toMs(layerRenderStart, Clock::now());
 
                 auto uiEndStart = Clock::now();

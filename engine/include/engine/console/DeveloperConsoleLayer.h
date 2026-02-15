@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -42,6 +43,13 @@ class DeveloperConsoleLayer : public Layer {
     void HandleHistoryUp();
     void HandleHistoryDown();
     void SyncCursorCaptureState();
+    void ClearOutputSelection();
+    bool HasOutputSelection() const;
+    bool GetOutputCursorFromMouse(float mx, float my, int* outLine, size_t* outColumn,
+                                  bool clampToBounds) const;
+    std::string BuildSelectedOutputText() const;
+    void CopyToClipboard(const std::string& text);
+    bool PasteFromClipboard();
     void InvalidateVisual();
 
     UiRect GetWindowRect() const;
@@ -58,6 +66,7 @@ class DeveloperConsoleLayer : public Layer {
     int         historyIndex_      = -1;
     float       caretBlinkSeconds_ = 0.0f;
     bool        caretVisible_      = true;
+    size_t      caretIndex_        = 0;
     bool        inputFocused_      = true;
     bool        layoutInitialized_ = false;
 
@@ -84,6 +93,12 @@ class DeveloperConsoleLayer : public Layer {
     uint64_t lastOutputVersion_    = 0;
     size_t   cachedOutputLineCount_ = 0;
     bool     stickyToBottom_       = true;
+    bool     outputSelecting_      = false;
+    bool     outputSelectionActive_ = false;
+    int      selectionAnchorLine_  = -1;
+    size_t   selectionAnchorColumn_ = 0;
+    int      selectionCaretLine_   = -1;
+    size_t   selectionCaretColumn_ = 0;
 
     bool        cursorOverridden_  = false;
     CursorMode  previousCursorMode_ = CursorMode::Normal;
