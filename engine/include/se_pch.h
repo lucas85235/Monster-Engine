@@ -10,7 +10,26 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#ifndef NOGDI
+#define NOGDI
+#endif
 #include <Windows.h>
+// Cleanup macros that leak from Windows SDK and conflict with Filament
+#ifdef OPAQUE
+#undef OPAQUE
+#endif
+#ifdef TRANSPARENT
+#undef TRANSPARENT
+#endif
+#ifdef NEAR
+#undef NEAR
+#endif
+#ifdef FAR
+#undef FAR
+#endif
+#ifdef ERROR
+#undef ERROR
+#endif
 #endif
 
 // ============================================================================

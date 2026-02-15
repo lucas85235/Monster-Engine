@@ -46,9 +46,27 @@ if not errorlevel 1 (
     echo.
 )
 
+rem ── Auto-detect latest MSVC toolset ──────────────────────────────────
+rem The Filament SDK is built with a recent MSVC. If multiple toolsets
+rem are installed, CMake may pick an older one whose STL is missing
+rem vectorized algorithm symbols (__std_find_end_1, etc.), causing
+rem linker errors. Force the latest installed toolset.
+set "TOOLSET_FLAG="
+set "LATEST_VER="
+for /d %%D in ("%ProgramFiles%\Microsoft Visual Studio\2022\*") do (
+    for /d %%V in ("%%D\VC\Tools\MSVC\*") do (
+        set "LATEST_VER=%%~nxV"
+    )
+)
+if defined LATEST_VER (
+    set "TOOLSET_FLAG=-T version=%LATEST_VER%"
+    echo Using MSVC toolset: %LATEST_VER%
+)
+
 cmake -S "%PROJECT_ROOT%" -B "%BUILD_DIR%" -G "%GENERATOR%" ^
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ^
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ^
+      %TOOLSET_FLAG% ^
       %SCCACHE_FLAGS%
 if errorlevel 1 (
     echo ERROR: CMake configuration failed.

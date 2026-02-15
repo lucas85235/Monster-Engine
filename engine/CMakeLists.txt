@@ -170,9 +170,15 @@ set(FILAMENT_LIBS
 
 foreach(lib ${FILAMENT_LIBS})
     add_library(filament_${lib} STATIC IMPORTED)
-    set_target_properties(filament_${lib} PROPERTIES
-        IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/lib${lib}.a
-    )
+    if(WIN32)
+        set_target_properties(filament_${lib} PROPERTIES
+            IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/${lib}.lib
+        )
+    else()
+        set_target_properties(filament_${lib} PROPERTIES
+            IMPORTED_LOCATION ${FILAMENT_LIB_DIR}/lib${lib}.a
+        )
+    endif()
 endforeach()
 
 file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
@@ -292,6 +298,23 @@ if(APPLE)
         ${PROJECT_MM_SRCS}
         PROPERTIES
             SKIP_PRECOMPILE_HEADERS ON
+    )
+endif()
+
+# Windows system libraries required by Filament backends
+if(WIN32)
+    target_link_libraries(simple_engine PUBLIC
+        opengl32
+        gdi32
+        user32
+        dwmapi
+        shlwapi
+    )
+    # Force-include our Windows compatibility header to undef
+    # conflicting macros (OPAQUE, NEAR, FAR, etc.) before any
+    # user code is compiled.
+    target_compile_options(simple_engine PUBLIC
+        /FI"${CMAKE_CURRENT_SOURCE_DIR}/include/platform/win32_compat.h"
     )
 endif()
 

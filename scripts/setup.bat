@@ -120,6 +120,67 @@ if errorlevel 1 (
 )
 
 rd /s /q "%TEMP_DIR%" >nul 2>&1
+
+rem ── Reorganize Windows SDK layout ───────────────────────────────────
+rem The Windows Filament SDK extracts with a flat layout:
+rem   filament/Engine.h, backend/DriverEnums.h, x86_64/md/*.lib ...
+rem But our CMake expects the macOS-style layout:
+rem   include/filament/Engine.h, lib/x86_64/*.lib
+rem
+rem Move header directories into include/ and libs into lib/x86_64/.
+
+if exist "%FILAMENT_DIR%\x86_64" (
+    echo   Reorganizing Windows SDK layout...
+
+    rem Create include/ and move all header directories into it
+    mkdir "%FILAMENT_DIR%\include" >nul 2>&1
+
+    rem Known Filament header directories to move into include/
+    for %%D in (
+        backend
+        camutils
+        filamat
+        filament
+        filament-generatePrefilterMipmap
+        filament-iblprefilter
+        filament-matp
+        filameshio
+        geometry
+        gltfio
+        ibl
+        image
+        imageio-lite
+        ktxreader
+        math
+        mathio
+        mikktspace
+        tsl
+        uberz
+        utils
+        viewer
+    ) do (
+        if exist "%FILAMENT_DIR%\%%D" (
+            move "%FILAMENT_DIR%\%%D" "%FILAMENT_DIR%\include\%%D" >nul 2>&1
+        )
+    )
+
+    rem Create lib/x86_64/ and copy the /MD runtime variant (matches our MSVC config)
+    mkdir "%FILAMENT_DIR%\lib" >nul 2>&1
+    mkdir "%FILAMENT_DIR%\lib\x86_64" >nul 2>&1
+
+    if exist "%FILAMENT_DIR%\x86_64\md" (
+        xcopy "%FILAMENT_DIR%\x86_64\md\*.lib" "%FILAMENT_DIR%\lib\x86_64\" /Q /Y >nul 2>&1
+    )
+
+    rem Also keep debug libs available
+    if exist "%FILAMENT_DIR%\x86_64\mdd" (
+        mkdir "%FILAMENT_DIR%\lib\x86_64_debug" >nul 2>&1
+        xcopy "%FILAMENT_DIR%\x86_64\mdd\*.lib" "%FILAMENT_DIR%\lib\x86_64_debug\" /Q /Y >nul 2>&1
+    )
+
+    echo   Windows SDK reorganized into include/ + lib/ layout.
+)
+
 echo   Filament SDK %FILAMENT_VERSION% installed successfully.
 exit /b 0
 
