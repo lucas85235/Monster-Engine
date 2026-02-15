@@ -381,12 +381,23 @@ void DeveloperConsoleLayer::OnRender() {
                 const float x1 = outputSnapshot.textX +
                                  MeasureTextPrefixWidth(nativeUi, renderedLine, lineEndCol,
                                                         kOutputTextScale);
-                const float y = std::round(outputSnapshot.firstLineY +
-                                           outputSnapshot.lineHeight * static_cast<float>(localIndex));
+                const float textY = std::round(outputSnapshot.firstLineY +
+                                               outputSnapshot.lineHeight * static_cast<float>(localIndex));
+                const auto lineMetrics =
+                    nativeUi.MeasureTextLayout(renderedLine, kOutputTextScale);
+                float highlightY = textY;
+                float highlightH = std::round(outputSnapshot.lineHeight);
+                if (lineMetrics.hasVisibleInk) {
+                    highlightY = std::round(textY + lineMetrics.minY - 1.0f);
+                    highlightH = std::max(1.0f, std::round(lineMetrics.InkHeight() + 2.0f));
+                }
+                const float clipTop = output.y + 1.0f;
+                const float clipBottom = output.y + output.h - 1.0f;
+                highlightY = std::clamp(highlightY, clipTop, clipBottom);
+                highlightH = std::max(1.0f, std::min(highlightH, clipBottom - highlightY));
                 const float w = std::max(0.0f, std::round(x1 - x0));
                 if (w > 0.0f) {
-                    nativeUi.DrawFilledRect(std::round(x0), y, w,
-                                            std::round(outputSnapshot.lineHeight), selectionColor);
+                    nativeUi.DrawFilledRect(std::round(x0), highlightY, w, highlightH, selectionColor);
                 }
             }
         }
