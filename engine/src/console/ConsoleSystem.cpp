@@ -7,6 +7,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 
 #include <spdlog/details/log_msg.h>
@@ -205,7 +206,8 @@ void ConsoleSystem::Init() {
     visible_ = false;
     SyncConsoleContextState();
 
-    AttachLogSink();
+    AddOutput("Log capture to in-game console: OFF (use 'console.capture_logs 1' to enable).");
+    std::cout << "ConsoleSystem: in-game log capture is OFF by default." << std::endl;
     AddOutput("Developer console initialized.");
     initialized_ = true;
 }

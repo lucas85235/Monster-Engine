@@ -47,7 +47,19 @@
             "name": "global",
             "enabled": true,
             "consumeLowerPriority": false,
-            "actions": []
+            "actions": [
+                {
+                    "name": "noclip",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "K",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
         },
         {
             "name": "sandbox.third_person",

@@ -28,22 +28,28 @@
 #include <utils/EntityManager.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
+#include <iostream>
 #include <limits>
+#include <system_error>
 
 namespace se::ui {
 
 namespace {
 
 constexpr uint8_t kUiLayerMask = 0x80;  // layer 7
+constexpr const char* kUiFontPath = "assets/fonts/Roboto-Regular.ttf";
+constexpr ImWchar kUiLatin1GlyphRanges[] = {0x0020, 0x00FF, 0};
 
 constexpr const char* kUiMaterialSource = R"FILAMENT(
 void material(inout MaterialInputs material) {
     prepareMaterial(material);
     float4 atlas = texture(materialParams_uiAtlas, getUV0());
-    // Some backends expose Alpha8 data via .a instead of .r.
-    float coverage = max(atlas.r, atlas.a);
+    // Be tolerant to backend texture swizzle differences.
+    float coverage = max(max(atlas.r, atlas.g), max(atlas.b, atlas.a));
     float4 color = getColor();
     // Filament TRANSPARENT expects premultiplied alpha.
     float alpha = color.a * coverage;
@@ -112,8 +118,8 @@ uint32_t DecodeUtf8Codepoint(const char*& cursor, const char* end) {
 }
 
 ImWchar ToUiGlyphCodepoint(uint32_t codepoint) {
-    // The native debug UI currently bakes the basic ASCII glyph set for stability.
-    if (codepoint >= 32u && codepoint <= 126u) {
+    // Native UI text rendering supports Latin-1 to cover common Western locales.
+    if (codepoint >= 0x0020u && codepoint <= 0x00FFu) {
         return static_cast<ImWchar>(codepoint);
     }
     return static_cast<ImWchar>('?');
@@ -220,6 +226,15 @@ void NativeUiRenderer::EndFrame() {
     if (!geometry_dirty_) return;
     UploadGeometry();
     geometry_dirty_ = false;
+
+    static int uploadDebugFrames = 0;
+    if (uploadDebugFrames < 5) {
+        std::cout << "NativeUiRenderer::EndFrame uploaded quads=" << last_frame_stats_.quadsSubmitted
+                  << " draw_calls=" << last_frame_stats_.drawCallsIssued
+                  << " vertices=" << last_frame_stats_.verticesUploaded
+                  << " indices=" << last_frame_stats_.indicesUploaded << std::endl;
+        uploadDebugFrames++;
+    }
 }
 
 void NativeUiRenderer::RetainPreviousFrameGeometry() {
@@ -279,7 +294,7 @@ void NativeUiRenderer::DrawText(std::string_view text, float x, float y, const N
         if (codepoint < 32u) continue;
 
         const ImWchar glyphCode = ToUiGlyphCodepoint(codepoint);
-        const ImFontGlyph* glyph = baked->FindGlyphNoFallback(glyphCode);
+        const ImFontGlyph* glyph = baked->FindGlyph(glyphCode);
         if (!glyph) continue;
         if (!glyph->Visible) {
             penX += glyph->AdvanceX * scale;
@@ -317,7 +332,7 @@ float NativeUiRenderer::MeasureTextWidth(std::string_view text, float scale) con
         if (codepoint < 32u) continue;
 
         const ImWchar glyphCode = ToUiGlyphCodepoint(codepoint);
-        const ImFontGlyph* glyph = baked->FindGlyphNoFallback(glyphCode);
+        const ImFontGlyph* glyph = baked->FindGlyph(glyphCode);
         if (!glyph) continue;
         width += glyph->AdvanceX * scale;
     }
@@ -332,8 +347,38 @@ void NativeUiRenderer::CreateResources() {
         return;
     }
 
+    std::error_code cwdError;
+    const auto cwd = std::filesystem::current_path(cwdError);
+    if (cwdError) {
+        std::cerr << "NativeUiRenderer font pipeline v2 active. cwd='<unavailable>' (error='"
+                  << cwdError.message() << "')" << std::endl;
+    } else {
+        std::cout << "NativeUiRenderer font pipeline v2 active. cwd='" << cwd.string() << "'"
+                  << std::endl;
+    }
+
     font_atlas_ = new ImFontAtlas();
-    font_       = font_atlas_->AddFontDefault();
+    const std::array<std::filesystem::path, 2> fontCandidates = {
+        std::filesystem::path(kUiFontPath), std::filesystem::path("..") / kUiFontPath};
+    for (const auto& candidate : fontCandidates) {
+        const std::string fontPath = candidate.string();
+        font_ = font_atlas_->AddFontFromFileTTF(fontPath.c_str(), font_base_size_, nullptr,
+                                                kUiLatin1GlyphRanges);
+        if (font_) {
+            std::cout << "NativeUiRenderer loaded UI font '" << fontPath << "'" << std::endl;
+            break;
+        }
+    }
+
+    if (!font_) {
+        std::cerr << "NativeUiRenderer using Dear ImGui default font fallback." << std::endl;
+        ImFontConfig fallbackConfig;
+        fallbackConfig.GlyphRanges = kUiLatin1GlyphRanges;
+        font_ = font_atlas_->AddFontDefault(&fallbackConfig);
+        if (!font_) {
+            font_ = font_atlas_->AddFontDefault();
+        }
+    }
     if (font_ && font_->LegacySize > 0.0f) {
         font_base_size_ = font_->LegacySize;
     }
@@ -341,11 +386,11 @@ void NativeUiRenderer::CreateResources() {
     // Build the atlas first so the base layout is established.
     font_atlas_->Build();
 
-    // Warm-up the ASCII range AFTER Build() so on-demand glyph baking
+    // Warm-up Latin-1 AFTER Build() so on-demand glyph baking
     // adds glyphs into the already-built atlas layout.
     if (font_) {
         if (ImFontBaked* baked = font_->GetFontBaked(font_base_size_)) {
-            for (ImWchar cp = 32; cp <= 126; ++cp) {
+            for (ImWchar cp = 0x0020; cp <= 0x00FF; ++cp) {
                 (void)baked->FindGlyph(cp);
             }
             (void)baked->FindGlyph('?');
@@ -358,23 +403,31 @@ void NativeUiRenderer::CreateResources() {
     int atlasHeight            = 0;
     font_atlas_->GetTexDataAsAlpha8(&atlasPixels, &atlasWidth, &atlasHeight);
 
-    if (!atlasPixels || atlasWidth <= 0 || atlasHeight <= 0 || !font_) {
-        SE_LOG_ERROR("NativeUiRenderer failed to build font atlas.");
-        delete font_atlas_;
-        font_atlas_ = nullptr;
-        font_       = nullptr;
-        return;
+    static const unsigned char kFallbackAtlasPixel = 255u;
+    if (!atlasPixels || atlasWidth <= 0 || atlasHeight <= 0) {
+        std::cerr
+            << "NativeUiRenderer failed to build font atlas; using 1x1 white fallback atlas."
+            << std::endl;
+        atlasPixels = const_cast<unsigned char*>(&kFallbackAtlasPixel);
+        atlasWidth  = 1;
+        atlasHeight = 1;
+        white_uv_x_ = 0.5f;
+        white_uv_y_ = 0.5f;
+    } else {
+        white_uv_x_ = font_atlas_->TexUvWhitePixel.x;
+        white_uv_y_ = font_atlas_->TexUvWhitePixel.y;
     }
 
-    white_uv_x_ = font_atlas_->TexUvWhitePixel.x;
-    white_uv_y_ = font_atlas_->TexUvWhitePixel.y;
+    if (!font_) {
+        std::cerr << "NativeUiRenderer text rendering disabled (font unavailable)." << std::endl;
+    }
 
     atlas_texture_ = filament::Texture::Builder()
                          .width(static_cast<uint32_t>(atlasWidth))
                          .height(static_cast<uint32_t>(atlasHeight))
                          .levels(1)
                          .sampler(filament::Texture::Sampler::SAMPLER_2D)
-                         .format(filament::Texture::InternalFormat::R8)
+                         .format(filament::Texture::InternalFormat::RGBA8)
                          .build(*engine);
 
     if (!atlas_texture_) {
@@ -385,14 +438,35 @@ void NativeUiRenderer::CreateResources() {
         return;
     }
 
-    const size_t atlasBytes =
+    const size_t atlasPixelsCount =
         static_cast<size_t>(atlasWidth) * static_cast<size_t>(atlasHeight);
+    const size_t atlasBytes = atlasPixelsCount * 4;
     auto* atlasCopy = new uint8_t[atlasBytes];
-    std::memcpy(atlasCopy, atlasPixels, atlasBytes);
+    for (size_t i = 0; i < atlasPixelsCount; ++i) {
+        const uint8_t coverage      = atlasPixels[i];
+        const size_t  base          = i * 4;
+        atlasCopy[base + 0] = coverage;
+        atlasCopy[base + 1] = coverage;
+        atlasCopy[base + 2] = coverage;
+        atlasCopy[base + 3] = coverage;
+    }
+
+    const int whiteX = std::clamp(static_cast<int>(white_uv_x_ * static_cast<float>(atlasWidth)),
+                                  0, atlasWidth - 1);
+    const int whiteY = std::clamp(static_cast<int>(white_uv_y_ * static_cast<float>(atlasHeight)),
+                                  0, atlasHeight - 1);
+    const size_t whiteBase =
+        (static_cast<size_t>(whiteY) * static_cast<size_t>(atlasWidth) +
+         static_cast<size_t>(whiteX)) *
+        4;
+    atlasCopy[whiteBase + 0] = 255;
+    atlasCopy[whiteBase + 1] = 255;
+    atlasCopy[whiteBase + 2] = 255;
+    atlasCopy[whiteBase + 3] = 255;
 
     atlas_texture_->setImage(*engine, 0,
                              filament::Texture::PixelBufferDescriptor(
-                                 atlasCopy, atlasBytes, filament::Texture::Format::R,
+                                 atlasCopy, atlasBytes, filament::Texture::Format::RGBA,
                                  filament::Texture::Type::UBYTE,
                                  [](void* data, size_t, void*) { delete[] static_cast<uint8_t*>(data); }));
 
@@ -467,7 +541,7 @@ void NativeUiRenderer::CreateResources() {
     initialized_ = true;
     geometry_dirty_ = true;
     has_geometry_   = false;
-    SE_LOG_INFO("NativeUiRenderer initialized (Filament overlay view).");
+    std::cout << "NativeUiRenderer initialized (Filament overlay view)." << std::endl;
 }
 
 void NativeUiRenderer::DestroyResources() {
@@ -669,6 +743,20 @@ void NativeUiRenderer::UploadGeometry() {
                 [](void* data, size_t, void*) { delete[] static_cast<uint32_t*>(data); }));
         last_frame_stats_.indicesUploaded = static_cast<uint32_t>(indices_.size());
         last_frame_stats_.geometryUploaded = true;
+    }
+
+    static int vertexDebugFrames = 0;
+    if (vertexDebugFrames < 5 && !vertices_.empty() && !indices_.empty()) {
+        const UiVertex& v = vertices_.front();
+        std::cout << "NativeUiRenderer::UploadGeometry v0 pos=(" << v.position[0] << ","
+                  << v.position[1] << "," << v.position[2] << ") uv=(" << v.uv[0] << ","
+                  << v.uv[1] << ") color=(" << static_cast<int>(v.color[0]) << ","
+                  << static_cast<int>(v.color[1]) << "," << static_cast<int>(v.color[2]) << ","
+                  << static_cast<int>(v.color[3]) << ") viewport=(" << viewport_width_ << "x"
+                  << viewport_height_ << ") framebuffer=(" << framebuffer_width_ << "x"
+                  << framebuffer_height_ << ") flip_uv_v=" << (flip_uv_v_ ? 1 : 0)
+                  << std::endl;
+        vertexDebugFrames++;
     }
 
     auto& rm = engine->getRenderableManager();

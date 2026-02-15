@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 #include "engine/console/ConsoleSystem.h"
 #include "engine/input/InputManager.h"
@@ -83,7 +84,9 @@ void DeveloperConsoleLayer::OnUpdate(float ts) {
     auto& console = ConsoleSystem::Get();
     auto& input   = InputManager::Get();
 
-    const bool toggledThisFrame = input.IsActionJustPressed("engine_toggle_console");
+    const bool toggledThisFrame = input.IsActionJustPressed("engine_toggle_console") ||
+                                  input.IsKeyJustPressed(Key::GraveAccent) ||
+                                  input.IsKeyJustPressed(Key::F1);
     if (toggledThisFrame) {
         console.ToggleVisible();
         InvalidateVisual();
@@ -128,7 +131,27 @@ void DeveloperConsoleLayer::OnRender() {
     if (!console.IsVisible()) return;
 
     auto& nativeUi = ui::NativeUiRenderer::Get();
-    if (!nativeUi.IsInitialized()) return;
+    if (!nativeUi.IsInitialized()) {
+        static bool warnedUninitialized = false;
+        if (!warnedUninitialized) {
+            std::cerr
+                << "DeveloperConsoleLayer: NativeUiRenderer is not initialized; console cannot render."
+                << std::endl;
+            warnedUninitialized = true;
+        }
+        return;
+    }
+
+    static int renderDebugFrames = 0;
+    if (renderDebugFrames < 5) {
+        std::cout << "DeveloperConsoleLayer::OnRender visible revision=" << visualRevision_
+                  << " rendered=" << renderedRevision_
+                  << " lines=" << console.GetOutputLineCount() << " window=(" << windowX_ << ","
+                  << windowY_ << "," << windowWidth_ << "," << windowHeight_ << ") viewport=("
+                  << nativeUi.GetViewportWidth() << "x" << nativeUi.GetViewportHeight() << ")"
+                  << std::endl;
+        renderDebugFrames++;
+    }
 
     const UiRect window = GetWindowRect();
     const UiRect header = GetHeaderRect();
@@ -156,6 +179,11 @@ void DeveloperConsoleLayer::OnRender() {
     }
 
     if (visualRevision_ == renderedRevision_) {
+        static int reuseDebugFrames = 0;
+        if (reuseDebugFrames < 5) {
+            std::cout << "DeveloperConsoleLayer::OnRender reusing previous geometry" << std::endl;
+            reuseDebugFrames++;
+        }
         nativeUi.RetainPreviousFrameGeometry();
         lastClearHover_  = clearHover;
         lastCloseHover_  = closeHover;
@@ -193,7 +221,7 @@ void DeveloperConsoleLayer::OnRender() {
 
     nativeUi.DrawFilledRect(header.x, header.y, header.w, header.h, headerBg);
     nativeUi.DrawText("Developer Console", header.x + 10.0f, header.y + 7.0f, titleColor, 1.0f);
-    nativeUi.DrawText("` toggle | drag title to move | drag corner to resize",
+    nativeUi.DrawText("` / F1 toggle | drag title to move | drag corner to resize",
                       header.x + 220.0f, header.y + 8.0f, hintColor, 0.90f);
 
     nativeUi.DrawFilledRect(clear.x, clear.y, clear.w, clear.h, clearBg);

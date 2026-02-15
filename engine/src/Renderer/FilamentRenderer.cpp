@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 namespace se {
 
@@ -47,6 +48,13 @@ void FilamentRenderer::EndFrame() {
 
     // Render the main view
     renderer->render(view);
+
+    static int overlayDebugFrames = 0;
+    if (overlayDebugFrames < 5) {
+        std::cout << "FilamentRenderer::EndFrame overlay_views=" << overlay_views_.size()
+                  << std::endl;
+        overlayDebugFrames++;
+    }
 
     // Render overlay views (UI/debug) on top of the main view.
     for (filament::View* overlayView : overlay_views_) {
