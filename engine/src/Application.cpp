@@ -12,6 +12,7 @@
 #include "engine/console/DeveloperConsoleLayer.h"
 #include "engine/events/Events.h"
 #include "engine/input/InputManager.h"
+#include "engine/ui/native/NativeUiLayer.h"
 #include "engine/ui/native/NativeUiRenderer.h"
 #include "engine/ui/native/retained/RetainedUi.h"
 
@@ -112,6 +113,7 @@ Application::Application(const ApplicationSpecification& specification) {
 
     ConsoleSystem::Get().Init();
     ServiceLocator::Get().ProvideConsoleSystem(&ConsoleSystem::Get());
+    PushOverlay<ui::NativeUiLayer>();
     PushOverlay<DeveloperConsoleLayer>();
 
     // Register event listeners

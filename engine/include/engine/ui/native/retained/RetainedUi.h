@@ -373,6 +373,10 @@ class RetainedUiContext {
         return stats_;
     }
 
+    bool HasUserContent() const {
+        return nodes_.size() > 1;
+    }
+
    private:
     RetainedUiContext() = default;
 

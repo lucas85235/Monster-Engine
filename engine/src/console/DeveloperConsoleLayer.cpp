@@ -289,12 +289,11 @@ void DeveloperConsoleLayer::OnRender() {
                    : ui::NativeUiColor{0.42f, 0.14f, 0.14f, 1.0f};
 
     nativeUi.DrawFilledRect(window.x + 6.0f, window.y + 6.0f, window.w, window.h, shadow);
-    nativeUi.DrawFilledRect(window.x, window.y, window.w, window.h, panelBg);
-    nativeUi.DrawRect(window.x, window.y, window.w, window.h, 2.0f, panelBorder);
+    ui::widgets::DrawPanel(nativeUi, window, {panelBg, panelBorder, 2.0f});
 
     constexpr float kHeaderTitleScale = 1.0f;
     constexpr float kHeaderHintScale  = 0.90f;
-    nativeUi.DrawFilledRect(header.x, header.y, header.w, header.h, headerBg);
+    ui::widgets::DrawPanel(nativeUi, header, {headerBg, headerBg, 0.0f});
     const float titleAreaX = std::round(header.x + 10.0f);
 
     const std::string headerHint = "` / F1 toggle | drag title to move | drag corner to resize";
@@ -316,20 +315,12 @@ void DeveloperConsoleLayer::OnRender() {
     }
 
     constexpr float kButtonScale = 0.95f;
-    nativeUi.DrawFilledRect(clear.x, clear.y, clear.w, clear.h, clearBg);
-    nativeUi.DrawRect(clear.x, clear.y, clear.w, clear.h, 1.0f, panelBorder);
-    nativeUi.DrawTextAligned("Clear", clear.x, clear.y, clear.w, clear.h, titleColor, kButtonScale,
-                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
-                             ui::NativeUiRenderer::TextVerticalAlign::Center);
+    ui::widgets::DrawButton(nativeUi, clear, "Clear",
+                            {{clearBg, panelBorder, 1.0f}, titleColor, kButtonScale});
+    ui::widgets::DrawButton(nativeUi, close, "X",
+                            {{closeBg, panelBorder, 1.0f}, titleColor, kHeaderTitleScale});
 
-    nativeUi.DrawFilledRect(close.x, close.y, close.w, close.h, closeBg);
-    nativeUi.DrawRect(close.x, close.y, close.w, close.h, 1.0f, panelBorder);
-    nativeUi.DrawTextAligned("X", close.x, close.y, close.w, close.h, titleColor, kHeaderTitleScale,
-                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
-                             ui::NativeUiRenderer::TextVerticalAlign::Center);
-
-    nativeUi.DrawFilledRect(output.x, output.y, output.w, output.h, outputBg);
-    nativeUi.DrawRect(output.x, output.y, output.w, output.h, 1.0f, outputBorder);
+    ui::widgets::DrawPanel(nativeUi, output, {outputBg, outputBorder, 1.0f});
 
     const OutputSnapshot outputSnapshot =
         BuildOutputSnapshot(console, nativeUi, output.x, output.y, output.w, output.h, scrollOffsetLines_);
@@ -409,15 +400,9 @@ void DeveloperConsoleLayer::OnRender() {
         lineY += outputSnapshot.lineHeight;
     }
 
-    nativeUi.DrawFilledRect(inputBox.x, inputBox.y, inputBox.w, inputBox.h, inputBg);
-    nativeUi.DrawRect(inputBox.x, inputBox.y, inputBox.w, inputBox.h, inputHover ? 2.0f : 1.0f,
-                      outputBorder);
-
-    nativeUi.DrawFilledRect(send.x, send.y, send.w, send.h, buttonBg);
-    nativeUi.DrawRect(send.x, send.y, send.w, send.h, 1.0f, panelBorder);
-    nativeUi.DrawTextAligned("Send", send.x, send.y, send.w, send.h, titleColor, kHeaderTitleScale,
-                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
-                             ui::NativeUiRenderer::TextVerticalAlign::Center);
+    ui::widgets::DrawPanel(nativeUi, inputBox, {inputBg, outputBorder, inputHover ? 2.0f : 1.0f});
+    ui::widgets::DrawButton(nativeUi, send, "Send",
+                            {{buttonBg, panelBorder, 1.0f}, titleColor, kHeaderTitleScale});
 
     const std::string inputText = "> " + inputBuffer_;
     const size_t clampedCaretIndex = std::min(caretIndex_, inputBuffer_.size());
@@ -455,10 +440,8 @@ void DeveloperConsoleLayer::OnRender() {
     const ui::NativeUiColor gripColor =
         resizeHover || resizingWindow_ ? ui::NativeUiColor{0.28f, 0.54f, 0.83f, 1.0f}
                                        : ui::NativeUiColor{0.17f, 0.27f, 0.39f, 1.0f};
-    nativeUi.DrawFilledRect(resize.x, resize.y, resize.w, resize.h, gripColor);
-    nativeUi.DrawTextAligned("::", resize.x, resize.y, resize.w, resize.h, titleColor, 0.9f,
-                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
-                             ui::NativeUiRenderer::TextVerticalAlign::Center);
+    ui::widgets::DrawButton(nativeUi, resize, "::",
+                            {{gripColor, gripColor, 0.0f}, titleColor, 0.9f});
 
     // Signal the renderer that this frame's geometry is eligible for reuse.
     // On the *next* frame, if OnRender early-returns (nothing changed), BeginFrame

@@ -7,6 +7,7 @@
 #include "Engine.h"
 #include "engine/Layer.h"
 #include "engine/input/InputManager.h"
+#include "engine/ui/native/widgets/NativeUiPrimitives.h"
 
 namespace se {
 
@@ -21,16 +22,7 @@ class DeveloperConsoleLayer : public Layer {
     void OnRender() override;
 
    private:
-    struct UiRect {
-        float x = 0.0f;
-        float y = 0.0f;
-        float w = 0.0f;
-        float h = 0.0f;
-
-        bool Contains(float px, float py) const {
-            return px >= x && py >= y && px <= (x + w) && py <= (y + h);
-        }
-    };
+    using UiRect = ui::widgets::Rect;
 
     void InitializeLayoutIfNeeded(float viewportWidth, float viewportHeight);
     void HandleMouseInteraction(float viewportWidth, float viewportHeight, bool toggledThisFrame);
