@@ -125,6 +125,20 @@ ImWchar ToUiGlyphCodepoint(uint32_t codepoint) {
     return static_cast<ImWchar>('?');
 }
 
+float SnapToPhysicalPixel(float value, uint32_t framebufferExtent, uint32_t viewportExtent) {
+    if (viewportExtent == 0u || framebufferExtent == 0u) {
+        return std::round(value);
+    }
+
+    const float scale = static_cast<float>(framebufferExtent) /
+                        static_cast<float>(viewportExtent);
+    if (!(scale > 0.0f)) {
+        return std::round(value);
+    }
+
+    return std::round(value * scale) / scale;
+}
+
 }  // namespace
 
 NativeUiRenderer& NativeUiRenderer::Get() {
@@ -226,15 +240,6 @@ void NativeUiRenderer::EndFrame() {
     if (!geometry_dirty_) return;
     UploadGeometry();
     geometry_dirty_ = false;
-
-    static int uploadDebugFrames = 0;
-    if (uploadDebugFrames < 5) {
-        std::cout << "NativeUiRenderer::EndFrame uploaded quads=" << last_frame_stats_.quadsSubmitted
-                  << " draw_calls=" << last_frame_stats_.drawCallsIssued
-                  << " vertices=" << last_frame_stats_.verticesUploaded
-                  << " indices=" << last_frame_stats_.indicesUploaded << std::endl;
-        uploadDebugFrames++;
-    }
 }
 
 void NativeUiRenderer::RetainPreviousFrameGeometry() {
@@ -255,8 +260,14 @@ void NativeUiRenderer::DrawFilledRect(float x, float y, float width, float heigh
                                       const NativeUiColor& color) {
     if (!initialized_ || width <= 0.0f || height <= 0.0f) return;
     PrepareForDraw();
-    PushQuad(x, y, x + width, y + height, white_uv_x_, white_uv_y_, white_uv_x_, white_uv_y_,
-             color);
+    const float snappedX0 = SnapToPhysicalPixel(x, framebuffer_width_, viewport_width_);
+    const float snappedY0 = SnapToPhysicalPixel(y, framebuffer_height_, viewport_height_);
+    const float snappedX1 =
+        SnapToPhysicalPixel(x + width, framebuffer_width_, viewport_width_);
+    const float snappedY1 =
+        SnapToPhysicalPixel(y + height, framebuffer_height_, viewport_height_);
+    PushQuad(snappedX0, snappedY0, snappedX1, snappedY1, white_uv_x_, white_uv_y_, white_uv_x_,
+             white_uv_y_, color);
 }
 
 void NativeUiRenderer::DrawRect(float x, float y, float width, float height, float thickness,
@@ -278,8 +289,11 @@ void NativeUiRenderer::DrawText(std::string_view text, float x, float y, const N
     ImFontBaked* baked = font_->GetFontBaked(font_base_size_);
     if (!baked) return;
 
-    float penX     = x;
-    float baseline = y + baked->Ascent * scale;
+    const float textOriginX = SnapToPhysicalPixel(x, framebuffer_width_, viewport_width_);
+    const float textOriginY = SnapToPhysicalPixel(y, framebuffer_height_, viewport_height_);
+    float penX     = textOriginX;
+    float baseline =
+        SnapToPhysicalPixel(textOriginY + baked->Ascent * scale, framebuffer_height_, viewport_height_);
     const char* cursor = text.data();
     const char* end    = text.data() + text.size();
 
@@ -287,8 +301,9 @@ void NativeUiRenderer::DrawText(std::string_view text, float x, float y, const N
         const uint32_t codepoint = DecodeUtf8Codepoint(cursor, end);
         if (codepoint == '\r') continue;
         if (codepoint == '\n') {
-            penX     = x;
-            baseline += baked->Size * scale;
+            penX = textOriginX;
+            baseline =
+                SnapToPhysicalPixel(baseline + baked->Size * scale, framebuffer_height_, viewport_height_);
             continue;
         }
         if (codepoint < 32u) continue;
@@ -301,14 +316,132 @@ void NativeUiRenderer::DrawText(std::string_view text, float x, float y, const N
             continue;
         }
 
-        const float x0 = penX + glyph->X0 * scale;
-        const float y0 = baseline + glyph->Y0 * scale;
-        const float x1 = penX + glyph->X1 * scale;
-        const float y1 = baseline + glyph->Y1 * scale;
+        const float x0 =
+            SnapToPhysicalPixel(penX + glyph->X0 * scale, framebuffer_width_, viewport_width_);
+        const float y0 =
+            SnapToPhysicalPixel(baseline + glyph->Y0 * scale, framebuffer_height_, viewport_height_);
+        const float x1 =
+            SnapToPhysicalPixel(penX + glyph->X1 * scale, framebuffer_width_, viewport_width_);
+        const float y1 =
+            SnapToPhysicalPixel(baseline + glyph->Y1 * scale, framebuffer_height_, viewport_height_);
         PushQuad(x0, y0, x1, y1, glyph->U0, glyph->V0, glyph->U1, glyph->V1, color);
 
         penX += glyph->AdvanceX * scale;
     }
+}
+
+NativeUiRenderer::TextLayoutMetrics NativeUiRenderer::MeasureTextLayout(std::string_view text,
+                                                                        float scale) const {
+    TextLayoutMetrics metrics{};
+    if (!font_ || text.empty() || scale <= 0.0f) return metrics;
+
+    ImFontBaked* baked = font_->GetFontBaked(font_base_size_);
+    if (!baked) return metrics;
+
+    metrics.lineHeight = baked->Size * scale;
+
+    float penX     = 0.0f;
+    float baseline = baked->Ascent * scale;
+    bool hasBounds = false;
+
+    const char* cursor = text.data();
+    const char* end    = text.data() + text.size();
+    while (cursor < end) {
+        const uint32_t codepoint = DecodeUtf8Codepoint(cursor, end);
+        if (codepoint == '\r') continue;
+        if (codepoint == '\n') break;
+        if (codepoint < 32u) continue;
+
+        const ImWchar glyphCode = ToUiGlyphCodepoint(codepoint);
+        const ImFontGlyph* glyph = baked->FindGlyph(glyphCode);
+        if (!glyph) continue;
+
+        if (glyph->Visible) {
+            const float x0 = penX + glyph->X0 * scale;
+            const float y0 = baseline + glyph->Y0 * scale;
+            const float x1 = penX + glyph->X1 * scale;
+            const float y1 = baseline + glyph->Y1 * scale;
+
+            if (!hasBounds) {
+                metrics.minX = x0;
+                metrics.maxX = x1;
+                metrics.minY = y0;
+                metrics.maxY = y1;
+                hasBounds = true;
+            } else {
+                metrics.minX = std::min(metrics.minX, x0);
+                metrics.minY = std::min(metrics.minY, y0);
+                metrics.maxX = std::max(metrics.maxX, x1);
+                metrics.maxY = std::max(metrics.maxY, y1);
+            }
+        }
+
+        penX += glyph->AdvanceX * scale;
+    }
+
+    metrics.advanceWidth = penX;
+    metrics.hasVisibleInk = hasBounds;
+
+    if (!hasBounds) {
+        // Fallback for whitespace-only content: treat line box as visible extents.
+        metrics.minX = 0.0f;
+        metrics.maxX = metrics.advanceWidth;
+        metrics.minY = 0.0f;
+        metrics.maxY = metrics.lineHeight;
+    }
+
+    return metrics;
+}
+
+void NativeUiRenderer::DrawTextAligned(std::string_view text, float x, float y, float width, float height,
+                                       const NativeUiColor& color, float scale,
+                                       TextHorizontalAlign horizontalAlign,
+                                       TextVerticalAlign verticalAlign,
+                                       const TextPadding& padding, bool useInkBounds) {
+    if (text.empty() || scale <= 0.0f || width <= 0.0f || height <= 0.0f) return;
+
+    const TextLayoutMetrics metrics = MeasureTextLayout(text, scale);
+    if (metrics.lineHeight <= 0.0f && metrics.advanceWidth <= 0.0f) return;
+
+    const float contentX = x + std::max(0.0f, padding.left);
+    const float contentY = y + std::max(0.0f, padding.top);
+    const float contentW = std::max(0.0f, width - std::max(0.0f, padding.left) -
+                                              std::max(0.0f, padding.right));
+    const float contentH = std::max(0.0f, height - std::max(0.0f, padding.top) -
+                                               std::max(0.0f, padding.bottom));
+
+    const float boxWidth  = useInkBounds ? metrics.InkWidth() : metrics.advanceWidth;
+    const float boxHeight = useInkBounds ? metrics.InkHeight() : metrics.lineHeight;
+    const float boxOffsetX = useInkBounds ? metrics.minX : 0.0f;
+    const float boxOffsetY = useInkBounds ? metrics.minY : 0.0f;
+
+    float originX = contentX - boxOffsetX;
+    switch (horizontalAlign) {
+        case TextHorizontalAlign::Left:
+            originX = contentX - boxOffsetX;
+            break;
+        case TextHorizontalAlign::Center:
+            originX = contentX + (contentW - boxWidth) * 0.5f - boxOffsetX;
+            break;
+        case TextHorizontalAlign::Right:
+            originX = contentX + contentW - boxWidth - boxOffsetX;
+            break;
+    }
+
+    float originY = contentY - boxOffsetY;
+    switch (verticalAlign) {
+        case TextVerticalAlign::Top:
+            originY = contentY - boxOffsetY;
+            break;
+        case TextVerticalAlign::Center:
+            originY = contentY + (contentH - boxHeight) * 0.5f - boxOffsetY;
+            break;
+        case TextVerticalAlign::Bottom:
+            originY = contentY + contentH - boxHeight - boxOffsetY;
+            break;
+    }
+
+    DrawText(text, originX, originY, color, scale);
 }
 
 float NativeUiRenderer::GetLineHeight(float scale) const {
@@ -743,20 +876,6 @@ void NativeUiRenderer::UploadGeometry() {
                 [](void* data, size_t, void*) { delete[] static_cast<uint32_t*>(data); }));
         last_frame_stats_.indicesUploaded = static_cast<uint32_t>(indices_.size());
         last_frame_stats_.geometryUploaded = true;
-    }
-
-    static int vertexDebugFrames = 0;
-    if (vertexDebugFrames < 5 && !vertices_.empty() && !indices_.empty()) {
-        const UiVertex& v = vertices_.front();
-        std::cout << "NativeUiRenderer::UploadGeometry v0 pos=(" << v.position[0] << ","
-                  << v.position[1] << "," << v.position[2] << ") uv=(" << v.uv[0] << ","
-                  << v.uv[1] << ") color=(" << static_cast<int>(v.color[0]) << ","
-                  << static_cast<int>(v.color[1]) << "," << static_cast<int>(v.color[2]) << ","
-                  << static_cast<int>(v.color[3]) << ") viewport=(" << viewport_width_ << "x"
-                  << viewport_height_ << ") framebuffer=(" << framebuffer_width_ << "x"
-                  << framebuffer_height_ << ") flip_uv_v=" << (flip_uv_v_ ? 1 : 0)
-                  << std::endl;
-        vertexDebugFrames++;
     }
 
     auto& rm = engine->getRenderableManager();

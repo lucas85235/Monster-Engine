@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -37,6 +38,42 @@ struct NativeUiColor {
 
 class NativeUiRenderer {
    public:
+    enum class TextHorizontalAlign : uint8_t {
+        Left = 0,
+        Center,
+        Right,
+    };
+
+    enum class TextVerticalAlign : uint8_t {
+        Top = 0,
+        Center,
+        Bottom,
+    };
+
+    struct TextPadding {
+        float left   = 0.0f;
+        float top    = 0.0f;
+        float right  = 0.0f;
+        float bottom = 0.0f;
+    };
+
+    struct TextLayoutMetrics {
+        float advanceWidth = 0.0f;
+        float lineHeight   = 0.0f;
+        float minX         = 0.0f;
+        float maxX         = 0.0f;
+        float minY         = 0.0f;
+        float maxY         = 0.0f;
+        bool  hasVisibleInk = false;
+
+        float InkWidth() const {
+            return std::max(0.0f, maxX - minX);
+        }
+        float InkHeight() const {
+            return std::max(0.0f, maxY - minY);
+        }
+    };
+
     struct FrameStats {
         uint32_t drawCallsIssued  = 0;
         uint32_t quadsSubmitted   = 0;
@@ -84,6 +121,12 @@ class NativeUiRenderer {
                   const NativeUiColor& color);
     void DrawText(std::string_view text, float x, float y, const NativeUiColor& color,
                   float scale = 1.0f);
+    TextLayoutMetrics MeasureTextLayout(std::string_view text, float scale = 1.0f) const;
+    void DrawTextAligned(std::string_view text, float x, float y, float width, float height,
+                         const NativeUiColor& color, float scale = 1.0f,
+                         TextHorizontalAlign horizontalAlign = TextHorizontalAlign::Left,
+                         TextVerticalAlign verticalAlign = TextVerticalAlign::Top,
+                         const TextPadding& padding = {}, bool useInkBounds = true);
 
     float GetLineHeight(float scale = 1.0f) const;
     float MeasureTextWidth(std::string_view text, float scale = 1.0f) const;

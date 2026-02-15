@@ -142,17 +142,6 @@ void DeveloperConsoleLayer::OnRender() {
         return;
     }
 
-    static int renderDebugFrames = 0;
-    if (renderDebugFrames < 5) {
-        std::cout << "DeveloperConsoleLayer::OnRender visible revision=" << visualRevision_
-                  << " rendered=" << renderedRevision_
-                  << " lines=" << console.GetOutputLineCount() << " window=(" << windowX_ << ","
-                  << windowY_ << "," << windowWidth_ << "," << windowHeight_ << ") viewport=("
-                  << nativeUi.GetViewportWidth() << "x" << nativeUi.GetViewportHeight() << ")"
-                  << std::endl;
-        renderDebugFrames++;
-    }
-
     const UiRect window = GetWindowRect();
     const UiRect header = GetHeaderRect();
     const UiRect clear  = GetClearButtonRect();
@@ -179,11 +168,6 @@ void DeveloperConsoleLayer::OnRender() {
     }
 
     if (visualRevision_ == renderedRevision_) {
-        static int reuseDebugFrames = 0;
-        if (reuseDebugFrames < 5) {
-            std::cout << "DeveloperConsoleLayer::OnRender reusing previous geometry" << std::endl;
-            reuseDebugFrames++;
-        }
         nativeUi.RetainPreviousFrameGeometry();
         lastClearHover_  = clearHover;
         lastCloseHover_  = closeHover;
@@ -219,18 +203,41 @@ void DeveloperConsoleLayer::OnRender() {
     nativeUi.DrawFilledRect(window.x, window.y, window.w, window.h, panelBg);
     nativeUi.DrawRect(window.x, window.y, window.w, window.h, 2.0f, panelBorder);
 
+    constexpr float kHeaderTitleScale = 1.0f;
+    constexpr float kHeaderHintScale  = 0.90f;
     nativeUi.DrawFilledRect(header.x, header.y, header.w, header.h, headerBg);
-    nativeUi.DrawText("Developer Console", header.x + 10.0f, header.y + 7.0f, titleColor, 1.0f);
-    nativeUi.DrawText("` / F1 toggle | drag title to move | drag corner to resize",
-                      header.x + 220.0f, header.y + 8.0f, hintColor, 0.90f);
+    const float titleAreaX = std::round(header.x + 10.0f);
 
+    const std::string headerHint = "` / F1 toggle | drag title to move | drag corner to resize";
+    const float hintX            = std::round(header.x + 220.0f);
+    const float hintMaxWidth     = std::max(0.0f, clear.x - hintX - 8.0f);
+    const float titleAreaW       = std::max(0.0f, hintX - titleAreaX - 10.0f);
+    nativeUi.DrawTextAligned("Developer Console", titleAreaX, header.y, titleAreaW, header.h,
+                             titleColor, kHeaderTitleScale,
+                             ui::NativeUiRenderer::TextHorizontalAlign::Left,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center);
+
+    const std::string hintText =
+        TruncateWithEllipsis(nativeUi, headerHint, hintMaxWidth, kHeaderHintScale);
+    if (!hintText.empty()) {
+        nativeUi.DrawTextAligned(hintText, hintX, header.y, hintMaxWidth, header.h, hintColor,
+                                 kHeaderHintScale,
+                                 ui::NativeUiRenderer::TextHorizontalAlign::Left,
+                                 ui::NativeUiRenderer::TextVerticalAlign::Center);
+    }
+
+    constexpr float kButtonScale = 0.95f;
     nativeUi.DrawFilledRect(clear.x, clear.y, clear.w, clear.h, clearBg);
     nativeUi.DrawRect(clear.x, clear.y, clear.w, clear.h, 1.0f, panelBorder);
-    nativeUi.DrawText("Clear", clear.x + 8.0f, clear.y + 5.0f, titleColor, 0.95f);
+    nativeUi.DrawTextAligned("Clear", clear.x, clear.y, clear.w, clear.h, titleColor, kButtonScale,
+                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center);
 
     nativeUi.DrawFilledRect(close.x, close.y, close.w, close.h, closeBg);
     nativeUi.DrawRect(close.x, close.y, close.w, close.h, 1.0f, panelBorder);
-    nativeUi.DrawText("X", close.x + 9.0f, close.y + 5.0f, titleColor, 1.0f);
+    nativeUi.DrawTextAligned("X", close.x, close.y, close.w, close.h, titleColor, kHeaderTitleScale,
+                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center);
 
     nativeUi.DrawFilledRect(output.x, output.y, output.w, output.h, outputBg);
     nativeUi.DrawRect(output.x, output.y, output.w, output.h, 1.0f, outputBorder);
@@ -250,12 +257,13 @@ void DeveloperConsoleLayer::OnRender() {
     const int lineCount = std::max(0, std::min(visibleLines, totalLines - startLine));
     const auto lines = console.GetOutputLinesRangeSnapshot(static_cast<size_t>(startLine),
                                                            static_cast<size_t>(lineCount));
-    float lineY = output.y + 6.0f;
+    float lineY = std::round(output.y + 6.0f);
     const float maxTextWidth = output.w - 14.0f;
+    const float outputTextX = std::round(output.x + 8.0f);
 
     for (const std::string& sourceLine : lines) {
         const std::string text = TruncateWithEllipsis(nativeUi, sourceLine, maxTextWidth, 0.95f);
-        nativeUi.DrawText(text, output.x + 8.0f, lineY, textColor, 0.95f);
+        nativeUi.DrawText(text, outputTextX, std::round(lineY), textColor, 0.95f);
         lineY += lineHeight;
     }
 
@@ -265,16 +273,37 @@ void DeveloperConsoleLayer::OnRender() {
 
     nativeUi.DrawFilledRect(send.x, send.y, send.w, send.h, buttonBg);
     nativeUi.DrawRect(send.x, send.y, send.w, send.h, 1.0f, panelBorder);
-    nativeUi.DrawText("Send", send.x + 18.0f, send.y + 8.0f, titleColor, 1.0f);
+    nativeUi.DrawTextAligned("Send", send.x, send.y, send.w, send.h, titleColor, kHeaderTitleScale,
+                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center);
 
-    std::string inputText = inputBuffer_;
+    const std::string inputText = "> " + inputBuffer_;
+    ui::NativeUiRenderer::TextPadding inputPadding{};
+    inputPadding.left  = 8.0f;
+    inputPadding.right = 8.0f;
+    const auto inputMetrics = nativeUi.MeasureTextLayout(inputText, kHeaderTitleScale);
+    const float inputContentX = inputBox.x + inputPadding.left;
+    const float inputContentY = inputBox.y + inputPadding.top;
+    const float inputContentH =
+        std::max(0.0f, inputBox.h - inputPadding.top - inputPadding.bottom);
+    const float inputOriginX = inputContentX - inputMetrics.minX;
+    const float inputOriginY = inputContentY + (inputContentH - inputMetrics.InkHeight()) * 0.5f -
+                               inputMetrics.minY;
+    nativeUi.DrawTextAligned(inputText, inputBox.x, inputBox.y, inputBox.w, inputBox.h, titleColor,
+                             kHeaderTitleScale, ui::NativeUiRenderer::TextHorizontalAlign::Left,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center, inputPadding, true);
+
     if (inputFocused_ && caretVisible_) {
-        inputText.push_back('_');
+        const float caretX =
+            std::round(inputOriginX + inputMetrics.advanceWidth + 1.0f);
+        const float caretY = std::round(inputOriginY + inputMetrics.minY);
+        const float caretH = std::max(8.0f, inputMetrics.InkHeight());
+        nativeUi.DrawFilledRect(caretX, caretY, 1.0f, caretH, titleColor);
     }
-    nativeUi.DrawText("> " + inputText, inputBox.x + 8.0f, inputBox.y + 8.0f, titleColor, 1.0f);
 
     if (!statusHint_.empty()) {
-        nativeUi.DrawText(statusHint_, window.x + 10.0f, window.y + window.h - 18.0f, hintColor, 0.90f);
+        nativeUi.DrawText(statusHint_, std::round(window.x + 10.0f),
+                          std::round(window.y + window.h - 18.0f), hintColor, 0.90f);
     }
 
     // Resize grip
@@ -282,7 +311,9 @@ void DeveloperConsoleLayer::OnRender() {
         resizeHover || resizingWindow_ ? ui::NativeUiColor{0.28f, 0.54f, 0.83f, 1.0f}
                                        : ui::NativeUiColor{0.17f, 0.27f, 0.39f, 1.0f};
     nativeUi.DrawFilledRect(resize.x, resize.y, resize.w, resize.h, gripColor);
-    nativeUi.DrawText("::", resize.x + 4.0f, resize.y + 2.0f, titleColor, 0.9f);
+    nativeUi.DrawTextAligned("::", resize.x, resize.y, resize.w, resize.h, titleColor, 0.9f,
+                             ui::NativeUiRenderer::TextHorizontalAlign::Center,
+                             ui::NativeUiRenderer::TextVerticalAlign::Center);
 
     // Signal the renderer that this frame's geometry is eligible for reuse.
     // On the *next* frame, if OnRender early-returns (nothing changed), BeginFrame
@@ -542,6 +573,12 @@ void DeveloperConsoleLayer::ClampWindowToViewport(float viewportWidth, float vie
     const float maxY = std::max(0.0f, viewportHeight - windowHeight_);
     windowX_ = ClampFloat(windowX_, 0.0f, maxX);
     windowY_ = ClampFloat(windowY_, 0.0f, maxY);
+
+    // Snap to pixel grid to avoid blurry edges/text from fractional coordinates.
+    windowX_      = std::round(windowX_);
+    windowY_      = std::round(windowY_);
+    windowWidth_  = std::round(windowWidth_);
+    windowHeight_ = std::round(windowHeight_);
 }
 
 void DeveloperConsoleLayer::ExecuteCurrentInput() {
