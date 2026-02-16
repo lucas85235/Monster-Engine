@@ -123,10 +123,16 @@ class NativeUiRenderer {
                   float scale = 1.0f);
     TextLayoutMetrics MeasureTextLayout(std::string_view text, float scale = 1.0f) const;
     void DrawTextAligned(std::string_view text, float x, float y, float width, float height,
+                         const NativeUiColor& color, float scale,
+                         TextHorizontalAlign horizontalAlign,
+                         TextVerticalAlign verticalAlign,
+                         const TextPadding& padding,
+                         bool useInkBounds = true);
+    void DrawTextAligned(std::string_view text, float x, float y, float width, float height,
                          const NativeUiColor& color, float scale = 1.0f,
                          TextHorizontalAlign horizontalAlign = TextHorizontalAlign::Left,
                          TextVerticalAlign verticalAlign = TextVerticalAlign::Top,
-                         const TextPadding& padding = {}, bool useInkBounds = true);
+                         bool useInkBounds = true);
 
     float GetLineHeight(float scale = 1.0f) const;
     float MeasureTextWidth(std::string_view text, float scale = 1.0f) const;

@@ -50,10 +50,6 @@ Application::Application(const ApplicationSpecification& specification) {
     window_ = std::unique_ptr<Window>(Window::Create(windowSpec));
     window_->Init();
 
-    if (specification.EnableImGui) {
-        SE_LOG_WARN("EnableImGui is ignored in Filament-first runtime; using native UI overlays.");
-    }
-
     // Create Filament context and renderer
     filament_context_ = std::make_unique<FilamentContext>();
     filament_context_->Init(
@@ -111,6 +107,15 @@ Application::Application(const ApplicationSpecification& specification) {
                                                            static_cast<float>(winH));
     }
 
+    if (specification.EnableImGui) {
+        imgui_renderer_ = std::make_unique<ui::imgui::ImGuiRenderer>();
+        imgui_renderer_->Init(filament_context_.get(), filament_renderer_.get(), window_.get(),
+                              event_bus_.get(), specification.Name);
+        if (!imgui_renderer_->IsInitialized()) {
+            SE_LOG_ERROR("ImGui requested but renderer initialization failed; ImGui draw calls will be skipped.");
+        }
+    }
+
     ConsoleSystem::Get().Init();
     ServiceLocator::Get().ProvideConsoleSystem(&ConsoleSystem::Get());
     PushOverlay<ui::NativeUiLayer>();
@@ -156,6 +161,11 @@ Application::~Application() {
     // Cleanup layers
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
     layer_stack_.clear();
+
+    if (imgui_renderer_) {
+        imgui_renderer_->Shutdown();
+        imgui_renderer_.reset();
+    }
 
     ui::NativeUiRenderer::Get().Shutdown();
     ui::retained::RetainedUiContext::Get().Shutdown();
@@ -225,12 +235,17 @@ int Application::Run() {
         event_bus_->dispatch();
         sections.eventPumpTimeMs = toMs(eventStart, Clock::now());
 
+        const bool imguiCapturingInput = imgui_renderer_ && imgui_renderer_->WantsCaptureInput();
+
         // Update gameplay/UI layers even if Filament skips a frame.
         // This avoids losing edge-triggered input (mouse/key clicks) under low FPS.
         auto layerUpdateStart = Clock::now();
         for (const std::unique_ptr<Layer>& layer : layer_stack_) {
-            const bool suppressInput =
+            const bool suppressForConsole =
                 ConsoleSystem::Get().IsVisible() && layer->GetName() != "DeveloperConsoleLayer";
+            const bool suppressForImGui =
+                imguiCapturingInput && layer->GetName() != "DeveloperConsoleLayer";
+            const bool suppressInput = suppressForConsole || suppressForImGui;
             InputManager::Get().SetInputSuppressed(suppressInput);
             layer->OnUpdate(timestep);
         }
@@ -275,18 +290,38 @@ int Application::Run() {
             // Begin Filament frame
             if (filament_renderer_->BeginFrame()) {
                 auto renderSetupStart = Clock::now();
+                if (imgui_renderer_) {
+                    imgui_renderer_->BeginFrame(timestep);
+                }
                 ui::NativeUiRenderer::Get().BeginFrame();
                 sections.renderSetupTimeMs = toMs(renderSetupStart, Clock::now());
 
                 // Render layers
                 auto layerRenderStart = Clock::now();
                 for (const std::unique_ptr<Layer>& layer : layer_stack_) {
-                    const bool suppressInput =
+                    const bool suppressForConsole =
                         ConsoleSystem::Get().IsVisible() && layer->GetName() != "DeveloperConsoleLayer";
+                    const bool suppressForImGui =
+                        imguiCapturingInput && layer->GetName() != "DeveloperConsoleLayer";
+                    const bool suppressInput = suppressForConsole || suppressForImGui;
                     InputManager::Get().SetInputSuppressed(suppressInput);
                     layer->OnRender();
                 }
                 InputManager::Get().SetInputSuppressed(false);
+
+                if (imgui_renderer_ && imgui_renderer_->IsFrameActive()) {
+                    for (const std::unique_ptr<Layer>& layer : layer_stack_) {
+                        const bool suppressForConsole =
+                            ConsoleSystem::Get().IsVisible() && layer->GetName() != "DeveloperConsoleLayer";
+                        const bool suppressForImGui =
+                            imguiCapturingInput && layer->GetName() != "DeveloperConsoleLayer";
+                        const bool suppressInput = suppressForConsole || suppressForImGui;
+                        InputManager::Get().SetInputSuppressed(suppressInput);
+                        layer->OnImGuiRender();
+                    }
+                    InputManager::Get().SetInputSuppressed(false);
+                    imgui_renderer_->EndFrame();
+                }
                 sections.layerRenderTimeMs = toMs(layerRenderStart, Clock::now());
 
                 auto uiEndStart = Clock::now();
@@ -355,6 +390,10 @@ bool Application::OnWindowResize(const WindowResizeEvent& e) {
                                          static_cast<uint32_t>(winH));
     ui::retained::RetainedUiContext::Get().SetViewport(static_cast<float>(winW),
                                                        static_cast<float>(winH));
+    if (imgui_renderer_) {
+        imgui_renderer_->OnResize(e.width, e.height, static_cast<uint32_t>(winW),
+                                  static_cast<uint32_t>(winH));
+    }
     return false;
 }
 

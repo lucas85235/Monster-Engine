@@ -2,9 +2,9 @@
     "version": 2,
     "contexts": [
         "global",
-        "sandbox.third_person",
         "engine",
-        "engine.console"
+        "engine.console",
+        "sandbox.third_person"
     ],
     "maps": [
         {

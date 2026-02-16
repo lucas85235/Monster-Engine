@@ -397,6 +397,16 @@ void NativeUiRenderer::DrawTextAligned(std::string_view text, float x, float y, 
                                        const NativeUiColor& color, float scale,
                                        TextHorizontalAlign horizontalAlign,
                                        TextVerticalAlign verticalAlign,
+                                       bool useInkBounds) {
+    TextPadding defaultPadding{};
+    DrawTextAligned(text, x, y, width, height, color, scale, horizontalAlign, verticalAlign,
+                    defaultPadding, useInkBounds);
+}
+
+void NativeUiRenderer::DrawTextAligned(std::string_view text, float x, float y, float width, float height,
+                                       const NativeUiColor& color, float scale,
+                                       TextHorizontalAlign horizontalAlign,
+                                       TextVerticalAlign verticalAlign,
                                        const TextPadding& padding, bool useInkBounds) {
     if (text.empty() || scale <= 0.0f || width <= 0.0f || height <= 0.0f) return;
 

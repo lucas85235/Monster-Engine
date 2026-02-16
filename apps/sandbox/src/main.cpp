@@ -9,6 +9,7 @@ int main() {
     appSpec.Name         = "Monster Engine - Third Person Demo";
     appSpec.WindowWidth  = 1280;
     appSpec.WindowHeight = 720;
+    appSpec.EnableImGui  = true;
 
     Application application(appSpec);
 
