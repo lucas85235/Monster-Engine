@@ -13,6 +13,7 @@ namespace se::ui::retained {
 namespace {
 
 constexpr float kEpsilon = 0.0001f;
+constexpr NativeUiRenderer::RetainedSourceId kRetainedUiSourceId = 0x1001u;
 
 #define SE_RETAINED_UI_COMPONENT_LIST(X) \
     X(TextInput)                         \
@@ -346,6 +347,15 @@ void ApplyAnchors(const LayoutStyle& layout, const UiRect& parentContent, UiRect
     }
 }
 
+StackAlign ResolveStackAlign(const LayoutStyle& childLayout, bool vertical, StackAlign parentAlign) {
+    if (parentAlign != StackAlign::Auto) {
+        return parentAlign;
+    }
+
+    const bool stretch = vertical ? childLayout.fillX : childLayout.fillY;
+    return stretch ? StackAlign::Stretch : StackAlign::Start;
+}
+
 }  // namespace
 
 RetainedUiContext& RetainedUiContext::Get() {
@@ -373,6 +383,10 @@ void RetainedUiContext::Reset() {
     focusedId_ = kInvalidId;
     draggingId_ = kInvalidId;
     resizingId_ = kInvalidId;
+    dragStartMouseX_ = 0.0f;
+    dragStartMouseY_ = 0.0f;
+    dragStartLayoutX_ = 0.0f;
+    dragStartLayoutY_ = 0.0f;
 
     UiNode root;
     root.id = rootId_;
@@ -426,6 +440,14 @@ UiNode& RetainedUiContext::EnsurePanel(UiId id, UiId parent, std::string_view ti
     return EnsureInternal(id, WidgetType::Panel, parent, title, true);
 }
 
+UiNode& RetainedUiContext::EnsureVerticalBox(UiId id, UiId parent, std::string_view text) {
+    return EnsureInternal(id, WidgetType::VStack, parent, text, false);
+}
+
+UiNode& RetainedUiContext::EnsureHorizontalBox(UiId id, UiId parent, std::string_view text) {
+    return EnsureInternal(id, WidgetType::HStack, parent, text, false);
+}
+
 #define SE_DEFINE_ENSURE(name)                                                        \
     UiNode& RetainedUiContext::Ensure##name(UiId id, UiId parent, std::string_view text) { \
         return EnsureInternal(id, WidgetType::name, parent, text, false);             \
@@ -476,6 +498,8 @@ UiNode& RetainedUiContext::EnsureInternal(UiId id, WidgetType type, UiId parent,
             node.layout.interactable = true;
             node.layout.fillX = false;
             node.layout.fillY = false;
+            node.layout.dragMode = DragMode::TitleBar;
+            node.layout.titleBarHeight = 30.0f;
         }
 
         if (IsContainerType(type)) {
@@ -846,11 +870,14 @@ void RetainedUiContext::PollInput(se::InputManager& input) {
                 resizeStartMouseY_ = mousePos.y;
                 resizeStartWidth_  = pressed->layout.width;
                 resizeStartHeight_ = pressed->layout.height;
-            } else if (pressed->state.draggable) {
-                draggingId_  = pressed->id;
-                resizingId_  = kInvalidId;
-                dragOffsetX_ = mousePos.x - pressed->worldRect.x;
-                dragOffsetY_ = mousePos.y - pressed->worldRect.y;
+            } else if (pressed->state.draggable &&
+                       IsPointInDragRegion(*pressed, mousePos.x, mousePos.y)) {
+                draggingId_ = pressed->id;
+                resizingId_ = kInvalidId;
+                dragStartMouseX_ = mousePos.x;
+                dragStartMouseY_ = mousePos.y;
+                dragStartLayoutX_ = pressed->layout.x;
+                dragStartLayoutY_ = pressed->layout.y;
             } else {
                 draggingId_ = kInvalidId;
                 resizingId_ = kInvalidId;
@@ -877,8 +904,10 @@ void RetainedUiContext::PollInput(se::InputManager& input) {
                 const float maxX = std::max(0.0f, parentContent.w - node->layout.width);
                 const float maxY = std::max(0.0f, parentContent.h - node->layout.height);
 
-                const float nextX = ClampFloat(mousePos.x - dragOffsetX_ - parentContent.x, 0.0f, maxX);
-                const float nextY = ClampFloat(mousePos.y - dragOffsetY_ - parentContent.y, 0.0f, maxY);
+                const float deltaX = mousePos.x - dragStartMouseX_;
+                const float deltaY = mousePos.y - dragStartMouseY_;
+                const float nextX = ClampFloat(dragStartLayoutX_ + deltaX, 0.0f, maxX);
+                const float nextY = ClampFloat(dragStartLayoutY_ + deltaY, 0.0f, maxY);
                 if (std::abs(node->layout.x - nextX) > kEpsilon ||
                     std::abs(node->layout.y - nextY) > kEpsilon) {
                     node->layout.x = nextX;
@@ -960,6 +989,10 @@ void RetainedUiContext::PollInput(se::InputManager& input) {
 
         pressedId_ = kInvalidId;
         draggingId_ = kInvalidId;
+        dragStartMouseX_ = 0.0f;
+        dragStartMouseY_ = 0.0f;
+        dragStartLayoutX_ = 0.0f;
+        dragStartLayoutY_ = 0.0f;
         resizingId_ = kInvalidId;
     }
 
@@ -995,18 +1028,23 @@ void RetainedUiContext::Render(NativeUiRenderer& renderer) {
     if (!initialized_) return;
 
     const bool dirty = treeDirty_ || layoutDirty_ || paintDirty_;
-    if (!dirty) {
-        renderer.RetainPreviousFrameGeometry();
+
+    const bool shouldRecord = renderer.BeginRetainedSource(kRetainedUiSourceId, dirty);
+    if (!shouldRecord) {
         stats_.reusedFrames++;
+        renderer.EndRetainedSource();
         return;
     }
 
-    stats_.dirtyFrames++;
-
-    BuildLayoutIfNeeded();
-    BuildPaintCacheIfNeeded();
-
-    renderer.InvalidateRetainedGeometry();
+    if (dirty) {
+        stats_.dirtyFrames++;
+        BuildLayoutIfNeeded();
+        BuildPaintCacheIfNeeded();
+    } else {
+        // Reuse CPU-side cached layout/paint data, but still emit commands each frame
+        // so multiple native UI overlays can coexist without flickering.
+        stats_.reusedFrames++;
+    }
 
     for (const DrawCommand& cmd : drawCommands_) {
         switch (cmd.type) {
@@ -1024,14 +1062,17 @@ void RetainedUiContext::Render(NativeUiRenderer& renderer) {
     }
 
     stats_.uploadedFrames++;
+    renderer.EndRetainedSource();
 
-    treeDirty_ = false;
-    layoutDirty_ = false;
-    paintDirty_ = false;
+    if (dirty) {
+        treeDirty_ = false;
+        layoutDirty_ = false;
+        paintDirty_ = false;
 
-    for (auto& [id, node] : nodes_) {
-        (void)id;
-        node.dirty = DirtyFlag::None;
+        for (auto& [id, node] : nodes_) {
+            (void)id;
+            node.dirty = DirtyFlag::None;
+        }
     }
 }
 
@@ -1054,19 +1095,20 @@ void RetainedUiContext::BuildPaintCacheIfNeeded() {
 
     drawCommands_.clear();
 
-    std::function<void(const UiNode&)> emitRecursive = [&](const UiNode& node) {
+    std::function<void(const UiNode&, int)> emitRecursive = [&](const UiNode& node, int parentZ) {
         if (!node.layout.visible || node.style.opacity <= 0.0f) return;
 
-        EmitNodePaint(node);
+        const int effectiveZ = parentZ + node.layout.zIndex;
+        EmitNodePaint(node, effectiveZ);
         for (UiId childId : node.children) {
             const UiNode* child = FindComponent(childId);
             if (!child) continue;
-            emitRecursive(*child);
+            emitRecursive(*child, effectiveZ);
         }
     };
 
     if (const UiNode* root = FindComponent(rootId_)) {
-        emitRecursive(*root);
+        emitRecursive(*root, 0);
     }
 
     std::stable_sort(drawCommands_.begin(), drawCommands_.end(),
@@ -1131,12 +1173,47 @@ void RetainedUiContext::LayoutNode(UiNode& node, const UiRect& parentRect) {
 
 UiRect RetainedUiContext::ContentRect(const UiNode& node) const {
     const float pad = std::max(0.0f, node.layout.padding);
+    const float titleBarHeight = ResolveTitleBarHeight(node);
     UiRect content = node.worldRect;
     content.x += pad;
-    content.y += pad;
+    content.y += pad + titleBarHeight;
     content.w = std::max(0.0f, content.w - pad * 2.0f);
-    content.h = std::max(0.0f, content.h - pad * 2.0f);
+    content.h = std::max(0.0f, content.h - pad * 2.0f - titleBarHeight);
     return content;
+}
+
+float RetainedUiContext::ResolveTitleBarHeight(const UiNode& node) const {
+    if (node.state.title.empty()) {
+        return 0.0f;
+    }
+
+    const float configured = std::max(0.0f, node.layout.titleBarHeight);
+    if (configured <= 0.0f) {
+        return 0.0f;
+    }
+
+    return std::min(configured, std::max(0.0f, node.worldRect.h));
+}
+
+bool RetainedUiContext::IsPointInDragRegion(const UiNode& node, float x, float y) const {
+    if (!node.worldRect.Contains(x, y)) {
+        return false;
+    }
+
+    switch (node.layout.dragMode) {
+        case DragMode::None:
+        case DragMode::Whole:
+            return true;
+        case DragMode::TitleBar: {
+            const float titleBarHeight = ResolveTitleBarHeight(node);
+            if (titleBarHeight <= 0.0f) {
+                return true;
+            }
+            return y <= (node.worldRect.y + titleBarHeight);
+        }
+        default:
+            return true;
+    }
 }
 
 void RetainedUiContext::LayoutChildrenDock(UiNode& node, const UiRect& contentRect) {
@@ -1207,53 +1284,178 @@ void RetainedUiContext::LayoutChildrenStack(UiNode& node, const UiRect& contentR
 
     if (children.empty()) return;
 
-    const float spacing = std::max(0.0f, node.layout.spacing);
-    const float availablePrimary =
-        (vertical ? contentRect.h : contentRect.w) - spacing * static_cast<float>(children.size() - 1);
+    struct StackItem {
+        UiNode* node = nullptr;
+
+        float primary = 0.0f;
+        float leadingPrimaryMargin = 0.0f;
+        float trailingPrimaryMargin = 0.0f;
+        float leadingCrossMargin = 0.0f;
+        float trailingCrossMargin = 0.0f;
+
+        float growWeight = 0.0f;
+        bool  canGrow = false;
+    };
+
+    std::vector<StackItem> items;
+    items.reserve(children.size());
+
+    const float baseSpacing = std::max(0.0f, node.layout.spacing);
+    const float primaryLimit = vertical ? contentRect.h : contentRect.w;
+    const float crossLimit = vertical ? contentRect.w : contentRect.h;
 
     float fixedPrimary = 0.0f;
     float growTotal = 0.0f;
 
     for (UiNode* child : children) {
+        StackItem item;
+        item.node = child;
+
+        item.leadingPrimaryMargin =
+            std::max(0.0f, vertical ? child->layout.marginTop : child->layout.marginLeft);
+        item.trailingPrimaryMargin =
+            std::max(0.0f, vertical ? child->layout.marginBottom : child->layout.marginRight);
+        item.leadingCrossMargin =
+            std::max(0.0f, vertical ? child->layout.marginLeft : child->layout.marginTop);
+        item.trailingCrossMargin =
+            std::max(0.0f, vertical ? child->layout.marginRight : child->layout.marginBottom);
+
         const bool expand = vertical ? child->layout.fillY : child->layout.fillX;
-        if (expand || child->layout.flexGrow > 0.0f) {
-            growTotal += std::max(0.0f, child->layout.flexGrow);
+        item.canGrow = expand || child->layout.flexGrow > 0.0f;
+        item.growWeight = std::max(0.0f, child->layout.flexGrow);
+        if (item.canGrow && item.growWeight <= kEpsilon) {
+            item.growWeight = 1.0f;
+        }
+
+        if (item.canGrow) {
+            // For grow items, use min-size as the allocation baseline and distribute
+            // remaining space by weight. This preserves expected box behavior and
+            // avoids overflow from default width/height hints.
+            item.primary = std::max(0.0f, vertical ? child->layout.minHeight : child->layout.minWidth);
         } else {
-            fixedPrimary += vertical ? child->layout.height : child->layout.width;
+            item.primary = std::max(0.0f, vertical ? child->layout.height : child->layout.width);
+        }
+
+        fixedPrimary += item.primary + item.leadingPrimaryMargin + item.trailingPrimaryMargin;
+        if (item.canGrow) {
+            growTotal += item.growWeight;
+        }
+
+        items.push_back(item);
+    }
+
+    const float spacingBudget = baseSpacing * static_cast<float>(items.size() > 1 ? items.size() - 1 : 0);
+    const float distributablePrimary =
+        std::max(0.0f, primaryLimit - fixedPrimary - spacingBudget);
+
+    if (growTotal > 0.0f && distributablePrimary > 0.0f) {
+        for (StackItem& item : items) {
+            if (!item.canGrow) continue;
+            item.primary += distributablePrimary * (item.growWeight / growTotal);
         }
     }
 
-    const float remainingPrimary = std::max(0.0f, availablePrimary - fixedPrimary);
+    float usedPrimary = spacingBudget;
+    for (const StackItem& item : items) {
+        usedPrimary += item.primary + item.leadingPrimaryMargin + item.trailingPrimaryMargin;
+    }
+
+    const float leftoverPrimary = std::max(0.0f, primaryLimit - usedPrimary);
 
     float cursor = vertical ? contentRect.y : contentRect.x;
+    float betweenSpacing = baseSpacing;
 
-    for (UiNode* child : children) {
-        const bool expand = vertical ? child->layout.fillY : child->layout.fillX;
-        float primary = vertical ? child->layout.height : child->layout.width;
+    switch (node.layout.justifyContent) {
+        case StackJustify::Center:
+            cursor += leftoverPrimary * 0.5f;
+            break;
+        case StackJustify::End:
+            cursor += leftoverPrimary;
+            break;
+        case StackJustify::SpaceBetween:
+            if (items.size() > 1) {
+                betweenSpacing = baseSpacing +
+                                 leftoverPrimary / static_cast<float>(items.size() - 1);
+            } else {
+                cursor += leftoverPrimary * 0.5f;
+            }
+            break;
+        case StackJustify::SpaceAround: {
+            const float slot =
+                leftoverPrimary / static_cast<float>(std::max<size_t>(1, items.size()));
+            betweenSpacing = baseSpacing + slot;
+            cursor += slot * 0.5f;
+            break;
+        }
+        case StackJustify::SpaceEvenly: {
+            const float slot =
+                leftoverPrimary / static_cast<float>(std::max<size_t>(1, items.size() + 1));
+            betweenSpacing = baseSpacing + slot;
+            cursor += slot;
+            break;
+        }
+        case StackJustify::Start:
+        default:
+            break;
+    }
 
-        if ((expand || child->layout.flexGrow > 0.0f) && growTotal > 0.0f) {
-            const float ratio = std::max(0.0f, child->layout.flexGrow) / growTotal;
-            primary = remainingPrimary * ratio;
+    for (size_t i = 0; i < items.size(); ++i) {
+        StackItem& item = items[i];
+        UiNode& child = *item.node;
+
+        cursor += item.leadingPrimaryMargin;
+
+        const float crossOffset = vertical ? child.layout.x : child.layout.y;
+        const float desiredCross = std::max(0.0f, vertical ? child.layout.width : child.layout.height);
+        const float availableCross =
+            std::max(0.0f, crossLimit - item.leadingCrossMargin - item.trailingCrossMargin);
+
+        const StackAlign resolvedAlign =
+            ResolveStackAlign(child.layout, vertical, node.layout.alignItems);
+
+        float crossSize = desiredCross;
+        if (resolvedAlign == StackAlign::Stretch) {
+            crossSize = availableCross;
+        }
+
+        float crossPos = (vertical ? contentRect.x : contentRect.y) + item.leadingCrossMargin;
+        switch (resolvedAlign) {
+            case StackAlign::Start:
+            case StackAlign::Auto:
+                crossPos += crossOffset;
+                break;
+            case StackAlign::Center:
+                crossPos += std::max(0.0f, availableCross - crossSize) * 0.5f + crossOffset;
+                break;
+            case StackAlign::End:
+                crossPos += std::max(0.0f, availableCross - crossSize) + crossOffset;
+                break;
+            case StackAlign::Stretch:
+                break;
         }
 
         UiRect rect;
         if (vertical) {
-            rect.x = contentRect.x + child->layout.x;
+            rect.x = crossPos;
             rect.y = cursor;
-            rect.w = child->layout.fillX ? contentRect.w - child->layout.x * 2.0f : child->layout.width;
-            rect.h = primary;
-            cursor += rect.h + spacing;
+            rect.w = crossSize;
+            rect.h = item.primary;
         } else {
             rect.x = cursor;
-            rect.y = contentRect.y + child->layout.y;
-            rect.w = primary;
-            rect.h = child->layout.fillY ? contentRect.h - child->layout.y * 2.0f : child->layout.height;
-            cursor += rect.w + spacing;
+            rect.y = crossPos;
+            rect.w = item.primary;
+            rect.h = crossSize;
         }
-        ApplyAnchors(child->layout, contentRect, &rect);
 
-        child->worldRect = ClampRect(rect, child->layout);
-        LayoutNode(*child, child->worldRect);
+        ApplyAnchors(child.layout, contentRect, &rect);
+
+        child.worldRect = ClampRect(rect, child.layout);
+        LayoutNode(child, child.worldRect);
+
+        cursor += item.primary + item.trailingPrimaryMargin;
+        if (i + 1 < items.size()) {
+            cursor += betweenSpacing;
+        }
     }
 }
 
@@ -1308,7 +1510,7 @@ void RetainedUiContext::LayoutChildrenFree(UiNode& node, const UiRect& contentRe
     }
 }
 
-void RetainedUiContext::EmitNodePaint(const UiNode& node) {
+void RetainedUiContext::EmitNodePaint(const UiNode& node, int effectiveZ) {
     const UiRect rect = node.worldRect;
 
     const auto emitFilled = [&](const UiRect& r, const NativeUiColor& color, int z) {
@@ -1368,7 +1570,7 @@ void RetainedUiContext::EmitNodePaint(const UiNode& node) {
         bg = node.style.accent;
     }
 
-    const int z = node.layout.zIndex;
+    const int z = effectiveZ;
 
     switch (node.type) {
         case WidgetType::Root:
@@ -1484,15 +1686,16 @@ void RetainedUiContext::EmitNodePaint(const UiNode& node) {
             break;
     }
 
-    EmitGenericWidget(node, WidgetTypeName(node.type));
+    EmitGenericWidget(node, WidgetTypeName(node.type), effectiveZ);
 }
 
-void RetainedUiContext::EmitGenericWidget(const UiNode& node, std::string_view fallbackLabel) {
+void RetainedUiContext::EmitGenericWidget(const UiNode& node, std::string_view fallbackLabel,
+                                          int effectiveZ) {
     DrawCommand bg;
     bg.type = DrawCommandType::FilledRect;
     bg.rect = node.worldRect;
     bg.color = node.style.background;
-    bg.zIndex = node.layout.zIndex;
+    bg.zIndex = effectiveZ;
     drawCommands_.push_back(std::move(bg));
 
     DrawCommand border;
@@ -1500,7 +1703,7 @@ void RetainedUiContext::EmitGenericWidget(const UiNode& node, std::string_view f
     border.rect = node.worldRect;
     border.color = node.style.border;
     border.thickness = std::max(1.0f, node.style.borderThickness);
-    border.zIndex = node.layout.zIndex + 1;
+    border.zIndex = effectiveZ + 1;
     drawCommands_.push_back(std::move(border));
 
     const std::string_view header =
@@ -1514,7 +1717,7 @@ void RetainedUiContext::EmitGenericWidget(const UiNode& node, std::string_view f
     text.textY = node.worldRect.y + 8.0f;
     text.color = node.style.text;
     text.textScale = node.style.fontScale;
-    text.zIndex = node.layout.zIndex + 2;
+    text.zIndex = effectiveZ + 2;
     drawCommands_.push_back(std::move(text));
 
     if ((node.type == WidgetType::List || node.type == WidgetType::DataGrid ||
@@ -1533,7 +1736,7 @@ void RetainedUiContext::EmitGenericWidget(const UiNode& node, std::string_view f
             row.textY = y;
             row.color = node.style.text;
             row.textScale = 0.9f;
-            row.zIndex = node.layout.zIndex + 2;
+            row.zIndex = effectiveZ + 2;
             drawCommands_.push_back(std::move(row));
             y += rowH;
         }
@@ -1548,13 +1751,16 @@ UiNode* RetainedUiContext::FindTopInteractiveAt(float x, float y) {
 const UiNode* RetainedUiContext::FindTopInteractiveAt(float x, float y) const {
     const UiNode* best = nullptr;
     int bestZ = std::numeric_limits<int>::min();
+    int bestDepth = std::numeric_limits<int>::min();
 
-    std::function<void(const UiNode&)> visit = [&](const UiNode& node) {
+    std::function<void(const UiNode&, int, int)> visit =
+        [&](const UiNode& node, int parentZ, int depth) {
         if (!node.layout.visible) return;
+        const int effectiveZ = parentZ + node.layout.zIndex;
 
         for (auto it = node.children.rbegin(); it != node.children.rend(); ++it) {
             const UiNode* child = FindComponent(*it);
-            if (child) visit(*child);
+            if (child) visit(*child, effectiveZ, depth + 1);
         }
 
         const bool interactive =
@@ -1562,14 +1768,15 @@ const UiNode* RetainedUiContext::FindTopInteractiveAt(float x, float y) const {
         if (!interactive || !node.enabled) return;
         if (!node.worldRect.Contains(x, y)) return;
 
-        if (node.layout.zIndex >= bestZ) {
-            bestZ = node.layout.zIndex;
+        if (effectiveZ > bestZ || (effectiveZ == bestZ && depth > bestDepth)) {
+            bestZ = effectiveZ;
+            bestDepth = depth;
             best = &node;
         }
     };
 
     const UiNode* root = FindComponent(rootId_);
-    if (root) visit(*root);
+    if (root) visit(*root, 0, 0);
 
     return best;
 }

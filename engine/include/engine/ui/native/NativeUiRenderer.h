@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <utils/Entity.h>
@@ -38,6 +39,9 @@ struct NativeUiColor {
 
 class NativeUiRenderer {
    public:
+    using RetainedSourceId = uint64_t;
+    static constexpr RetainedSourceId kInvalidRetainedSourceId = 0;
+
     enum class TextHorizontalAlign : uint8_t {
         Left = 0,
         Center,
@@ -100,6 +104,8 @@ class NativeUiRenderer {
 
     void BeginFrame();
     void EndFrame();
+    bool BeginRetainedSource(RetainedSourceId sourceId, bool sourceDirty);
+    void EndRetainedSource();
     void RetainPreviousFrameGeometry();
     void InvalidateRetainedGeometry();
     void SetRetainedGeometryReuseEnabled(bool enabled) {
@@ -162,6 +168,9 @@ class NativeUiRenderer {
     void UploadGeometry();
     void UpdateCameraProjection();
     void PrepareForDraw();
+    void ComposeFrameGeometryFromSources();
+    struct SourceGeometry;
+    SourceGeometry* GetWritableSource();
 
     void PushQuad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1,
                   const NativeUiColor& color);
@@ -189,6 +198,12 @@ class NativeUiRenderer {
         uint8_t color[4]    = {255, 255, 255, 255};
     };
 
+    struct SourceGeometry {
+        std::vector<UiVertex> vertices;
+        std::vector<uint32_t> indices;
+        bool activeThisFrame = false;
+    };
+
     filament::Scene*            scene_             = nullptr;
     filament::View*             view_              = nullptr;
     filament::Camera*           camera_            = nullptr;
@@ -208,6 +223,15 @@ class NativeUiRenderer {
     size_t                 index_capacity_  = 0;
     float                  white_uv_x_      = 0.0f;
     float                  white_uv_y_      = 0.0f;
+
+    std::unordered_map<RetainedSourceId, SourceGeometry> retained_sources_;
+    std::vector<RetainedSourceId> frame_source_order_;
+    std::vector<RetainedSourceId> previous_source_order_;
+
+    RetainedSourceId active_source_id_ = kInvalidRetainedSourceId;
+    bool             active_source_recording_ = false;
+    bool             frame_sources_dirty_ = false;
+    bool             frame_topology_dirty_ = false;
 
     bool retain_previous_geometry_ = false;
     bool frame_reuse_active_       = false;

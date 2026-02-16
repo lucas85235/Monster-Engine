@@ -126,6 +126,29 @@ enum class DockSlot : uint8_t {
     Floating,
 };
 
+enum class StackJustify : uint8_t {
+    Start = 0,
+    Center,
+    End,
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+};
+
+enum class StackAlign : uint8_t {
+    Auto = 0,
+    Start,
+    Center,
+    End,
+    Stretch,
+};
+
+enum class DragMode : uint8_t {
+    None = 0,
+    Whole,
+    TitleBar,
+};
+
 enum class WidgetType : uint16_t {
     Root = 0,
     Window,
@@ -196,6 +219,13 @@ struct LayoutStyle {
     float padding = 8.0f;
     float spacing = 6.0f;
     float flexGrow = 1.0f;
+    StackJustify justifyContent = StackJustify::Start;
+    StackAlign alignItems = StackAlign::Auto;
+
+    float marginLeft = 0.0f;
+    float marginTop = 0.0f;
+    float marginRight = 0.0f;
+    float marginBottom = 0.0f;
 
     float anchorLeft = 0.0f;
     float anchorTop = 0.0f;
@@ -204,6 +234,8 @@ struct LayoutStyle {
 
     int  gridColumns = 2;
     int  zIndex = 0;
+    float titleBarHeight = 0.0f;
+    DragMode dragMode = DragMode::None;
     bool fillX = true;
     bool fillY = false;
     bool visible = true;
@@ -338,6 +370,8 @@ class RetainedUiContext {
 
     UiNode& EnsureWindow(UiId id, UiId parent = kInvalidId, std::string_view title = {});
     UiNode& EnsurePanel(UiId id, UiId parent = kInvalidId, std::string_view title = {});
+    UiNode& EnsureVerticalBox(UiId id, UiId parent = kInvalidId, std::string_view text = {});
+    UiNode& EnsureHorizontalBox(UiId id, UiId parent = kInvalidId, std::string_view text = {});
 
     bool RemoveComponent(UiId id);
 
@@ -392,10 +426,12 @@ class RetainedUiContext {
     void LayoutChildrenGrid(UiNode& node, const UiRect& contentRect);
     void LayoutChildrenFree(UiNode& node, const UiRect& contentRect);
 
-    void EmitNodePaint(const UiNode& node);
-    void EmitGenericWidget(const UiNode& node, std::string_view fallbackLabel);
+    void EmitNodePaint(const UiNode& node, int effectiveZ);
+    void EmitGenericWidget(const UiNode& node, std::string_view fallbackLabel, int effectiveZ);
 
     UiRect ContentRect(const UiNode& node) const;
+    float ResolveTitleBarHeight(const UiNode& node) const;
+    bool  IsPointInDragRegion(const UiNode& node, float x, float y) const;
 
     UiNode*       FindTopInteractiveAt(float x, float y);
     const UiNode* FindTopInteractiveAt(float x, float y) const;
@@ -427,8 +463,10 @@ class RetainedUiContext {
     UiId draggingId_ = kInvalidId;
     UiId resizingId_ = kInvalidId;
 
-    float dragOffsetX_ = 0.0f;
-    float dragOffsetY_ = 0.0f;
+    float dragStartMouseX_ = 0.0f;
+    float dragStartMouseY_ = 0.0f;
+    float dragStartLayoutX_ = 0.0f;
+    float dragStartLayoutY_ = 0.0f;
     float resizeStartMouseX_ = 0.0f;
     float resizeStartMouseY_ = 0.0f;
     float resizeStartWidth_  = 0.0f;

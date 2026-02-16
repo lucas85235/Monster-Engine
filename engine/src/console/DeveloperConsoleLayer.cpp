@@ -23,6 +23,7 @@ float ClampFloat(float value, float minValue, float maxValue) {
 }
 
 constexpr float kOutputTextScale = 0.95f;
+constexpr ui::NativeUiRenderer::RetainedSourceId kConsoleUiSourceId = 0x1002u;
 
 std::string TruncateWithEllipsis(ui::NativeUiRenderer& renderer, const std::string& source,
                                  float maxWidth, float scale) {
@@ -256,13 +257,15 @@ void DeveloperConsoleLayer::OnRender() {
         InvalidateVisual();
     }
 
-    if (visualRevision_ == renderedRevision_) {
-        nativeUi.RetainPreviousFrameGeometry();
+    const bool dirty = visualRevision_ != renderedRevision_;
+    const bool shouldRecord = nativeUi.BeginRetainedSource(kConsoleUiSourceId, dirty);
+    if (!shouldRecord) {
         lastClearHover_  = clearHover;
         lastCloseHover_  = closeHover;
         lastSendHover_   = sendHover;
         lastInputHover_  = inputHover;
         lastResizeHover_ = resizeHover;
+        nativeUi.EndRetainedSource();
         return;
     }
 
@@ -443,18 +446,13 @@ void DeveloperConsoleLayer::OnRender() {
     ui::widgets::DrawButton(nativeUi, resize, "::",
                             {{gripColor, gripColor, 0.0f}, titleColor, 0.9f});
 
-    // Signal the renderer that this frame's geometry is eligible for reuse.
-    // On the *next* frame, if OnRender early-returns (nothing changed), BeginFrame
-    // will see the retain flag and skip clearing the buffers — keeping the console
-    // visible without re-emitting every draw call.
-    nativeUi.RetainPreviousFrameGeometry();
-
     renderedRevision_ = visualRevision_;
     lastClearHover_  = clearHover;
     lastCloseHover_  = closeHover;
     lastSendHover_   = sendHover;
     lastInputHover_  = inputHover;
     lastResizeHover_ = resizeHover;
+    nativeUi.EndRetainedSource();
 }
 
 void DeveloperConsoleLayer::InitializeLayoutIfNeeded(float viewportWidth, float viewportHeight) {

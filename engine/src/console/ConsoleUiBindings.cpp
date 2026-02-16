@@ -181,6 +181,93 @@ void RegisterUiConsoleBindings(ConsoleSystem& console) {
 
                                 console.AddOutput("ui.retained.demo: created retained component showcase");
                             });
+
+    console.RegisterCommand("ui.retained.menu",
+                            "Build a retained panel with Start/Quit vertical buttons",
+                            "ui.retained.menu",
+                            [&console](const std::vector<std::string>& /*args*/) {
+                                using namespace ui::retained;
+
+                                auto& retained = RetainedUiContext::Get();
+                                if (!retained.IsInitialized()) {
+                                    retained.Init();
+                                }
+                                retained.Reset();
+
+                                constexpr UiId kMenuPanel   = 2000;
+                                constexpr UiId kButtonBox   = 2010;
+                                constexpr UiId kStartButton = 2020;
+                                constexpr UiId kQuitButton  = 2030;
+
+                                auto& panel = retained.EnsurePanel(kMenuPanel, kInvalidId, "Main Menu");
+                                LayoutStyle panelLayout = panel.layout;
+                                panelLayout.mode = LayoutMode::VStack;
+                                panelLayout.x = 48.0f;
+                                panelLayout.y = 48.0f;
+                                panelLayout.width = 320.0f;
+                                panelLayout.height = 220.0f;
+                                panelLayout.fillX = false;
+                                panelLayout.fillY = false;
+                                panelLayout.padding = 14.0f;
+                                panelLayout.spacing = 10.0f;
+                                panelLayout.justifyContent = StackJustify::Start;
+                                panelLayout.alignItems = StackAlign::Stretch;
+                                panelLayout.interactable = true;
+                                panelLayout.resizable = true;
+                                panelLayout.zIndex = 920;
+                                retained.SetLayout(kMenuPanel, panelLayout);
+
+                                auto& buttonBox =
+                                    retained.EnsureVerticalBox(kButtonBox, kMenuPanel, "");
+                                LayoutStyle buttonBoxLayout = buttonBox.layout;
+                                buttonBoxLayout.mode = LayoutMode::VStack;
+                                buttonBoxLayout.fillX = true;
+                                buttonBoxLayout.fillY = true;
+                                buttonBoxLayout.padding = 0.0f;
+                                buttonBoxLayout.spacing = 10.0f;
+                                buttonBoxLayout.justifyContent = StackJustify::Center;
+                                buttonBoxLayout.alignItems = StackAlign::Stretch;
+                                retained.SetLayout(kButtonBox, buttonBoxLayout);
+
+                                VisualStyle buttonBoxStyle = buttonBox.style;
+                                buttonBoxStyle.background.a = 0.0f;
+                                buttonBoxStyle.border.a = 0.0f;
+                                buttonBoxStyle.text.a = 0.0f;
+                                buttonBoxStyle.accent.a = 0.0f;
+                                buttonBoxStyle.disabled.a = 0.0f;
+                                buttonBoxStyle.borderThickness = 0.0f;
+                                retained.SetStyle(kButtonBox, buttonBoxStyle);
+
+                                auto& startButton =
+                                    retained.EnsureButton(kStartButton, kButtonBox, "Start");
+                                LayoutStyle startLayout = startButton.layout;
+                                startLayout.height = 44.0f;
+                                startLayout.fillX = true;
+                                startLayout.fillY = false;
+                                startLayout.flexGrow = 0.0f;
+                                startLayout.marginLeft = 4.0f;
+                                startLayout.marginRight = 4.0f;
+                                retained.SetLayout(kStartButton, startLayout);
+
+                                auto& quitButton = retained.EnsureButton(kQuitButton, kButtonBox, "Quit");
+                                LayoutStyle quitLayout = quitButton.layout;
+                                quitLayout.height = 44.0f;
+                                quitLayout.fillX = true;
+                                quitLayout.fillY = false;
+                                quitLayout.flexGrow = 0.0f;
+                                quitLayout.marginLeft = 4.0f;
+                                quitLayout.marginRight = 4.0f;
+                                retained.SetLayout(kQuitButton, quitLayout);
+
+                                VisualStyle quitStyle = quitButton.style;
+                                quitStyle.background = {0.26f, 0.10f, 0.10f, 0.95f};
+                                quitStyle.border = {0.74f, 0.29f, 0.29f, 1.0f};
+                                quitStyle.accent = {0.86f, 0.25f, 0.25f, 1.0f};
+                                retained.SetStyle(kQuitButton, quitStyle);
+
+                                console.AddOutput(
+                                    "ui.retained.menu: created panel with vertical Start/Quit buttons");
+                            });
 }
 
 void RegisterUiConsoleCVars(ConsoleSystem& console) {

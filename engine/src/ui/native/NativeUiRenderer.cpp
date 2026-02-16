@@ -217,29 +217,98 @@ void NativeUiRenderer::BeginFrame() {
 
     last_frame_stats_ = FrameStats{};
     frame_quads_submitted_ = 0;
-    frame_reuse_active_ = false;
-
-    if (retained_geometry_reuse_enabled_ && retain_previous_geometry_ && has_geometry_) {
-        last_frame_stats_.geometryReused = true;
-        frame_reuse_active_ = true;
-        retain_previous_geometry_ = false;
-        return;
-    }
     retain_previous_geometry_ = false;
+    frame_reuse_active_ = false;
+    frame_sources_dirty_ = false;
+    frame_topology_dirty_ = false;
+    active_source_id_ = kInvalidRetainedSourceId;
+    active_source_recording_ = false;
+    frame_source_order_.clear();
 
-    if (!vertices_.empty() || !indices_.empty()) {
-        vertices_.clear();
-        indices_.clear();
-        geometry_dirty_ = true;
+    for (auto& [id, source] : retained_sources_) {
+        (void)id;
+        source.activeThisFrame = false;
     }
 }
 
 void NativeUiRenderer::EndFrame() {
     if (!initialized_) return;
     last_frame_stats_.quadsSubmitted = frame_quads_submitted_;
-    if (!geometry_dirty_) return;
+
+    bool removedSource = false;
+    for (auto it = retained_sources_.begin(); it != retained_sources_.end();) {
+        if (!it->second.activeThisFrame) {
+            it = retained_sources_.erase(it);
+            removedSource = true;
+        } else {
+            ++it;
+        }
+    }
+    if (removedSource) {
+        frame_topology_dirty_ = true;
+    }
+
+    if (frame_source_order_ != previous_source_order_) {
+        frame_topology_dirty_ = true;
+    }
+
+    if (retained_geometry_reuse_enabled_ && !frame_sources_dirty_ && !frame_topology_dirty_ &&
+        has_geometry_) {
+        last_frame_stats_.geometryReused = true;
+        return;
+    }
+
+    if (frame_source_order_.empty()) {
+        if (has_geometry_) {
+            vertices_.clear();
+            indices_.clear();
+            geometry_dirty_ = true;
+            UploadGeometry();
+            geometry_dirty_ = false;
+        }
+        previous_source_order_.clear();
+        return;
+    }
+
+    ComposeFrameGeometryFromSources();
+    geometry_dirty_ = true;
     UploadGeometry();
     geometry_dirty_ = false;
+    previous_source_order_ = frame_source_order_;
+}
+
+bool NativeUiRenderer::BeginRetainedSource(RetainedSourceId sourceId, bool sourceDirty) {
+    if (!initialized_ || sourceId == kInvalidRetainedSourceId) {
+        return false;
+    }
+
+    auto [it, inserted] = retained_sources_.try_emplace(sourceId);
+    if (inserted) {
+        frame_topology_dirty_ = true;
+    }
+
+    SourceGeometry& source = it->second;
+    if (!source.activeThisFrame) {
+        source.activeThisFrame = true;
+        frame_source_order_.push_back(sourceId);
+    }
+
+    const bool hasCachedGeometry = !source.indices.empty();
+    const bool shouldRecord = sourceDirty || !hasCachedGeometry;
+    if (shouldRecord) {
+        source.vertices.clear();
+        source.indices.clear();
+        frame_sources_dirty_ = true;
+    }
+
+    active_source_id_ = sourceId;
+    active_source_recording_ = shouldRecord;
+    return shouldRecord;
+}
+
+void NativeUiRenderer::EndRetainedSource() {
+    active_source_id_ = kInvalidRetainedSourceId;
+    active_source_recording_ = false;
 }
 
 void NativeUiRenderer::RetainPreviousFrameGeometry() {
@@ -249,16 +318,23 @@ void NativeUiRenderer::RetainPreviousFrameGeometry() {
 
 void NativeUiRenderer::InvalidateRetainedGeometry() {
     retain_previous_geometry_ = false;
-    frame_reuse_active_       = false;
+    frame_reuse_active_ = false;
+    frame_sources_dirty_ = true;
+    frame_topology_dirty_ = true;
+    active_source_id_ = kInvalidRetainedSourceId;
+    active_source_recording_ = false;
+    retained_sources_.clear();
+    frame_source_order_.clear();
+    previous_source_order_.clear();
     vertices_.clear();
     indices_.clear();
     geometry_dirty_ = true;
-    has_geometry_   = false;
+    has_geometry_ = false;
 }
 
 void NativeUiRenderer::DrawFilledRect(float x, float y, float width, float height,
                                       const NativeUiColor& color) {
-    if (!initialized_ || width <= 0.0f || height <= 0.0f) return;
+    if (!initialized_ || !active_source_recording_ || width <= 0.0f || height <= 0.0f) return;
     PrepareForDraw();
     const float snappedX0 = SnapToPhysicalPixel(x, framebuffer_width_, viewport_width_);
     const float snappedY0 = SnapToPhysicalPixel(y, framebuffer_height_, viewport_height_);
@@ -272,7 +348,10 @@ void NativeUiRenderer::DrawFilledRect(float x, float y, float width, float heigh
 
 void NativeUiRenderer::DrawRect(float x, float y, float width, float height, float thickness,
                                 const NativeUiColor& color) {
-    if (!initialized_ || width <= 0.0f || height <= 0.0f || thickness <= 0.0f) return;
+    if (!initialized_ || !active_source_recording_ || width <= 0.0f || height <= 0.0f ||
+        thickness <= 0.0f) {
+        return;
+    }
     geometry_dirty_ = true;
     const float t = std::min(thickness, std::min(width, height) * 0.5f);
     DrawFilledRect(x, y, width, t, color);
@@ -283,7 +362,9 @@ void NativeUiRenderer::DrawRect(float x, float y, float width, float height, flo
 
 void NativeUiRenderer::DrawText(std::string_view text, float x, float y, const NativeUiColor& color,
                                 float scale) {
-    if (!initialized_ || !font_ || text.empty() || scale <= 0.0f) return;
+    if (!initialized_ || !active_source_recording_ || !font_ || text.empty() || scale <= 0.0f) {
+        return;
+    }
     PrepareForDraw();
 
     ImFontBaked* baked = font_->GetFontBaked(font_base_size_);
@@ -766,11 +847,18 @@ void NativeUiRenderer::DestroyResources() {
 
     vertices_.clear();
     indices_.clear();
+    retained_sources_.clear();
+    frame_source_order_.clear();
+    previous_source_order_.clear();
     vertex_capacity_ = 0;
     index_capacity_  = 0;
     initialized_     = false;
     retain_previous_geometry_ = false;
     frame_reuse_active_       = false;
+    frame_sources_dirty_      = false;
+    frame_topology_dirty_     = false;
+    active_source_id_         = kInvalidRetainedSourceId;
+    active_source_recording_  = false;
     geometry_dirty_           = true;
     has_geometry_             = false;
     frame_quads_submitted_    = 0;
@@ -909,29 +997,58 @@ void NativeUiRenderer::UpdateCameraProjection() {
     camera_->lookAt({0.0, 0.0, 1.0}, {0.0, 0.0, 0.0}, {0.0, 1.0, 0.0});
 }
 
-void NativeUiRenderer::PrepareForDraw() {
-    if (frame_reuse_active_) {
-        // A retained pass requested "reuse", but someone emitted new UI this frame.
-        // Drop the previous geometry so this frame can upload only the fresh commands.
-        vertices_.clear();
-        indices_.clear();
-        frame_reuse_active_ = false;
-        last_frame_stats_.geometryReused = false;
+void NativeUiRenderer::ComposeFrameGeometryFromSources() {
+    vertices_.clear();
+    indices_.clear();
+
+    for (RetainedSourceId sourceId : frame_source_order_) {
+        auto it = retained_sources_.find(sourceId);
+        if (it == retained_sources_.end()) continue;
+
+        const SourceGeometry& source = it->second;
+        if (source.vertices.empty() || source.indices.empty()) continue;
+
+        const uint32_t base = static_cast<uint32_t>(vertices_.size());
+        vertices_.insert(vertices_.end(), source.vertices.begin(), source.vertices.end());
+        indices_.reserve(indices_.size() + source.indices.size());
+        for (uint32_t index : source.indices) {
+            indices_.push_back(base + index);
+        }
     }
+}
+
+NativeUiRenderer::SourceGeometry* NativeUiRenderer::GetWritableSource() {
+    if (!active_source_recording_ || active_source_id_ == kInvalidRetainedSourceId) {
+        return nullptr;
+    }
+
+    auto it = retained_sources_.find(active_source_id_);
+    if (it == retained_sources_.end()) {
+        return nullptr;
+    }
+
+    return &it->second;
+}
+
+void NativeUiRenderer::PrepareForDraw() {
     geometry_dirty_ = true;
 }
 
 void NativeUiRenderer::PushQuad(float x0, float y0, float x1, float y1, float u0, float v0,
                                 float u1, float v1, const NativeUiColor& color) {
+    SourceGeometry* source = GetWritableSource();
+    if (!source) return;
     if (x1 <= x0 || y1 <= y0) return;
-    if (vertices_.size() + 4 > static_cast<size_t>(std::numeric_limits<uint32_t>::max())) return;
+    if (source->vertices.size() + 4 > static_cast<size_t>(std::numeric_limits<uint32_t>::max())) {
+        return;
+    }
 
     const uint8_t cr = ToByte(color.r);
     const uint8_t cg = ToByte(color.g);
     const uint8_t cb = ToByte(color.b);
     const uint8_t ca = ToByte(color.a);
 
-    const uint32_t base = static_cast<uint32_t>(vertices_.size());
+    const uint32_t base = static_cast<uint32_t>(source->vertices.size());
     const float finalV0 = flip_uv_v_ ? (1.0f - v0) : v0;
     const float finalV1 = flip_uv_v_ ? (1.0f - v1) : v1;
 
@@ -960,17 +1077,17 @@ void NativeUiRenderer::PushQuad(float x0, float y0, float x1, float y1, float u0
     v3s.position[1] = y1;
     v3s.uv[1]       = finalV1;
 
-    vertices_.push_back(v0s);
-    vertices_.push_back(v1s);
-    vertices_.push_back(v2s);
-    vertices_.push_back(v3s);
+    source->vertices.push_back(v0s);
+    source->vertices.push_back(v1s);
+    source->vertices.push_back(v2s);
+    source->vertices.push_back(v3s);
 
-    indices_.push_back(base + 0);
-    indices_.push_back(base + 1);
-    indices_.push_back(base + 2);
-    indices_.push_back(base + 0);
-    indices_.push_back(base + 2);
-    indices_.push_back(base + 3);
+    source->indices.push_back(base + 0);
+    source->indices.push_back(base + 1);
+    source->indices.push_back(base + 2);
+    source->indices.push_back(base + 0);
+    source->indices.push_back(base + 2);
+    source->indices.push_back(base + 3);
     frame_quads_submitted_++;
 }
 
