@@ -2,8 +2,13 @@
 
 #include "EventBus.h"
 #include "SceneManager.h"
+#include "engine/Application.h"
 #include "engine/Log.h"
+#include "engine/ecs/FilamentComponents.h"
 #include "engine/ecs/SimpleComponents.h"
+#include "engine/renderer/MaterialSystem.h"
+#include "engine/renderer/MeshData.h"
+#include "engine/renderer/MeshSystem.h"
 
 using namespace se;
 
@@ -129,9 +134,17 @@ se::Entity EntityManager::CreatePlayerStart() {
     auto& transform = playerStart_.GetComponent<se::TransformComponent>();
     transform.SetPosition({0.0f, 0.0f, 0.0f});
     
-    auto mesh = PrimitiveFactory::GetPrimitiveMesh(PrimitiveType::Capsule);
-    auto material = PrimitiveFactory::GetDefaultMaterial();
-    auto& meshRender = playerStart_.AddComponent<se::MeshRenderComponent>(mesh, material);
+    // Create Filament renderable for the player start capsule
+    auto meshData = PrimitiveFactory::GetPrimitiveMeshData(PrimitiveType::Capsule);
+    auto materialHandle = PrimitiveFactory::GetDefaultMaterial();
+    
+    auto& meshSystem = se::Application::Get().GetMeshSystem();
+    if (meshData.IsValid() && materialHandle.IsValid()) {
+        auto renderableHandle = meshSystem.CreateRenderable(meshData, materialHandle);
+        playerStart_.AddComponent<se::FilamentRenderableComponent>(renderableHandle);
+    }
+    
+    auto& meshRender = playerStart_.AddComponent<se::MeshRenderComponent>();
     meshRender.Color = {0.2f, 0.8f, 0.2f, 0.7f};
     
     eventBus_.Publish(EntityCreatedEvent{playerStart_});

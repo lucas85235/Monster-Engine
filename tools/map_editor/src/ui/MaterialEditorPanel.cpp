@@ -6,8 +6,9 @@
 #include "core/MaterialSerializer.h"
 #include "ui/FileDialogManager.h"
 #include "engine/Log.h"
-#include "engine/renderer/Texture.h"
-#include "engine/resources/TextureManager.h"
+// TODO: Replace with Filament-compatible texture system
+// #include "engine/renderer/Texture.h"
+// #include "engine/resources/TextureManager.h"
 
 namespace mst {
 
@@ -224,17 +225,10 @@ void MaterialEditorPanel::RenderTextureSlots(EditorMaterialData& material, Edito
             // Display texture thumbnail using ImGui::Image if texture exists
             bool clicked = false;
             if (!path.empty() && useTexture) {
-                auto tex = se::TextureManager::Load(path);
-                if (tex && tex->IsValid()) {
-                    ImTextureID texId = (ImTextureID)(intptr_t)tex->GetId();
-                    if (ImGui::ImageButton("##thumb", texId, ImVec2(32, 32))) {
-                        clicked = true;
-                    }
-                } else {
-                    // Texture failed to load - show placeholder
-                    if (ImGui::Button("?", ImVec2(32, 32))) {
-                        clicked = true;
-                    }
+                // TODO: Implement Filament-compatible texture preview
+                // Legacy OpenGL texture preview disabled
+                if (ImGui::Button("[tex]##thumb", ImVec2(32, 32))) {
+                    clicked = true;
                 }
             } else {
                 // No texture - show empty placeholder

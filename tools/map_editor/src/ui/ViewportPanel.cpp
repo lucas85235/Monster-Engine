@@ -1,7 +1,6 @@
 #include "ViewportPanel.h"
 
 #include <ImGuizmo.h>
-#include <glad/glad.h>
 
 #include "../commands/EntityCommands.h"
 #include "../core/EditorContext.h"
@@ -31,9 +30,9 @@ void ViewportPanel::Render(EditorContext& ctx) {
         
         renderer_->Resize(newWidth, newHeight);
         
-        uint64_t textureId = renderer_->GetColorAttachment();
+        uintptr_t textureId = renderer_->GetColorAttachmentAsImTextureID();
         ImGui::Image(reinterpret_cast<void*>(textureId), viewportSize, 
-                     ImVec2(0, 1), ImVec2(1, 0));
+                     ImVec2(0, 0), ImVec2(1, 1));
         
         position_ = ImGui::GetItemRectMin();
         size_ = viewportSize;

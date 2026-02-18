@@ -89,9 +89,16 @@ public:
     void RegisterOverlayView(filament::View* view);
     void UnregisterOverlayView(filament::View* view);
 
+    // Offscreen view support (rendered BEFORE the main view each frame).
+    // Use this for render-to-texture views whose results will be read
+    // by ImGui or other overlay passes in the same frame.
+    void RegisterOffscreenView(filament::View* view);
+    void UnregisterOffscreenView(filament::View* view);
+
 private:
     FilamentContext& context_;
     std::vector<filament::View*> overlay_views_;
+    std::vector<filament::View*> offscreen_views_;
 };
 
 } // namespace se

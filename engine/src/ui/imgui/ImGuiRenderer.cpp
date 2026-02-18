@@ -783,6 +783,13 @@ void ImGuiRenderer::UploadGeometry() {
         const DrawPrimitive& primitive = draw_primitives_[i];
         filament::MaterialInstance* materialInstance = material_instances_[i];
         if (!materialInstance) continue;
+
+        // Update texture on the material instance if it differs from the
+        // default font texture (e.g. offscreen viewport textures via ImGui::Image).
+        if (primitive.texture && texture_sampler_) {
+            materialInstance->setParameter("uiTexture", primitive.texture, *texture_sampler_);
+        }
+
         renderableManager.setMaterialInstanceAt(instance, i, materialInstance);
         renderableManager.setGeometryAt(instance, i,
                                         filament::RenderableManager::PrimitiveType::TRIANGLES,

@@ -45,6 +45,13 @@ void FilamentRenderer::EndFrame() {
         return;
     }
 
+    // Render offscreen views FIRST (render-to-texture targets).
+    // Their textures must be ready before ImGui/overlay passes read them.
+    for (filament::View* offscreenView : offscreen_views_) {
+        if (!offscreenView) continue;
+        renderer->render(offscreenView);
+    }
+
     // Render the main view
     renderer->render(view);
 
@@ -135,6 +142,20 @@ void FilamentRenderer::UnregisterOverlayView(filament::View* view) {
     if (!view) return;
     overlay_views_.erase(std::remove(overlay_views_.begin(), overlay_views_.end(), view),
                          overlay_views_.end());
+}
+
+void FilamentRenderer::RegisterOffscreenView(filament::View* view) {
+    if (!view) return;
+    if (std::find(offscreen_views_.begin(), offscreen_views_.end(), view) != offscreen_views_.end()) {
+        return;
+    }
+    offscreen_views_.push_back(view);
+}
+
+void FilamentRenderer::UnregisterOffscreenView(filament::View* view) {
+    if (!view) return;
+    offscreen_views_.erase(std::remove(offscreen_views_.begin(), offscreen_views_.end(), view),
+                           offscreen_views_.end());
 }
 
 } // namespace se

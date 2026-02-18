@@ -1,49 +1,38 @@
 #pragma once
 /**
- * EditorGrid.h - Infinite ground grid rendered via fragment shader.
+ * EditorGrid.h - Renders a reference grid in the editor viewport.
  *
- * Displays grid lines with fade-out at distance and axis highlighting.
- * Grid renders on Y=0 plane with configurable size and colors.
+ * Uses a flat Filament renderable (unlit material) as a ground-plane
+ * reference for the editor camera.
  */
 
-#include <memory>
-#include <glad/glad.h>
-#include <glm.hpp>
+#include "engine/renderer/MaterialHandle.h"
+#include "engine/renderer/MeshSystem.h"
 
-#include "engine/Shader.h"
+namespace filament {
+class Scene;
+}  // namespace filament
 
 namespace mst {
 
 class EditorGrid {
    public:
-    EditorGrid();
+    EditorGrid() = default;
     ~EditorGrid();
 
-    void Render(const glm::mat4& view, const glm::mat4& projection);
+    /**
+     * Create the grid renderable and add it to the given Filament scene.
+     * Must be called after the engine subsystems (MeshSystem, MaterialSystem) are initialized.
+     */
+    void Init();
 
-    void SetGridSize(float size) { gridSize_ = size; }
-    void SetFadeDistance(float dist) { fadeDistance_ = dist; }
-    void SetGridColor(const glm::vec3& color) { gridColor_ = color; }
-    void SetAxisColors(const glm::vec3& xColor, const glm::vec3& zColor) {
-        axisXColor_ = xColor;
-        axisZColor_ = zColor;
-    }
+    void SetVisible(bool visible) { visible_ = visible; }
+    bool IsVisible() const { return visible_; }
 
    private:
-    void CreateGridMesh();
-    void LoadShader();
-
-    std::shared_ptr<se::Shader> shader_;
-    GLuint vao_ = 0;
-    GLuint vbo_ = 0;
-    GLuint ebo_ = 0;
-    int indexCount_ = 0;
-
-    float gridSize_ = 1.0f;
-    float fadeDistance_ = 50.0f;
-    glm::vec3 gridColor_{0.5f, 0.5f, 0.5f};
-    glm::vec3 axisXColor_{0.8f, 0.2f, 0.2f};
-    glm::vec3 axisZColor_{0.2f, 0.2f, 0.8f};
+    bool visible_ = true;
+    se::RenderableHandle gridHandle_{};
+    se::MaterialHandle gridMaterial_{};
 };
 
 }  // namespace mst

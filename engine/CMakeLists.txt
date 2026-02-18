@@ -188,6 +188,14 @@ file(GLOB_RECURSE PROJECT_SRCS CONFIGURE_DEPENDS
 # Exclude legacy OpenGL files from the build
 list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/_legacy/.*")
 
+# Re-include pure-data asset files from _legacy/ (no OpenGL dependency).
+# These are needed by the map editor and other tools for material asset I/O.
+list(APPEND PROJECT_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/_legacy/MaterialAssetBuilder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/_legacy/MaterialAssetSerializer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/_legacy/RawTextureCompressor.cpp"
+)
+
 # Keep Filament as the default/primary rendering path.
 # During migration, a subset of OpenGL-era files still lives outside _legacy/.
 # Exclude them by default to avoid mixing two render backends in one target.

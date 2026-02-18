@@ -12,11 +12,15 @@ namespace se {
  */
 struct FilamentRenderableComponent {
     RenderableHandle handle;
+    MaterialHandle   materialHandle;  // For real-time PBR parameter updates
     bool autoSync = true;
 
     FilamentRenderableComponent() = default;
     explicit FilamentRenderableComponent(RenderableHandle renderable, bool autoSyncTransforms = true)
         : handle(renderable), autoSync(autoSyncTransforms) {}
+    FilamentRenderableComponent(RenderableHandle renderable, MaterialHandle material,
+                                bool autoSyncTransforms = true)
+        : handle(renderable), materialHandle(material), autoSync(autoSyncTransforms) {}
 };
 
 }  // namespace se

@@ -2,7 +2,6 @@
 
 #include <filesystem>
 
-#include <glad/glad.h>
 #include <ImGuizmo.h>
 #include <imgui.h>
 
@@ -72,11 +71,13 @@ void MapEditorLayer::OnRender() {
     auto& camera = context_->GetCamera();
     auto& scene = context_->GetScene();
     
-    renderer.BeginFrame();
+    // Sync ECS world transforms to Filament renderables before rendering.
+    // Without this, entities created via PrimitiveFactory would never appear.
+    scene.OnRender();
+    
+    renderer.RenderFrame(camera, scene);
     renderer.RenderGrid(camera);
-    renderer.RenderScene(camera, scene);
     renderer.RenderColliderDebug(camera, scene);
-    renderer.EndFrame();
 }
 
 void MapEditorLayer::OnImGuiRender() {

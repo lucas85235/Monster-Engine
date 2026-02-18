@@ -2,16 +2,20 @@
 
 #include <filesystem>
 
+#include "engine/Application.h"
 #include "engine/Log.h"
-#include "engine/resources/MaterialManager.h"
-#include "engine/resources/MeshManager.h"
+#include "engine/ecs/FilamentComponents.h"
+#include "engine/renderer/MaterialSystem.h"
+#include "engine/renderer/MeshData.h"
+#include "engine/renderer/MeshSystem.h"
 
 namespace mst {
 
 namespace fs = std::filesystem;
 
 uint32_t PrimitiveFactory::primitiveCounter_ = 0;
-std::shared_ptr<se::Material> PrimitiveFactory::cachedMaterial_ = nullptr;
+bool PrimitiveFactory::materialInitialized_ = false;
+se::MaterialHandle PrimitiveFactory::cachedMaterial_{};
 
 se::Entity PrimitiveFactory::CreatePrimitive(se::Scene& scene, PrimitiveType type,
                                               const std::string& name) {
@@ -23,17 +27,26 @@ se::Entity PrimitiveFactory::CreatePrimitive(se::Scene& scene, PrimitiveType typ
 
     se::Entity entity = scene.CreateEntity(entityName);
 
-    auto mesh = GetPrimitiveMesh(type);
+    auto meshData = GetPrimitiveMeshData(type);
     auto material = GetDefaultMaterial();
-    
-    if (!mesh) {
-        SE_LOG_ERROR("PrimitiveFactory: Failed to get mesh for type {}", PrimitiveTypeToString(type));
+
+    if (!meshData.IsValid()) {
+        SE_LOG_ERROR("PrimitiveFactory: Failed to get mesh data for type {}", PrimitiveTypeToString(type));
     }
-    if (!material) {
+    if (!material.IsValid()) {
         SE_LOG_ERROR("PrimitiveFactory: Failed to get default material");
     }
-    
-    entity.AddComponent<se::MeshRenderComponent>(mesh, material);
+
+    // Create Filament renderable via MeshSystem
+    auto& meshSystem = se::Application::Get().GetMeshSystem();
+    if (meshData.IsValid() && material.IsValid()) {
+        auto renderableHandle = meshSystem.CreateRenderable(meshData, material);
+        entity.AddComponent<se::FilamentRenderableComponent>(renderableHandle, material);
+    }
+
+    // Keep MeshRenderComponent for legacy data storage (colors, PBR params).
+    // The vertex_array and material pointers remain null — Filament handles rendering.
+    entity.AddComponent<se::MeshRenderComponent>();
 
     EditorMetadata metadata;
     metadata.primitiveType = type;
@@ -69,57 +82,37 @@ se::Entity PrimitiveFactory::CreatePrimitive(se::Scene& scene, PrimitiveType typ
     return entity;
 }
 
-std::shared_ptr<se::VertexArray> PrimitiveFactory::GetPrimitiveMesh(PrimitiveType type) {
+se::MeshData PrimitiveFactory::GetPrimitiveMeshData(PrimitiveType type) {
     switch (type) {
-        case PrimitiveType::Cube: 
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Cube);
+        case PrimitiveType::Cube:
+            return se::MeshPrimitives::CreateBox();
         case PrimitiveType::Sphere:
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Sphere);
+            return se::MeshPrimitives::CreateSphere();
         case PrimitiveType::Capsule:
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Capsule);
+            // No capsule primitive yet; approximate with a stretched sphere
+            return se::MeshPrimitives::CreateSphere(0.5f, 32, 16);
         case PrimitiveType::Cylinder:
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Cylinder);
-        case PrimitiveType::Plane: 
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Quad);
-        default: 
-            return se::MeshManager::GetPrimitive(se::PrimitiveMeshType::Cube);
+            return se::MeshPrimitives::CreateCylinder();
+        case PrimitiveType::Plane:
+            return se::MeshPrimitives::CreatePlane();
+        default:
+            return se::MeshPrimitives::CreateBox();
     }
 }
 
-std::shared_ptr<se::Material> PrimitiveFactory::GetDefaultMaterial() {
+se::MaterialHandle PrimitiveFactory::GetDefaultMaterial() {
     // Return cached material if available
-    if (cachedMaterial_) {
+    if (materialInitialized_ && cachedMaterial_.IsValid()) {
         return cachedMaterial_;
     }
-    
-    // Try to load the instanced shader from assets (core shaders)
-    fs::path assetsPath = fs::current_path() / "assets";
-    if (!fs::exists(assetsPath)) {
-        SE_LOG_WARN("PrimitiveFactory: Assets folder not found, using engine default material");
-        return se::MaterialManager::GetDefaultMaterial();
-    }
-    
-    fs::path vertPath = assetsPath / "shaders" / "core" / "instanced.vert";
-    fs::path fragPath = assetsPath / "shaders" / "core" / "instanced.frag";
-    
-    if (!fs::exists(vertPath) || !fs::exists(fragPath)) {
-        SE_LOG_WARN("PrimitiveFactory: Instanced shaders not found at {}, using engine default material", vertPath.string());
-        return se::MaterialManager::GetDefaultMaterial();
-    }
-    
-    auto shader = se::MaterialManager::GetShader("EditorInstancedShader", vertPath, fragPath);
-    if (!shader) {
-        SE_LOG_ERROR("PrimitiveFactory: Failed to load instanced shader");
-        return se::MaterialManager::GetDefaultMaterial();
-    }
-    
-    cachedMaterial_ = se::MaterialManager::CreateMaterial(shader);
-    cachedMaterial_->SetFloat("uReflectance", 0.5f);
-    SE_LOG_INFO("PrimitiveFactory: Created material with instanced shader");
-    
+
+    auto& materialSystem = se::Application::Get().GetMaterialSystem();
+
+    cachedMaterial_ = materialSystem.GetDefaultLit();
+    materialInitialized_ = true;
+    SE_LOG_INFO("PrimitiveFactory: Using Filament default lit material");
+
     return cachedMaterial_;
 }
 
 }  // namespace mst
-
-

@@ -26,16 +26,24 @@ struct ViewportSettings {
 class ViewportRenderer {
 public:
     ViewportRenderer(uint32_t width = 1280, uint32_t height = 720);
+    ~ViewportRenderer();
     
-    void BeginFrame();
-    void RenderScene(const EditorCamera& camera, se::Scene& scene);
+    /**
+     * Set up the offscreen View with the editor camera and scene,
+     * then render it using Filament's Renderer.
+     */
+    void RenderFrame(const EditorCamera& camera, se::Scene& scene);
+    
     void RenderGrid(const EditorCamera& camera);
     void RenderColliderDebug(const EditorCamera& camera, se::Scene& scene);
-    void EndFrame();
     
     void Resize(uint32_t width, uint32_t height);
     
-    uint32_t GetColorAttachment() const;
+    /**
+     * Returns ImTextureID-compatible handle for the offscreen color texture.
+     */
+    uintptr_t GetColorAttachmentAsImTextureID() const;
+
     uint32_t GetWidth() const { return width_; }
     uint32_t GetHeight() const { return height_; }
     float GetAspectRatio() const;

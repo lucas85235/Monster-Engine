@@ -54,7 +54,7 @@ endif()
 if(SE_BUILD_APP_ANIMATION_TEST)
     add_subdirectory(apps/animation_test)
 endif()
-#add_subdirectory(tools/map_editor)
+add_subdirectory(tools/map_editor)
 #add_subdirectory(tools/ui_editor)
 #add_subdirectory(tools/animation_editor)
 

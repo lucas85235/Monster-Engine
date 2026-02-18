@@ -3,7 +3,7 @@
  * PrimitiveFactory.h - Factory for creating editor primitive entities.
  *
  * Creates cube, sphere, capsule, cylinder, and plane entities with
- * mesh rendering and editor metadata for collision configuration.
+ * Filament renderables and editor metadata for collision configuration.
  */
 
 #include <memory>
@@ -13,8 +13,8 @@
 #include "engine/ecs/Entity.h"
 #include "engine/ecs/Scene.h"
 #include "engine/ecs/SimpleComponents.h"
-#include "engine/renderer/Material.h"
-#include "engine/renderer/VertexArray.h"
+#include "engine/renderer/MaterialHandle.h"
+#include "engine/renderer/MeshData.h"
 
 namespace mst {
 
@@ -41,13 +41,14 @@ class PrimitiveFactory {
     static se::Entity CreatePrimitive(se::Scene& scene, PrimitiveType type,
                                        const std::string& name = "");
 
-    static std::shared_ptr<se::VertexArray> GetPrimitiveMesh(PrimitiveType type);
+    static se::MeshData GetPrimitiveMeshData(PrimitiveType type);
 
-    static std::shared_ptr<se::Material> GetDefaultMaterial();
+    static se::MaterialHandle GetDefaultMaterial();
 
    private:
     static uint32_t primitiveCounter_;
-    static std::shared_ptr<se::Material> cachedMaterial_;
+    static bool materialInitialized_;
+    static se::MaterialHandle cachedMaterial_;
 };
 
 }  // namespace mst

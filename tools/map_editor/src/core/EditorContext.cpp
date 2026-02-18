@@ -6,8 +6,6 @@
 
 #include "MaterialSerializer.h"
 #include "engine/Log.h"
-#include "engine/renderer/TextureMaterial.h"
-#include "engine/resources/TextureManager.h"
 
 using namespace se;
 
@@ -145,33 +143,12 @@ void EditorContext::ApplyMaterialsToLoadedEntities() {
         meshRender.EmissiveColor = mat->emissiveColor;
         meshRender.EmissiveFactor = mat->emissiveFactor;
         
-        // Create TextureMaterial with textures from paths
-        auto texMat = std::make_shared<se::TextureMaterial>();
-        texMat->BaseColor = mat->baseColor;
-        texMat->MetallicFactor = mat->metallic;
-        texMat->RoughnessFactor = mat->roughness;
-        
-        // Load textures using TextureManager (cached)
-        if (mat->useAlbedoTexture && !mat->albedoTexturePath.empty()) {
-            texMat->Albedo = se::TextureManager::Load(mat->albedoTexturePath);
-        }
-        if (mat->useNormalTexture && !mat->normalTexturePath.empty()) {
-            texMat->Normal = se::TextureManager::Load(mat->normalTexturePath);
-        }
-        if (mat->useMetallicTexture && !mat->metallicTexturePath.empty()) {
-            texMat->Metallic = se::TextureManager::Load(mat->metallicTexturePath);
-        }
-        if (mat->useRoughnessTexture && !mat->roughnessTexturePath.empty()) {
-            texMat->Roughness = se::TextureManager::Load(mat->roughnessTexturePath);
-        }
-        if (mat->useAOTexture && !mat->aoTexturePath.empty()) {
-            texMat->AO = se::TextureManager::Load(mat->aoTexturePath);
-        }
-        if (mat->useEmissiveTexture && !mat->emissiveTexturePath.empty()) {
-            texMat->Emissive = se::TextureManager::Load(mat->emissiveTexturePath);
-        }
-        
-        meshRender.customTextureMaterial = texMat;
+        // TODO: Migrate texture loading to Filament TextureSystem.
+        // Legacy TextureMaterial + TextureManager::Load are disabled (OpenGL-only).
+        // PBR uniform params above are applied; texture maps will be loaded
+        // via TextureSystem after full Filament migration.
+        SE_LOG_WARN("EditorContext: Texture loading disabled (Filament migration pending) for material '{}'", 
+                    metadata.materialName);
         appliedCount++;
     }
     
