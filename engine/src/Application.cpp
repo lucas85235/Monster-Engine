@@ -116,6 +116,21 @@ Application::Application(const ApplicationSpecification& specification) {
         }
     }
 
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    if (specification.EnableFlutter) {
+        flutter_embedder_ = std::make_unique<ui::flutter::FlutterEmbedder>();
+        flutter_embedder_->Init(filament_context_.get(), filament_renderer_.get(),
+                                window_.get(), event_bus_.get(),
+                                specification.FlutterProjectPath);
+        if (flutter_embedder_->IsInitialized()) {
+            ServiceLocator::Get().ProvideFlutterEmbedder(flutter_embedder_.get());
+        } else {
+            SE_LOG_ERROR("Flutter requested but embedder initialization failed.");
+            flutter_embedder_.reset();
+        }
+    }
+#endif
+
     ConsoleSystem::Get().Init();
     ServiceLocator::Get().ProvideConsoleSystem(&ConsoleSystem::Get());
     PushOverlay<ui::NativeUiLayer>();
@@ -146,6 +161,40 @@ Application::Application(const ApplicationSpecification& specification) {
     event_bus_->AddListener<TextInputEvent>(
         [](const TextInputEvent& e) { InputManager::Get().OnTextInput(e.codepoint); });
 
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    // Forward input events to Flutter embedder.
+    event_bus_->AddListener<MouseMovedEvent>(
+        [this](const MouseMovedEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnMouseMove(e.x, e.y);
+        });
+    event_bus_->AddListener<MouseButtonPressedEvent>(
+        [this](const MouseButtonPressedEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnMouseButton(e.button, true);
+        });
+    event_bus_->AddListener<MouseButtonReleasedEvent>(
+        [this](const MouseButtonReleasedEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnMouseButton(e.button, false);
+        });
+    event_bus_->AddListener<MouseScrolledEvent>(
+        [this](const MouseScrolledEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnMouseScroll(0.0, e.yOffset);
+        });
+    event_bus_->AddListener<KeyPressedEvent>(
+        [this](const KeyPressedEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnKey(
+                static_cast<int>(e.keyCode), 0, e.IsRepeat() ? 2 : 1, 0);
+        });
+    event_bus_->AddListener<KeyReleasedEvent>(
+        [this](const KeyReleasedEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnKey(
+                static_cast<int>(e.keyCode), 0, 0, 0);
+        });
+    event_bus_->AddListener<TextInputEvent>(
+        [this](const TextInputEvent& e) {
+            if (flutter_embedder_) flutter_embedder_->OnTextInput(e.codepoint);
+        });
+#endif
+
     SE_LOG_INFO("Application initialized successfully (Filament renderer)");
 }
 
@@ -161,6 +210,13 @@ Application::~Application() {
     // Cleanup layers
     for (auto& layer : layer_stack_) { layer->OnDetach(); }
     layer_stack_.clear();
+
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    if (flutter_embedder_) {
+        flutter_embedder_->Shutdown();
+        flutter_embedder_.reset();
+    }
+#endif
 
     if (imgui_renderer_) {
         imgui_renderer_->Shutdown();
@@ -283,6 +339,13 @@ int Application::Run() {
                         static_cast<uint32_t>(winWidth), static_cast<uint32_t>(winHeight));
                     ui::retained::RetainedUiContext::Get().SetViewport(
                         static_cast<float>(winWidth), static_cast<float>(winHeight));
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+                    if (flutter_embedder_) {
+                        flutter_embedder_->OnResize(
+                            static_cast<uint32_t>(fbWidth), static_cast<uint32_t>(fbHeight),
+                            static_cast<uint32_t>(winWidth), static_cast<uint32_t>(winHeight));
+                    }
+#endif
                 }
             }
             sections.resizeHandlingTimeMs = toMs(resizeStart, Clock::now());
@@ -294,6 +357,11 @@ int Application::Run() {
                     imgui_renderer_->BeginFrame(timestep);
                 }
                 ui::NativeUiRenderer::Get().BeginFrame();
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+                if (flutter_embedder_) {
+                    flutter_embedder_->BeginFrame(timestep);
+                }
+#endif
                 sections.renderSetupTimeMs = toMs(renderSetupStart, Clock::now());
 
                 // Render layers
@@ -326,6 +394,11 @@ int Application::Run() {
 
                 auto uiEndStart = Clock::now();
                 ui::NativeUiRenderer::Get().EndFrame();
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+                if (flutter_embedder_) {
+                    flutter_embedder_->EndFrame();
+                }
+#endif
                 sections.uiEndFrameTimeMs = toMs(uiEndStart, Clock::now());
 
                 // End Filament frame (render + present)

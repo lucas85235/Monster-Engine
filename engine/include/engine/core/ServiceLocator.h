@@ -18,6 +18,9 @@ class TextureSystem;
 class FilamentModelLoader;
 class RenderSettingsSystem;
 class ConsoleSystem;
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+namespace ui::flutter { class FlutterEmbedder; }
+#endif
 
 /**
  * ServiceLocator provides centralized access to engine services.
@@ -72,6 +75,11 @@ class ServiceLocator {
     void ProvideConsoleSystem(ConsoleSystem* console) {
         console_system_ = console;
     }
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    void ProvideFlutterEmbedder(ui::flutter::FlutterEmbedder* embedder) {
+        flutter_embedder_ = embedder;
+    }
+#endif
 
     // Service access with validation
     InputManager& GetInputManager() const {
@@ -185,6 +193,11 @@ class ServiceLocator {
     ConsoleSystem* GetConsoleSystemPtr() const {
         return console_system_;
     }
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    ui::flutter::FlutterEmbedder* GetFlutterEmbedderPtr() const {
+        return flutter_embedder_;
+    }
+#endif
 
     // Availability checks
     bool HasInputManager() const {
@@ -210,6 +223,11 @@ class ServiceLocator {
         return scene_renderer_ != nullptr;
     }
 #endif
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    bool HasFlutterEmbedder() const {
+        return flutter_embedder_ != nullptr;
+    }
+#endif
 
     // Reset all services (for shutdown/testing)
     void Reset() {
@@ -227,6 +245,9 @@ class ServiceLocator {
         model_loader_      = nullptr;
         render_settings_system_ = nullptr;
         console_system_    = nullptr;
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+        flutter_embedder_  = nullptr;
+#endif
     }
 
    private:
@@ -252,6 +273,9 @@ class ServiceLocator {
     FilamentModelLoader*  model_loader_      = nullptr;
     RenderSettingsSystem* render_settings_system_ = nullptr;
     ConsoleSystem*        console_system_    = nullptr;
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    ui::flutter::FlutterEmbedder* flutter_embedder_ = nullptr;
+#endif
 };
 
 }  // namespace se

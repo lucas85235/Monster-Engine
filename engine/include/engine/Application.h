@@ -17,6 +17,9 @@
 #include "engine/renderer/FilamentModelLoader.h"
 #include "engine/renderer/RenderSettingsSystem.h"
 #include "engine/ui/imgui/ImGuiRenderer.h"
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+#include "engine/ui/flutter/FlutterEmbedder.h"
+#endif
 
 namespace se {
 
@@ -31,6 +34,10 @@ struct ApplicationSpecification {
     bool                  Resizable      = true;
     bool                  EnableImGui    = false;
     std::filesystem::path IconPath;
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    bool        EnableFlutter    = false;
+    std::string FlutterProjectPath;
+#endif
 };
 
 class Application {
@@ -88,6 +95,11 @@ class Application {
     ui::imgui::ImGuiRenderer* GetImGuiRenderer() {
         return imgui_renderer_.get();
     }
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    ui::flutter::FlutterEmbedder* GetFlutterEmbedder() {
+        return flutter_embedder_.get();
+    }
+#endif
     EventBus& GetEventBus() {
         return *event_bus_;
     }
@@ -123,6 +135,9 @@ class Application {
     std::unique_ptr<FilamentModelLoader> model_loader_;
     std::unique_ptr<RenderSettingsSystem> render_settings_system_;
     std::unique_ptr<ui::imgui::ImGuiRenderer> imgui_renderer_;
+#if defined(SE_ENABLE_FLUTTER) && SE_ENABLE_FLUTTER
+    std::unique_ptr<ui::flutter::FlutterEmbedder> flutter_embedder_;
+#endif
 
     ApplicationSpecification specification_;
 

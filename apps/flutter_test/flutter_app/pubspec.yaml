@@ -1,0 +1,10 @@
+name: flutter_test_app
+description: Minimal Flutter test app for Monster Engine embedder integration testing.
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter

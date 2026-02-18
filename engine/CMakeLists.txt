@@ -53,6 +53,7 @@ option(SE_ENABLE_RMLUI "Build RmlUi integration" OFF)
 option(SE_ENABLE_LEGACY_OPENGL_RENDERER
        "Build legacy OpenGL renderer stack still outside _legacy/"
        OFF)
+option(SE_ENABLE_FLUTTER "Build Flutter embedder integration (requires Flutter engine lib)" OFF)
 
 
 add_library(stb STATIC
@@ -208,12 +209,22 @@ if(NOT SE_ENABLE_RMLUI)
     list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/engine/ui/Canvas\\.cpp$")
 endif()
 
+# Optional Flutter embedder integration (disabled by default)
+if(NOT SE_ENABLE_FLUTTER)
+    list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/ui/flutter/.*\\.cpp$")
+    # Also exclude .mm files picked up by the Apple GLOB below
+endif()
+
 # Add Objective-C++ sources on Apple platforms
 if(APPLE)
     file(GLOB_RECURSE PROJECT_MM_SRCS CONFIGURE_DEPENDS
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
     )
     list(APPEND PROJECT_SRCS ${PROJECT_MM_SRCS})
+    # Exclude Flutter .mm files if Flutter is disabled
+    if(NOT SE_ENABLE_FLUTTER)
+        list(FILTER PROJECT_SRCS EXCLUDE REGEX ".*/ui/flutter/.*\\.mm$")
+    endif()
 endif()
 
 add_library(simple_engine STATIC
@@ -247,6 +258,60 @@ if(SE_ENABLE_RMLUI)
     target_include_directories(simple_engine PUBLIC
             ${rmlui_DIR}/Include
     )
+endif()
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃           FLUTTER ENGINE CONFIGURATION                   ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+if(SE_ENABLE_FLUTTER)
+    set(FLUTTER_ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${third_party_dir}/flutter_engine)
+
+    # Platform-specific Flutter engine framework linkage
+    if(APPLE)
+        # macOS: Flutter ships as FlutterMacOS.framework (Obj-C API)
+        if(EXISTS "${FLUTTER_ENGINE_DIR}/FlutterMacOS.framework")
+            target_include_directories(simple_engine PUBLIC
+                "${FLUTTER_ENGINE_DIR}/FlutterMacOS.framework/Headers"
+            )
+            target_link_libraries(simple_engine PUBLIC
+                "-F${FLUTTER_ENGINE_DIR}"
+                "-framework FlutterMacOS"
+            )
+            # Set rpath so the framework is found at runtime
+            set_target_properties(simple_engine PROPERTIES
+                BUILD_RPATH "${FLUTTER_ENGINE_DIR}"
+            )
+        else()
+            message(FATAL_ERROR
+                "FlutterMacOS.framework not found at ${FLUTTER_ENGINE_DIR}/\n"
+                "Run: ./scripts/setup_flutter.sh")
+        endif()
+    elseif(UNIX)
+        # Linux: Flutter ships as libflutter_engine.so + embedder.h (C API)
+        if(NOT EXISTS "${FLUTTER_ENGINE_DIR}/embedder.h")
+            message(FATAL_ERROR
+                "Flutter engine not found!\n"
+                "  Expected at: ${FLUTTER_ENGINE_DIR}/embedder.h\n"
+                "  Run: ./scripts/setup_flutter.sh\n"
+                "  Or disable Flutter: -DSE_ENABLE_FLUTTER=OFF")
+        endif()
+        target_include_directories(simple_engine PUBLIC
+            ${FLUTTER_ENGINE_DIR}
+        )
+        add_library(flutter_engine SHARED IMPORTED)
+        if(EXISTS "${FLUTTER_ENGINE_DIR}/libflutter_engine.so")
+            set_target_properties(flutter_engine PROPERTIES
+                IMPORTED_LOCATION "${FLUTTER_ENGINE_DIR}/libflutter_engine.so"
+            )
+            target_link_libraries(simple_engine PUBLIC flutter_engine)
+        else()
+            message(FATAL_ERROR
+                "libflutter_engine.so not found at ${FLUTTER_ENGINE_DIR}/\n"
+                "Run: ./scripts/setup_flutter.sh")
+        endif()
+    endif()
+
+    message(STATUS "Flutter embedder enabled (engine at ${FLUTTER_ENGINE_DIR})")
 endif()
 
 # --- ENGINE DEPENDENCIES ---
@@ -328,6 +393,12 @@ target_compile_definitions(simple_engine PUBLIC
 if(SE_ENABLE_LEGACY_OPENGL_RENDERER)
     target_compile_definitions(simple_engine PUBLIC
             SE_ENABLE_LEGACY_OPENGL_RENDERER=1
+    )
+endif()
+
+if(SE_ENABLE_FLUTTER)
+    target_compile_definitions(simple_engine PUBLIC
+            SE_ENABLE_FLUTTER=1
     )
 endif()
 

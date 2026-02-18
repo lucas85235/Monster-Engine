@@ -15,5 +15,8 @@ compile_commands.json
 # Filament SDK (downloaded by scripts/setup.sh, ~130MB)
 engine/third_party/filament/
 
+# Flutter engine (downloaded by scripts/setup_flutter.sh, ~35MB)
+engine/third_party/flutter_engine/
+
 # macOS
 .DS_Store
