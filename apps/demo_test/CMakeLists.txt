@@ -1,19 +1,26 @@
 cmake_minimum_required(VERSION 3.5)
 
-add_executable(animation_test
+file(GLOB_RECURSE SOURCES
+        "${SRC_DIR}/src/*.cpp"
+)
+
+add_executable(demo_test
         src/main.cpp
-        src/layers/AnimationTestLayer.h
-        src/layers/AnimationTestLayer.cpp
-        src/components/AdvancedCharacterAnimator.h
-        src/components/AdvancedCharacterAnimator.cpp
+        src/layers/DemoTestLayer.cpp
+        src/layers/DemoTestLayer.h
+        #${SOURCES}
+)
+
+target_include_directories(demo_test PUBLIC
+        ${SRC_DIR}/src
 )
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-set_property(TARGET animation_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+set_property(TARGET demo_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
-target_link_libraries(animation_test PUBLIC simple_engine)
+target_link_libraries(demo_test PUBLIC simple_engine)
 
-target_compile_definitions(animation_test PUBLIC PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(demo_test PUBLIC PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 set(ASSETS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets")
 
@@ -30,11 +37,11 @@ if (EXISTS "${ASSETS_SOURCE_DIR}")
             COMMAND ${CMAKE_COMMAND} -E echo "Assets changed, copying to binary dir..."
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${ASSETS_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/assets"
-            COMMENT "Copying assets directory for animation_test"
+            COMMENT "Copying assets directory for demo_test"
             VERBATIM
     )
 
-    add_dependencies(animation_test copy_assets_animation_test)
+    add_dependencies(demo_test copy_assets_animation_test)
 else ()
     message(WARNING "Assets dir not found: ${ASSETS_SOURCE_DIR}")
 endif ()

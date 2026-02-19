@@ -16,6 +16,7 @@ class Component;
 class ComponentSystem;
 class PhysicsSystem;
 struct ScriptComponent;
+enum class CameraMode;
 
 struct SceneSettings {
     bool EnablePhysics = true;
@@ -36,6 +37,11 @@ class Scene {
 
     Entity CreateEntity(const std::string& name = "Entity");
     void   DestroyEntity(Entity entity);
+
+    // High-level entity creation helpers
+    Entity CreateCamera(const std::string& name = "Camera", CameraMode mode = static_cast<CameraMode>(0));
+    Entity CreateDirectionalLight(const std::string& name = "Sun", float intensity = 110000.0f);
+    Entity CreatePointLight(const std::string& name = "Point Light", float intensity = 100000.0f);
 
     template <typename... Components>
     auto GetAllEntitiesWith() {
@@ -105,6 +111,7 @@ class Scene {
     std::string    name_;
     entt::registry registry_;
     Camera*        active_camera_ = nullptr;
+    float          last_delta_time_ = 0.016f;
 
     // Systems owned by Scene
     std::unique_ptr<PhysicsSystem> physics_system_;

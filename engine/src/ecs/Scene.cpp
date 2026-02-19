@@ -5,8 +5,10 @@
 #include "engine/Log.h"
 #include "engine/core/ServiceLocator.h"
 #include "engine/ecs/AnimationSystem.h"
+#include "engine/ecs/CameraSystem.h"
 #include "engine/ecs/ComponentSystem.h"
 #include "engine/ecs/FilamentComponents.h"
+#include "engine/ecs/LightSyncSystem.h"
 #include "engine/ecs/SimpleComponents.h"
 #include "engine/physics/PhysicsSystem.h"
 #include "engine/renderer/FilamentRenderBridge.h"
@@ -153,6 +155,9 @@ void Scene::OnUpdate(float deltaTime) {
     // Physics simulation - internally calls our FixedUpdate via pre-tick callback
     if (physics_system_) { physics_system_->Update(deltaTime); }
 
+    // Store delta time for CameraSystem (used during OnRender)
+    last_delta_time_ = deltaTime;
+
     // Animation system - tick all AnimatorComponents
     AnimationSystem::Update(*this, deltaTime);
 
@@ -187,6 +192,12 @@ void Scene::OnRender(const Camera& camera, float aspectRatio) {
 }
 
 void Scene::OnRender() {
+    // Update ECS camera system before rendering
+    CameraSystem::Update(*this, last_delta_time_);
+
+    // Sync ECS lights to Filament
+    LightSyncSystem::Sync(*this);
+
     if (!active_camera_) {
         // Filament transform sync does not require an active Camera.
         FilamentRenderBridge::SyncScene(*this);
@@ -216,4 +227,45 @@ void Scene::Clear() {
     registry_.clear();
 }
 
+Entity Scene::CreateCamera(const std::string& name, CameraMode mode) {
+    auto entity = CreateEntity(name);
+
+    auto& cam = entity.AddComponent<CameraComponent>(mode);
+    cam.IsMain = true;
+
+    // ThirdPerson and Orbit modes need a SpringArmComponent
+    if (mode == CameraMode::ThirdPerson || mode == CameraMode::Orbit) {
+        entity.AddComponent<SpringArmComponent>();
+    }
+
+    SE_LOG_INFO("Camera entity '{}' created with mode {}", name, static_cast<int>(mode));
+    return entity;
+}
+
+Entity Scene::CreateDirectionalLight(const std::string& name, float intensity) {
+    auto entity = CreateEntity(name);
+
+    auto& light     = entity.AddComponent<DirectionalLightComponent>();
+    light.Intensity = intensity;
+    light.Color     = {1.0f, 0.95f, 0.9f};  // Warm white default (sun-like)
+
+    // Point the light downward by default (sun-like direction)
+    auto& transform = entity.GetComponent<TransformComponent>();
+    transform.SetRotation({-45.0f, -30.0f, 0.0f});
+
+    SE_LOG_INFO("Directional light '{}' created with intensity {}", name, intensity);
+    return entity;
+}
+
+Entity Scene::CreatePointLight(const std::string& name, float intensity) {
+    auto entity = CreateEntity(name);
+
+    auto& light     = entity.AddComponent<PointLightComponent>();
+    light.Intensity = intensity;
+
+    SE_LOG_INFO("Point light '{}' created with intensity {}", name, intensity);
+    return entity;
+}
+
 }  // namespace se
+

@@ -4,9 +4,107 @@
         "global",
         "sandbox.third_person",
         "engine",
-        "engine.console"
+        "engine.console",
+        "demo_test"
     ],
     "maps": [
+        {
+            "name": "demo_test",
+            "enabled": true,
+            "consumeLowerPriority": false,
+            "actions": [
+                {
+                    "name": "LookX",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "mouse_axis_x",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "LookY",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "mouse_axis_y",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "MoveForward",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "W",
+                            "scale": 1.0
+                        },
+                        {
+                            "kind": "key",
+                            "key": "S",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "MoveRight",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "D",
+                            "scale": 1.0
+                        },
+                        {
+                            "kind": "key",
+                            "key": "A",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "MoveUp",
+                    "type": "axis",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "Space",
+                            "scale": 1.0
+                        },
+                        {
+                            "kind": "key",
+                            "key": "LeftControl",
+                            "scale": -1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "Sprint",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "LeftShift",
+                            "scale": 1.0
+                        }
+                    ]
+                },
+                {
+                    "name": "ToggleCursor",
+                    "type": "button",
+                    "bindings": [
+                        {
+                            "kind": "key",
+                            "key": "Tab",
+                            "scale": 1.0
+                        }
+                    ]
+                }
+            ]
+        },
         {
             "name": "engine",
             "enabled": true,

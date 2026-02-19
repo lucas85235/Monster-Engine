@@ -209,6 +209,60 @@ struct SpringArmComponent {
     SpringArmComponent(const SpringArmComponent&) = default;
 };
 
+// ==================== Camera Component ====================
+enum class CameraMode {
+    FreeFly,       // Free-fly editor-style camera (WASD + mouse look)
+    ThirdPerson,   // Third-person camera following a target entity (uses SpringArmComponent)
+    Orbit,         // Orbit camera around a target point
+    Fixed          // Fixed/cinematic camera (no input processing)
+};
+
+struct CameraComponent {
+    CameraMode Mode = CameraMode::FreeFly;
+
+    // Projection settings
+    float FOV       = 60.0f;    // Field of view in degrees
+    float NearPlane = 0.1f;
+    float FarPlane  = 500.0f;
+
+    // Is this the main (active) camera for the scene?
+    bool IsMain = false;
+
+    // Input sensitivity
+    float LookSensitivityX = 0.1f;
+    float LookSensitivityY = 0.1f;
+    bool  InvertY          = false;
+
+    // Movement speed (FreeFly mode)
+    float MoveSpeed   = 5.0f;
+    float SprintSpeed = 15.0f;
+
+    // Target entity for ThirdPerson/Orbit modes
+    entt::entity TargetEntity = entt::null;
+
+    // Internal state (managed by CameraSystem, not set by user)
+    float Yaw   = 0.0f;
+    float Pitch = 0.0f;
+
+    CameraComponent()                       = default;
+    CameraComponent(const CameraComponent&) = default;
+    explicit CameraComponent(CameraMode mode) : Mode(mode) {}
+};
+
+// ==================== Point Light Component ====================
+struct PointLightComponent {
+    Vector3 Color{1.0f, 1.0f, 1.0f};
+    float   Intensity = 100000.0f;
+    float   Falloff   = 10.0f;
+    bool    Enabled   = true;
+
+    // Internal handle for LightSyncSystem (user should not modify)
+    size_t InternalIndex = SIZE_MAX;
+
+    PointLightComponent()                           = default;
+    PointLightComponent(const PointLightComponent&) = default;
+};
+
 // ==================== Relationship Component ====================
 struct RelationshipComponent {
     entt::entity              Parent = entt::null;

@@ -314,7 +314,7 @@ if(WIN32)
     # conflicting macros (OPAQUE, NEAR, FAR, etc.) before any
     # user code is compiled.
     target_compile_options(simple_engine PUBLIC
-        /FI"${CMAKE_CURRENT_SOURCE_DIR}/include/platform/win32_compat.h"
+        /FI${CMAKE_CURRENT_SOURCE_DIR}/include/platform/win32_compat.h
     )
 endif()
 

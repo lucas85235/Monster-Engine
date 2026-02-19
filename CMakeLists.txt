@@ -44,13 +44,18 @@ add_subdirectory(libs/mmath)
 add_subdirectory(engine)
 option(SE_BUILD_APP_SANDBOX "Build sandbox app" ON)
 option(SE_BUILD_APP_ANIMATION_TEST "Build animation_test app" OFF)
+option(SE_BUILD_APP_DEMOTEST "Build demo_test app" OFF)
 
 if(SE_BUILD_APP_SANDBOX)
     add_subdirectory(apps/sandbox)
 endif()
+
+if (SE_BUILD_APP_DEMOTEST)
+    add_subdirectory(apps/demo_test)
+endif ()
+
 # Temporarily disabled — need Filament rendering pipeline reimplemented
 #add_subdirectory(apps/third_person_game)
-#add_subdirectory(apps/ssgi_test)
 if(SE_BUILD_APP_ANIMATION_TEST)
     add_subdirectory(apps/animation_test)
 endif()
@@ -62,6 +67,8 @@ if(SE_BUILD_APP_SANDBOX)
     set(SE_VS_STARTUP_PROJECT sandbox)
 elseif(SE_BUILD_APP_ANIMATION_TEST)
     set(SE_VS_STARTUP_PROJECT animation_test)
+elseif (SE_BUILD_APP_DEMOTEST)
+    set(SE_VS_STARTUP_PROJECT demo_test)
 endif()
 
 if(DEFINED SE_VS_STARTUP_PROJECT)
